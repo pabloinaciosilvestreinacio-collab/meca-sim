@@ -82,3 +82,44 @@ export function gamepadValues(pad) {
     [pad.buttons[6]?.value || 0, pad.buttons[7]?.value || 0],
     [0, 1, 2, 3, 4, 5, 8, 9, 10, 11, 12, 13, 14, 15].map(button));
 }
+
+/** Modelo ilustrativo da entrada na abertura da CELL. Um acerto é
+ * decidido ao cruzar o plano do alvo, não quando a bola toca o chão.
+ * Largura/altura da abertura são medidas do manual; alinhamento e
+ * transferência para dentro não substituem colisão tridimensional. */
+export function hiveShotImpact(shot,cell) {
+  if(!cell) return {hit:false,reason:'CELL inexistente'};
+  const numbers=[shot.origin?.[0],shot.origin?.[1],shot.yaw,shot.azimuth,
+    shot.speed,shot.elevation,shot.height,shot.tx,shot.ty,
+    cell.x,cell.y,cell.w,cell.h,cell.openingHeight];
+  if(!numbers.every(Number.isFinite))return {hit:false,reason:'dados do lançamento inválidos'};
+  const direction=rotate(0,1,shot.yaw+shot.azimuth);
+  const cx=cell.x+cell.w/2,cy=cell.y+cell.h/2;
+  const dx=cx-shot.origin[0],dy=cy-shot.origin[1];
+  const along=dx*direction[0]+dy*direction[1];
+  const across=Math.abs(dx*direction[1]-dy*direction[0]);
+  const speedX=shot.speed*Math.cos(shot.elevation*Math.PI/180);
+  if(along<=0||speedX<=0)return {hit:false,reason:'CELL atrás do lançamento'};
+  const trajectory=flight(shot.height,shot.speed,shot.elevation);
+  if(along>trajectory.range)return {hit:false,reason:'pólen cai antes da CELL'};
+  const z=heightAt(along,shot.height,shot.speed,shot.elevation);
+  const ballRadius=.071/2; // POLLEN aprox. 7,1 cm (manual §9.8)
+  const apertureW=Math.min(cell.w,.508),apertureH=.356;
+  const lateralLimit=Math.max(0,Math.min(apertureW/2-ballRadius,shot.radius??apertureW/2));
+  const heightLimit=Math.max(0,Math.min(apertureH/2-ballRadius,shot.heightTolerance??apertureH/2));
+  if(across>lateralLimit)return {hit:false,reason:'pólen passou ao lado da abertura'};
+  if(Math.abs(z-cell.openingHeight)>heightLimit)return {hit:false,reason:'altura fora da abertura'};
+  const time=along/speedX;
+  return {hit:true,time,distance:along,height:z,
+    x:shot.origin[0]+direction[0]*along,y:shot.origin[1]+direction[1]*along,
+    cellId:cell.id,team:cell.team};
+}
+/** TIPS idealizados: 8 POLLEN por ciclo, regra configurada da simulação.
+ * No campo real o tombamento depende do peso, da posição e do pivô. */
+export const SIM_TIP_POLLS=8;
+export function registerPollen(count,threshold=SIM_TIP_POLLS){
+  if(!Number.isInteger(count)||count<0||!Number.isInteger(threshold)||threshold<1)
+    throw Error('Contagem do HIVE inválida');
+  const total=count+1;
+  return {count:total>=threshold?0:total,tipped:total>=threshold};
+}
