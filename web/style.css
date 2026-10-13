@@ -29,7 +29,7 @@
 .workspace-switch button{flex:1;min-width:150px;background:transparent;border:1px solid transparent;font-weight:650;font-size:12px}
 .workspace-switch button.active{background:#2f261f;color:#ffad71;border-color:#745035}
 main.mode-code .workspace{display:grid;grid-template-columns:minmax(0,1fr)}
-main.mode-code .workspace .views{display:none}
+main.mode-code .workspace .views{display:block;position:sticky;top:12px;align-self:start;order:2}
 main.mode-code #route-panel,main.mode-code #timeline-panel{display:none}
 main.mode-paths .workspace{grid-template-columns:minmax(0,1fr)}
 main.mode-paths .workspace .editor,main.mode-paths .views>.panel:not(:first-child){display:none}
@@ -69,3 +69,23 @@ main.mode-code .arena-tools,main.mode-code .arena-source{display:none}
 .file-menu-actions button,.file-menu-actions label{width:100%;justify-content:center;text-align:center}
 .hive-progress{margin:8px 16px;padding:9px 12px;border:1px solid #79542f;border-radius:6px;background:#231d18;color:#ffd1a1;font:700 11px/1.6 ui-monospace,Consolas,monospace}
 @media(max-width:760px){.file-menu{width:100%}.file-menu summary{width:100%;text-align:center}.file-menu-actions{left:0;right:0;min-width:0}}
+
+/* Editor 3.5: código editável e posição do robô simultaneamente. */
+main.mode-code .workspace{grid-template-columns:minmax(0,1.7fr) minmax(320px,1fr);align-items:start}
+main.mode-code .workspace .editor{order:1}
+main.mode-code .workspace .views>.panel:not(:first-child){display:none}
+main.mode-code #top{height:315px}
+main.mode-code .workspace .views>.panel:first-child{border-color:#774c30}
+main.mode-code .code-frame{height:max(560px,72vh)}
+.ramp-controls{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  padding:11px 15px;background:#211d1a;border-bottom:1px solid #745033}
+.ramp-controls label{font-weight:700;color:#ffd0a1;min-width:128px}
+.ramp-controls input[type=range]{flex:1;min-width:140px;accent-color:#ff852e}
+.ramp-controls output{font:700 17px ui-monospace,Consolas,monospace;color:#ffb977;min-width:43px}
+.ramp-controls span{font-size:11px;color:#bfb6af}
+@media(max-width:1000px){
+  main.mode-code .workspace{grid-template-columns:1fr}
+  main.mode-code .workspace .views{position:static;order:0}
+  main.mode-code .workspace .editor{order:1}
+  main.mode-code #top{height:280px}
+}
