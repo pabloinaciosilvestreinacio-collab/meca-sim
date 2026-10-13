@@ -1,5 +1,5 @@
 import {rotate, launcher, heightAt, flight, gamepadValues, targetSolution, encoderScale, connectedPlayers, speedFromForce, forceFromSpeed, shotFeasibility, shotElapsed, hiveShotImpact, registerPollen, SIM_TIP_POLLS} from './model.mjs';
-import {FIELD_METERS, ARENAS, validStart, drawArenaTop, drawArenaSide, hiveCellAt, hiveCellById} from './arena.mjs';
+import {FIELD_METERS, ARENAS, validStart, drawArenaTop, drawArenaSide, hiveCellAt, hiveCellById, hiveSideGeometry, HIVE_SIDE} from './arena.mjs';
 import {candidates, diagnostics, highlightJava} from './editor.mjs';
 import {routeSteps, routeWarnings, makeRouteJava, MAX_WAYPOINTS} from './route.mjs';
 const $ = id => document.getElementById(id);
@@ -8,7 +8,7 @@ let state = {x:1.83,y:.65,yaw:0,width:.45,length:.45,trail:[],motors:{},time:0,s
 let focused = document.hasFocus();
 let shot = null, examples = {}, javaFiles = {}, zipOpModes = [], selectedJavaPath = '', lastPad = 0, polling = false, padBusy = false, pickingStart = false;
 let lastDraw=0,lastLog='',lastMotorSignature='',lastDiagnosticSignature='',lastShotPoseKey='',highlightJob=0,routePicking=false;
-let routePoints=[],replayRows=[],replayIndex=-1,replayPlaying=false,replayLast=0,scoredShots=[],selectedHiveId='red-lower',tippedHives=new Set(),hiveCounts={red:0,blue:0},hiveFlips={red:0,blue:0},hiveMotion={};
+let routePoints=[],replayRows=[],replayIndex=-1,replayPlaying=false,replayLast=0,scoredShots=[],selectedHiveId='red-lower',tippedHives=new Set(),hiveCounts={red:0,blue:0},hiveFlips={red:0,blue:0},hiveMotion={},auto35StartPose=null,auto35Moved=false;
 const LIBRARY_KEY='meca-sim-library-v1',LOGO_KEY='meca-sim-logo-v1';
 const keys = new Set(), virtualKeys=new Map(), top = $('top'), side = $('side');
 const configIds = ['arena','drivetrain','robot-color','left','right','front_left','front_right','back_left','back_right','width','length','track','max_speed','ticks_per_m','duration','match-mode','timer-enabled','x','y','initial-yaw','invert_left','invert_right','acceleration','left_gain','right_gain','left_slip','right_slip','imu_delay','imu_drift','walls','imu_frozen','left_encoder_frozen','right_encoder_frozen'];
@@ -27,7 +27,7 @@ function setShotResult(text,kind='info'){const item=$('shot-result');if(item){it
 function selectedHive(){return hiveCellById(selectedHiveId);}
 function activeCellId(team){return team+'-'+(hiveFlips[team]%2?'upper':'lower');}
 function hiveStatus(team,now){
-  const motion=hiveMotion[team],end=hiveFlips[team]%2?18:-18;
+  const motion=hiveMotion[team],end=hiveFlips[team]%2?HIVE_SIDE.angleDeg:-HIVE_SIDE.angleDeg;
   let angle=end;
   if(motion){
     const t=Math.min(1,Math.max(0,(now-motion.start)/650));
@@ -44,7 +44,7 @@ function recordImpact(shot,now){
   hiveCounts[cell.team]=result.count;
   shot.registered=true;shot.tipped=result.tipped;
   if(result.tipped){
-    const previous=hiveFlips[cell.team]%2?18:-18;
+    const previous=hiveFlips[cell.team]%2?HIVE_SIDE.angleDeg:-HIVE_SIDE.angleDeg;
     hiveFlips[cell.team]++;
     hiveMotion[cell.team]={start:now,from:previous,to:-previous};
     tippedHives.add(cell.id);
@@ -66,7 +66,7 @@ function currentShotBall(now){
   const index=shot.restIndex||0;
   const landingX=cell?cell.x+cell.w*(.26+(index%3)*.24):shot.origin[0]+dir[0]*along;
   const landingY=cell?cell.y+cell.h*(.25+Math.floor(index/3)*.28):shot.origin[1]+dir[1]*along;
-  const restZ=1.1165+(.478/2)*Math.sin(18*Math.PI/180)-.38-.19+.065;
+  const restZ=cell?hiveSideGeometry(cell,shot.hiveAngle).floorHeight+.060:impact?.height||0;
   if(fall>0)z=impact.height+(restZ-impact.height)*eased;
   const ix=shot.origin[0]+dir[0]*along,iy=shot.origin[1]+dir[1]*along;
   return {x:ix+(landingX-ix)*eased,y:iy+(landingY-iy)*eased,
@@ -74,7 +74,12 @@ function currentShotBall(now){
 }
 function selectHive(cell,announce=true){
   if(!cell)return;
-  selectedHiveId=cell.id;$('target-x').value=(cell.x+cell.w/2).toFixed(3);$('target-y').value=(cell.y+cell.h/2).toFixed(3);$('target-h').value=cell.openingHeight.toFixed(2);
+  selectedHiveId=cell.id;
+  $('target-x').value=(cell.x+cell.w/2).toFixed(3);
+  $('target-y').value=(cell.y+cell.h/2).toFixed(3);
+  // A boca muda de altura quando a gangorra troca de lado.
+  const angle=(hiveFlips[cell.team]%2?1:-1)*HIVE_SIDE.angleDeg;
+  $('target-h').value=hiveSideGeometry(cell,angle).openingHeight.toFixed(4);
   refreshShot();if(announce)setShotResult('MIRA SELECIONADA · '+cell.name+'. A linha pontilhada termina nesta CELL.','selected');
 }
 function refreshMatchLimit(){
@@ -238,7 +243,11 @@ $('auto35-confirm').addEventListener('click',async()=>{
   }catch(error){notice(error.message);}
 });
 for(const [id,target] of [['ds-init','compile'],['ds-start','start'],['ds-stop','stop']])$(id).addEventListener('click',()=>$(target).click());
-action('start',async()=>{await api('heartbeat');await api('start');});
+action('start',async()=>{
+  auto35StartPose=/class\s+Autonomo35\b/.test($('source').value)?{x:state.x,y:state.y,yaw:state.yaw}:null;
+  auto35Moved=false;
+  await api('heartbeat');await api('start');
+});
 action('stop',()=>api('stop'));
 action('reset',async()=>{resetReplay();shot=null;await api('reset',{config:config()});});
 action('clear-shots',()=>{scoredShots=[];shot=null;tippedHives.clear();hiveCounts={red:0,blue:0};hiveFlips={red:0,blue:0};hiveMotion={};setShotResult('POLLEN, contadores e gangorras reiniciados.','info');});
@@ -283,14 +292,24 @@ action('shoot',async()=>{
   const values=launchValues(),cell=$('arena').value==='biobuzz'?selectedHive():null;
   if(!values.valid)throw new Error('Confira altura, velocidade, elevação e coordenadas do lançador.');
   if($('arena').value==='biobuzz'&&!cell)throw new Error('Clique em uma CELL vermelha ou azul do HIVE para selecionar a mira.');
-  const candidate={...values,cellId:cell?.id||'',origin:launcher(state,values.lateral,values.forward),yaw:state.yaw,start:performance.now()};
+  const candidate={...values,cellId:cell?.id||'',origin:launcher(state,values.lateral,values.forward),yaw:state.yaw,start:performance.now(),hiveAngle:(hiveFlips[cell?.team||'red']%2?1:-1)*HIVE_SIDE.angleDeg};
   candidate.impact=cell?hiveShotImpact(candidate,cell):{hit:false,reason:'arena livre'};
   if(cell&&activeCellId(cell.team)!==cell.id)candidate.impact={hit:false,reason:'a CELL escolhida está virada para baixo'};
   candidate.restIndex=cell?scoredShots.filter(ball=>ball.cellId===cell.id).length:0;
   shot=candidate;
   setShotResult('LANÇAMENTO EM ANDAMENTO · '+(candidate.impact.hit?'trajetória converge para a abertura.':'trajetória sem captura: '+candidate.impact.reason)+'.','running');
 });
-function refreshLauncherReadouts(){['offset-x','offset-y','height'].forEach(id=>{const out=$(id+'-readout');if(out)out.textContent=num(id).toFixed(2)+' m';});}
+function refreshLauncherReadouts(){
+  ['offset-x','offset-y','height'].forEach(id=>{
+    const out=$(id+'-readout');if(out)out.textContent=num(id).toFixed(2)+' m';
+  });
+  $('elevation-preview').value=$('elevation').value;
+  $('elevation-preview-value').textContent=Number($('elevation').value).toFixed(0)+'°';
+}
+$('elevation-preview').addEventListener('input',()=>{
+  $('elevation').value=$('elevation-preview').value;
+  refreshLauncherReadouts();refreshShot();persist();
+});
 function refreshDriveMode(){const mecanum=$('drivetrain').value==='mecanum';$('mecanum-names').hidden=!mecanum;$('route-panel').hidden=mecanum;}
 $('drivetrain').addEventListener('change',()=>{refreshDriveMode();persist();notice($('drivetrain').value==='mecanum'?'Mecanum configurado: use FL, FR, BL e BR no Java.':'Diferencial configurado: Mequinha usa ME e MD.');});
 $('match-mode').addEventListener('change',()=>{refreshMatchLimit();persist();notice($('match-mode').value==='auto'?'Autônomo limitado a 30 s.':'TeleOp limitado a 2 min.');});
@@ -412,14 +431,22 @@ function refreshShot(){
   const inForceMode=$('shot-mode').value==='force';$('speed').readOnly=inForceMode;
   $('force').disabled=!inForceMode;
   const v=launchValues();
+  refreshLauncherReadouts();
   if(v.valid&&inForceMode)$('speed').value=v.speed.toFixed(3);
   const verdict=$('shot-verdict');
   if(!v.valid){verdict.dataset.possible='invalid';verdict.textContent='Parâmetros inválidos. Verifique força, massa, eficiência e limites.';return;}
   try{
     const pose=replayIndex>=0&&replayRows[replayIndex]?{...state,x:replayRows[replayIndex][1],y:replayRows[replayIndex][2],yaw:replayRows[replayIndex][3]}:state;
     const test=shotFeasibility(pose,v);
-    verdict.dataset.possible=test.possible?'yes':'no';
-    verdict.textContent=(test.possible?'SIM — lançamento geometricamente possível no modelo ideal.':'NÃO — '+test.issues.join('; ')+'.')+
+    const cell=$('arena').value==='biobuzz'?selectedHive():null;
+    const simulated=cell?hiveShotImpact({...v,origin:launcher(pose,v.lateral,v.forward),
+      yaw:pose.yaw,hiveAngle:(hiveFlips[cell.team]%2?1:-1)*HIVE_SIDE.angleDeg},cell):null;
+    const valid=simulated?simulated.hit&&activeCellId(cell.team)===cell.id:test.possible;
+    verdict.dataset.possible=valid?'yes':'no';
+    verdict.textContent=(simulated
+      ?(valid?'SIM — o POLLEN cruza a abertura do HIVE vermelho na descida.':
+        'NÃO — '+(simulated.reason||'a CELL selecionada está voltada para baixo')+'.')
+      :(test.possible?'SIM — lançamento geometricamente possível no modelo ideal.':'NÃO — '+test.issues.join('; ')+'.'))+
       ' Alcance: '+test.range.toFixed(2)+' m; altura no alvo: '+(test.heightAtTarget===null?'—':test.heightAtTarget.toFixed(2)+' m')+
       '; desvio lateral: '+Math.abs(test.lateralError).toFixed(2)+' m; v₀: '+v.speed.toFixed(2)+' m/s.';
   }catch(e){verdict.dataset.possible='invalid';verdict.textContent=e.message;}
@@ -452,9 +479,12 @@ function drawTop(now) {
   for(const sign of [-1,1]){const a=corner(sign*state.width/2,-state.length*.24),b=corner(sign*state.width/2,state.length*.24);c.strokeStyle='#d6dfeb';c.lineWidth=5;c.beginPath();c.moveTo(...a);c.lineTo(...b);c.stroke();}
   const v=launchValues();if(!v.valid)return;
   const check=shotFeasibility(shown,v);
-  const origin=launcher(shown,v.lateral,v.forward),start=project(...origin),target=project(v.tx,v.ty),dir=rotate(0,1,shown.yaw+v.azimuth),f=flight(v.height,v.speed,v.elevation),endDistance=check.along>0?Math.min(f.range,check.along):f.range,end=project(origin[0]+dir[0]*endDistance,origin[1]+dir[1]*endDistance);
+  const gateCell=$('arena').value==='biobuzz'?selectedHive():null;
+  const gateHit=gateCell?hiveShotImpact({...v,origin:launcher(shown,v.lateral,v.forward),
+    yaw:shown.yaw,hiveAngle:(hiveFlips[gateCell.team]%2?1:-1)*HIVE_SIDE.angleDeg},gateCell):null;
+  const origin=launcher(shown,v.lateral,v.forward),start=project(...origin),target=project(v.tx,v.ty),dir=rotate(0,1,shown.yaw+v.azimuth),f=flight(v.height,v.speed,v.elevation),endDistance=gateHit?.hit?gateHit.distance:(check.along>0?Math.min(f.range,check.along):f.range),end=project(origin[0]+dir[0]*endDistance,origin[1]+dir[1]*endDistance);
   c.lineWidth=1;c.setLineDash([5,5]);c.strokeStyle='#6b7584';c.beginPath();c.moveTo(...start);c.lineTo(...target);c.stroke();c.strokeStyle='#51d1bb';c.beginPath();c.moveTo(...start);c.lineTo(...end);c.stroke();c.setLineDash([]);
-  c.fillStyle='#51d1bb';c.beginPath();c.arc(...start,4,0,Math.PI*2);c.fill();c.strokeStyle=check.possible?'#55d9ab':'#ef727c';c.lineWidth=2;c.beginPath();c.arc(...target,9,0,Math.PI*2);c.moveTo(target[0]-14,target[1]);c.lineTo(target[0]+14,target[1]);c.moveTo(target[0],target[1]-14);c.lineTo(target[0],target[1]+14);c.stroke();
+  c.fillStyle='#51d1bb';c.beginPath();c.arc(...start,4,0,Math.PI*2);c.fill();c.strokeStyle=(gateHit?gateHit.hit:check.possible)?'#55d9ab':'#ef727c';c.lineWidth=2;c.beginPath();c.arc(...target,9,0,Math.PI*2);c.moveTo(target[0]-14,target[1]);c.lineTo(target[0]+14,target[1]);c.moveTo(target[0],target[1]-14);c.lineTo(target[0],target[1]+14);c.stroke();
   if(shot){const q=currentShotBall(now);if(q){const pos=project(q.x,q.y);c.fillStyle='#fff4a9';c.beginPath();c.arc(...pos,5,0,Math.PI*2);c.fill();c.strokeStyle='#bd924e';c.stroke();}}
   $('bounds').textContent=state.collision?'Contato com parede · rodas podem patinar':'Paredes externas físicas · frente +Y · yaw positivo ↶';
 }
@@ -556,7 +586,9 @@ function drawSide(now) {
   const a=v.azimuth*Math.PI/180,half=(Math.abs(Math.sin(a))*state.width+Math.abs(Math.cos(a))*state.length)/2,offset=v.lateral*(-Math.sin(a))+v.forward*Math.cos(a),left=-offset-half,right=-offset+half;
   const minX=Math.min(-.6,left-.1,along-.65),maxX=Math.max(2.2,along+.8,right+.1),peak=v.height+(v.speed*Math.sin(v.elevation*Math.PI/180))**2/(2*9.81),maxH=Math.max(1.5,peak+.3,v.th+.3),sx=(w-55)/(maxX-minX),sy=(h-35)/maxH;
   const point=(x,y)=>[40+(x-minX)*sx,h-25-y*sy];c.font='10px system-ui';c.lineWidth=1;
-  const sideCell=hiveCellById(shot?.cellId||selectedHiveId);drawArenaSide(c,point,$('arena').value,along,v.th,sideCell,scoredShots,hiveStatus(sideCell?.team||'red',now));
+  const sideCell=hiveCellById(shot?.cellId||selectedHiveId);
+  const redCell=sideCell?.team==='red'?sideCell:hiveCellById('red-lower');
+  drawArenaSide(c,point,$('arena').value,along,v.th,redCell,scoredShots,hiveStatus('red',now));
   for(let i=0;i<=4;i++){const value=i*maxH/4,p=point(0,value);c.strokeStyle='#242c37';c.beginPath();c.moveTo(...p);c.lineTo(w-10,p[1]);c.stroke();c.fillStyle='#627085';c.fillText(value.toFixed(1)+'m',5,p[1]+3);}
   c.strokeStyle='#536277';c.beginPath();c.moveTo(...point(0,0));c.lineTo(...point(maxX,0));c.stroke();
   // Projeção do chassi no eixo do tiro; o lançador está em x=0.
@@ -566,7 +598,10 @@ function drawSide(now) {
   for(let i=0;i<=120;i++){const x=arcEnd*i/120,q=point(x,Math.max(0,heightAt(x,v.height,v.speed,v.elevation)));i?c.lineTo(...q):c.moveTo(...q);}
   c.stroke();c.setLineDash([]);
   const check=shotFeasibility(viewed,v);
-  const target=point(along,v.th);c.fillStyle=check.possible?'#5bd8a8':'#ef727c';c.fillRect(target[0]-6,target[1]-6,12,12);
+  const viewedCell=$('arena').value==='biobuzz'?selectedHive():null;
+  const checkHive=viewedCell?hiveShotImpact({...v,origin:launcher(viewed,v.lateral,v.forward),
+    yaw:viewed.yaw,hiveAngle:(hiveFlips[viewedCell.team]%2?1:-1)*HIVE_SIDE.angleDeg},viewedCell):null;
+  const target=point(along,v.th);c.fillStyle=(checkHive?checkHive.hit:check.possible)?'#5bd8a8':'#ef727c';c.fillRect(target[0]-6,target[1]-6,12,12);
   c.strokeStyle=c.fillStyle;c.setLineDash([3,5]);c.beginPath();c.moveTo(...point(along,0));c.lineTo(...target);c.stroke();c.setLineDash([]);
   // O muzzle coincide exatamente com a origem da parábola: (distância=0, altura=height).
   const angle=v.elevation*Math.PI/180,reach=angle>0?Math.min(.35,v.height/Math.tan(angle)):.35;
@@ -575,7 +610,7 @@ function drawSide(now) {
   c.fillStyle='#ffb564';c.beginPath();c.arc(...muzzle,4,0,Math.PI*2);c.fill();
   if(shot){const ball=currentShotBall(now);if(ball){const q=point(ball.along,ball.z);c.fillStyle='#fff4a9';c.beginPath();c.arc(...q,5,0,Math.PI*2);c.fill();c.strokeStyle='#b98944';c.stroke();}}
   const at=along>=0&&along<=f.range?heightAt(along,v.height,v.speed,v.elevation):null;
-  $('shot-info').textContent=(check.possible?'POSSÍVEL':'NÃO ATINGE O ALVO')+
+  $('shot-info').textContent=((checkHive?checkHive.hit:check.possible)?'POSSÍVEL':'NÃO ATINGE O ALVO')+
     ' · v₀ '+v.speed.toFixed(2)+' m/s · alcance '+f.range.toFixed(2)+' m · distância horizontal '+along.toFixed(2)+
     ' m · desvio lateral '+cross.toFixed(2)+' m · altura na distância '+(at===null?'—':at.toFixed(2)+' m')+
     ' / alvo '+v.th.toFixed(2)+' m. Modelo ideal sem resistência do ar.';
@@ -599,7 +634,15 @@ function readouts() {
   if(lastDiagnosticSignature!==diagKey){lastDiagnosticSignature=diagKey;const list=$('diagnostic-list');list.replaceChildren();
     if(!warnings.length){const li=document.createElement('li');li.textContent='Nenhum alerta automático identificado.';list.append(li);}
     warnings.forEach(w=>{const li=document.createElement('li');li.textContent='['+w.severity+'] '+w.message+' · t='+w.time+' s';list.append(li);});}
-  $('execution-hint').textContent=state.status==='concluído'?'Java encerrado. Confira a telemetria: isso não comprova o sucesso da missão.':'';
+  if(auto35StartPose&&state.status==='executando'&&
+      (Math.hypot(state.x-auto35StartPose.x,state.y-auto35StartPose.y)>.035||
+       Math.abs(state.yaw-auto35StartPose.yaw)>3))auto35Moved=true;
+  const shouldMove=/Modo executado:\s*(COMPLETO|DESLOCAMENTO_CURTO|GIRO_CURTO)/i.test(state.telemetry||'');
+  $('execution-hint').textContent=state.status==='concluído'
+    ?(auto35StartPose&&shouldMove&&!auto35Moved
+      ?'ALERTA: Autônomo 3.5 terminou, mas não houve deslocamento/rotação mensurável. Confira modo, telemetria, motores e limites.'
+      :'Java encerrado. Verifique a trajetória e a telemetria: conclusão não comprova missão.'):'';
+
   $('start').disabled=state.status!=='inicializando';$('compile').disabled=['compilando','inicializando','executando'].includes(state.status);
   const auto35=!$('auto35-panel').hidden,confirmed=/Confirmado:\s*true/i.test(state.telemetry||'');
   if(auto35&&state.status==='inicializando'&&!confirmed)$('start').disabled=true;

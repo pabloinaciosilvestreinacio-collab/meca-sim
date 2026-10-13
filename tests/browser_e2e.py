@@ -57,6 +57,11 @@ try:
         page.locator('#arena').select_option('biobuzz')
         passed('Biblioteca: projeto salvo no menu e arena/partida restauradas')
         page.locator('[data-tab="launcher"]').click()
+        page.locator('#elevation-preview').evaluate("(el)=>{el.value='60';el.dispatchEvent(new Event('input',{bubbles:true}));}")
+        assert page.locator('#elevation').input_value()=='60'
+        assert '60°' in page.locator('#elevation-preview-value').text_content()
+        page.locator('#elevation-preview').evaluate("(el)=>{el.value='78';el.dispatchEvent(new Event('input',{bubbles:true}));}")
+        assert page.locator('#elevation').input_value()=='78'
         page.locator('#solve-shot').click()
         page.wait_for_function("document.querySelector('#message').textContent.includes('calculada')")
         assert float(page.locator('#speed').input_value())>0
@@ -252,10 +257,16 @@ public class ZipOutro extends LinearOpMode {
         assert page.locator('#source').evaluate("(el)=>getComputedStyle(el).webkitTextFillColor")!='transparent'
         page.locator('[data-workspace="code"]').click()
         assert page.locator('#source').is_visible()
-        assert page.locator('.views').is_hidden()
+        assert page.locator('.views').is_visible(), 'vista do robô não deve sumir ao editar código'
+        assert page.locator('#top').evaluate("(e)=>e.clientWidth>50 && e.clientHeight>50")
         page.locator('[data-workspace="overview"]').click()
         assert page.locator('#auto35-panel').is_visible()
         passed('Autônomo 3.5 completo e editável, sem texto invisível; foco Código funcional')
+        # Posição segura para testar 2 metros sem colidir com paredes (X/Y padrão não garante isso).
+        page.locator('[data-tab="robot"]').click()
+        page.locator('#x').fill('0.85')
+        page.locator('#y').fill('0.85')
+        page.locator('[data-tab="code"]').click()
         page.locator('#compile').click()
         page.wait_for_function("document.querySelector('#status').textContent==='inicializando'",timeout=45000)
         page.locator('#auto35-mode').select_option('9')
@@ -263,9 +274,18 @@ public class ZipOutro extends LinearOpMode {
         page.wait_for_function("document.querySelector('#telemetry').textContent.includes('Confirmado: true')",timeout=15000)
         assert page.locator('#start').is_enabled()
         page.locator('#start').click()
+        page.wait_for_function("document.querySelector('#status').textContent==='executando'",timeout=15000)
+        # O teste antigo era falso positivo: terminar não prova que o robô andou.
+        page.wait_for_function("Math.abs(parseFloat(document.querySelector('#yaw').textContent))>12",timeout=12000)
         page.wait_for_function("document.querySelector('#status').textContent==='concluído'",timeout=45000)
         assert 'Autonomo 3.5 concluido' in page.locator('#telemetry').text_content()
-        passed('Autônomo 3.5: INIT, seleção, confirmação A, START e término na JVM')
+        assert 'COMPLETO' in page.locator('#telemetry').text_content(),'Modo GIRO em vez de COMPLETO'
+        result=page.request.get(f'http://127.0.0.1:{port}/api/state').json()
+        assert result['x']>1.35 and result['y']>1.3,{'x':result['x'],'y':result['y'],'yaw':result['yaw'],'telemetry':result['telemetry']}
+        assert abs(result['yaw'])>15
+        assert all(m['power']==0 for m in result['motors'].values())
+        assert 'ALERTA' not in page.locator('#execution-hint').text_content()
+        passed('Autônomo 3.5 COMPLETO: yaw, encoders e deslocamento real, sem apenas falso término')
         page.locator('#reset').click()
         page.wait_for_function("document.querySelector('#status').textContent==='pronto'")
         page.locator('[data-workspace="paths"]').click()
