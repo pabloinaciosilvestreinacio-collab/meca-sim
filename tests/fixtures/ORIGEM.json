@@ -1,0 +1,15 @@
+{
+  "repository": "pabloinaciosilvestreinacio-collab/meca-tiger-autonomo",
+  "commit": "d8363b58e502611ca5d5948fbd2f791b0a2e6cee",
+  "sha256": {
+    "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/Autonomo/Autonomo32.java": "c70da8dac3df4d357f2d88bfe4484cdd29dc3ce27143b0d07f7cbb62f9681bde",
+    "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/Autonomo/Autonomo33.java": "df40365d9a2723a13bf543f06a7526ce7a1243374b41ab61133720dd2930128b",
+    "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/Autonomo/Autonomo34.java": "abd71309a393e46eb7a1fda2b3f28ba80e28ec77810ff2a2864b7b5810297245",
+    "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/Autonomo/Autonomo35.java": "59914e73e142820f0423fe15775d099e56a4f0129cf29957c21f1333f4967f1d",
+    "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/Autonomo/autonomo.java": "ded70c11795c55f54fb617410dba0dff1c63b7986ecea398536f60341b2d7c06",
+    "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/teleOp/TeleOp10.java": "1934b036e07f96a90473c0b558beca9e53dd67cd4ca5aaaa76312c7bca8085eb",
+    "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/teleOp/TeleOp11.java": "b1260f63d2c59510945f0fdd89716c6c72aebc65c5deeb2a097206a02178b5ba",
+    "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/teleOp/TeleOp12.java": "5d8bdd0a7522386ce5ba98a928f7354b2a28cc6e788c4f0517df417a29073053",
+    "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/teleOp/TeleOp13.java": "aa1afd7c3c9e827fa40b9e8ad7b8189a5b228dc999bd17258b0382d16f23dc62"
+  }
+}

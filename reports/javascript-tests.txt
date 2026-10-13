@@ -1,0 +1,18 @@
+✔ Ponto do Desmos permanece preso ao centro ao girar (1.881327ms)
+✔ Mover lançador não muda pose e gira pelo centro (0.239568ms)
+✔ Parábola com alcance analítico (0.349703ms)
+✔ Alvo vertical usa projeção vetorial, sem dividir por delta X (0.220402ms)
+✔ Mapeamento padrão: eixos, gatilhos, back/start e D-pad (0.355094ms)
+✔ Desconectar ou mapeamento desconhecido zera comando (0.238596ms)
+✔ solução inversa atinge alvo em 500 posições e rotações (4.852721ms)
+✔ solução impossível falha explicitamente (0.490477ms)
+✔ desconectar controle 1 não promove o controle 2 (0.350095ms)
+✔ conversão usa redução total e circunferência (0.584823ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 10
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 118.871134

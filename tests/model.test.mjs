@@ -20,3 +20,29 @@ test('Mapeamento padrão: eixos, gatilhos, back/start e D-pad',()=>{
   const v=gamepadValues({mapping:'standard',axes:[.1,-.2,.3,-.4],buttons});assert.equal(v.length,20);assert.equal(v[1],-.2);assert.equal(v[4],.7);assert.equal(v[6],1);assert.equal(v[12],1);assert.equal(v[16],1);
 });
 test('Desconectar ou mapeamento desconhecido zera comando',()=>{assert.deepEqual(gamepadValues(null),Array(20).fill(0));assert.deepEqual(gamepadValues({mapping:''}),Array(20).fill(0));});
+
+import {targetSolution, encoderScale, connectedPlayers} from '../web/model.mjs';
+test('solução inversa atinge alvo em 500 posições e rotações',()=>{
+  for(let i=0;i<500;i++){
+    const pose={x:1.2,y:.7,yaw:i*137.508%360-180};
+    const [x,y]=launcher(pose,.11,.225),tx=x+Math.cos(i)*2,ty=y+Math.sin(i)*2;
+    const solution=targetSolution(pose,.11,.225,.3,50,tx,ty,.9);
+    assert.ok(Math.abs(heightAt(solution.distance,.3,solution.speed,50)-.9)<1e-10);
+    const [dx,dy]=rotate(0,solution.distance,pose.yaw+solution.azimuth);
+    assert.ok(Math.hypot(x+dx-tx,y+dy-ty)<1e-10);
+  }
+});
+test('solução impossível falha explicitamente',()=>{
+  assert.throws(()=>targetSolution({x:0,y:0,yaw:0},0,0,.3,0,0,2,1));
+  assert.throws(()=>flight(-1,5,45));
+  assert.throws(()=>heightAt(1,.3,NaN,45));
+});
+test('desconectar controle 1 não promove o controle 2',()=>{
+  const p2={mapping:'standard',connected:true,axes:[0,.5,0,0],buttons:[]};
+  const [a,b]=connectedPlayers([null,p2]);
+  assert.equal(a,null);assert.equal(b,p2);assert.deepEqual(gamepadValues(a),Array(20).fill(0));
+});
+test('conversão usa redução total e circunferência',()=>{
+  assert.ok(Math.abs(encoderScale(28,20,.09)-1980.5948473658087)<1e-9);
+  assert.throws(()=>encoderScale(28,20,0));
+});

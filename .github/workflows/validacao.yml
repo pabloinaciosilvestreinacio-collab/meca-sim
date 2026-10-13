@@ -1,0 +1,43 @@
+name: Validar Meca Sim
+on: [push, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  testes:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Testes de física, servidor e JVM
+        run: python -m unittest discover -s tests -v
+      - name: Matemática e gamepads JavaScript
+        run: node --test tests/model.test.mjs
+      - name: Compatibilidade com nove OpModes preservados
+        run: python tests/repository_compatibility.py
+      - name: Cenários de falha com Java real
+        run: python tests/fault_scenarios.py
+      - name: Instalar navegador de teste
+        run: |
+          python -m pip install playwright==1.58.0
+          python -m playwright install --with-deps chromium
+      - name: Interface e integração completas
+        run: python tests/browser_e2e.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: evidencias-${{ matrix.os }}
+          path: reports/

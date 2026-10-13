@@ -29,24 +29,26 @@ public class AutonomoDemo extends LinearOpMode {
         waitForStart();
         imu.resetYaw();
         try {
-            andar(1.0);
-            girar(50);
-            andar(0.6);
+            if (!andar(1.0) || !girar(50) || !andar(0.6)) {
+                telemetry.addLine("Sequência interrompida: STOP ou timeout. Confira encoders e IMU.");
+                telemetry.update();
+            }
         } finally {
             ME.setPower(0);
             MD.setPower(0);
         }
     }
 
-    private void andar(double metros) {
+    private boolean andar(double metros) {
         ME.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         MD.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         ME.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         MD.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         ElapsedTime timer = new ElapsedTime();
+        boolean atingiu = false;
         while (opModeIsActive() && timer.seconds() < 4) {
             double distancia = (ME.getCurrentPosition() + MD.getCurrentPosition()) / (2 * 1980.6);
-            if (distancia >= metros) break;
+            if (distancia >= metros) { atingiu = true; break; }
             ME.setPower(0.5);
             MD.setPower(0.5);
             telemetry.addData("Distância (m)", distancia);
@@ -55,14 +57,16 @@ public class AutonomoDemo extends LinearOpMode {
         }
         ME.setPower(0);
         MD.setPower(0);
+        return atingiu;
     }
 
-    private void girar(double alvo) {
+    private boolean girar(double alvo) {
         ElapsedTime timer = new ElapsedTime();
+        boolean atingiu = false;
         while (opModeIsActive() && timer.seconds() < 3) {
             double yaw = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.DEGREES);
             double erro = AngleUnit.DEGREES.normalize(alvo - yaw);
-            if (Math.abs(erro) < 1) break;
+            if (Math.abs(erro) < 1) { atingiu = true; break; }
             double correcao = Range.clip(erro * 0.015, -0.35, 0.35);
             ME.setPower(-correcao);
             MD.setPower(correcao);
@@ -72,5 +76,6 @@ public class AutonomoDemo extends LinearOpMode {
         }
         ME.setPower(0);
         MD.setPower(0);
+        return atingiu;
     }
 }

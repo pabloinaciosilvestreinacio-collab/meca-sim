@@ -27,9 +27,11 @@ def executable(name):
 
 
 def build_world(config):
+    if not isinstance(config, dict): raise ValueError("Configuração deve ser um objeto")
     world = World()
     bounds = {"track": (.05, 2), "width": (.05, 2), "length": (.05, 2),
-              "max_speed": (.05, 10), "ticks_per_m": (1, 100000), "x": (-10, 10), "y": (-10, 10)}
+              "max_speed": (.05, 10), "ticks_per_m": (1, 100000), "x": (-10, 10), "y": (-10, 10),
+              "acceleration": (0, 20), "imu_delay": (0, 2), "imu_drift": (-10, 10)}
     for key, (low, high) in bounds.items():
         value = float(config.get(key, getattr(world, key)))
         if not math.isfinite(value) or not low <= value <= high:
@@ -39,12 +41,22 @@ def build_world(config):
     if not math.isfinite(yaw):
         raise ValueError("Yaw inválido")
     world.yaw = math.radians(yaw)
+    world.walls = bool(config.get("walls", False))
+    world.imu_frozen = bool(config.get("imu_frozen", False))
+    if world.walls and not world.inside(): raise ValueError("Posição inicial atravessa a parede; ajuste X, Y e dimensões")
     left, right = str(config.get("left", "ME")), str(config.get("right", "MD"))
     if not left or not right or left == right or left in ("MS", "MI") or right in ("MS", "MI"):
         raise ValueError("Nomes dos motores devem ser distintos e não podem ser MS/MI auxiliares")
     world.motors = {left: Motor("left", -1 if config.get("invert_left", False) else 1),
                     right: Motor("right", -1 if config.get("invert_right", True) else 1),
                     "MS": Motor(), "MI": Motor()}
+    for side, name in (("left", left), ("right", right)):
+        motor = world.motors[name]
+        for key, low, high, default in (("gain", 0, 2, 1), ("slip", 0, 1, 0)):
+            value = float(config.get(side+"_"+key, default))
+            if not math.isfinite(value) or not low <= value <= high: raise ValueError(f"{side}_{key} inválido")
+            setattr(motor, key, value)
+        motor.encoder_frozen = bool(config.get(side+"_encoder_frozen", False))
     return world
 
 
@@ -65,6 +77,10 @@ class Session:
         if not math.isfinite(self.limit) or not 1 <= self.limit <= 180:
             raise ValueError("Duração deve ser de 1 a 180 segundos")
         self.worker = None
+        self.client_required = False
+        self.client_seen = time.monotonic()
+        self.input_seen = time.monotonic()
+        self.history = []
 
     def log(self, message):
         with self.lock:
@@ -75,6 +91,7 @@ class Session:
         with self.lock:
             for motor in self.world.motors.values():
                 motor.power = 0
+                motor.velocity = 0
             if self.status not in ("concluído", "erro"):
                 self.status = "parado"
             process = self.process
@@ -96,8 +113,17 @@ class Session:
             next_tick += .01
             with self.lock:
                 self.clock += .01
+                now = time.monotonic()
+                if self.client_required and now-self.input_seen > .3:
+                    self.gamepads = [[0]*20, [0]*20]
+                if self.client_required and now-self.client_seen > 2:
+                    self.log("\nNavegador desconectado por 2 s: STOP automático.\n")
+                    self.stop()
                 if self.started and self.status == "executando":
                     self.world.step(.01)
+                    if not self.history or self.world.elapsed-self.history[-1][0] >= .049:
+                        self.history.append([self.world.elapsed, self.world.x, self.world.y, math.degrees(self.world.yaw)] +
+                                            [self.world.motors[n].position() for n in self.world.motors])
                     if self.world.elapsed >= self.limit:
                         self.log("\nLimite de tempo atingido.\n")
                         self.stop()
@@ -119,7 +145,7 @@ class Session:
             if op in ("stop", "finish"):
                 self.stop_event.set()
                 self.status = "concluído" if op == "finish" else "parado"
-                for m in w.motors.values(): m.power = 0
+                for m in w.motors.values(): m.power = 0; m.velocity = 0
                 return ""
             if op == "device":
                 kind, name = args
@@ -131,9 +157,9 @@ class Session:
             if op == "telemetry":
                 self.telemetry = args[0][-12000:]
                 return ""
-            if op == "yaw": return str(math.degrees((w.yaw-w.yaw_zero+math.pi) % (2*math.pi)-math.pi))
+            if op == "yaw": return str(math.degrees((w.sensor_yaw()-w.yaw_zero+math.pi) % (2*math.pi)-math.pi))
             if op == "resetYaw":
-                w.yaw_zero = w.yaw
+                w.yaw_zero = w.sensor_yaw()
                 return ""
             if op == "servo":
                 name, action, *values = args
@@ -152,13 +178,14 @@ class Session:
                 if action == "power":
                     power = float(values[0])
                     if not math.isfinite(power): raise ValueError("Potência não finita")
-                    m.power = max(-1, min(1, power))
+                    m.power = 0 if self.stop_event.is_set() else max(-1, min(1, power))
                 elif action == "direction": m.direction = 1 if values[0] == "FORWARD" else -1
                 elif action == "mode":
                     m.mode = values[0]
                     if m.mode == "STOP_AND_RESET_ENCODER":
-                        m.zero = m.raw_ticks
+                        m.zero = m.frozen_ticks if m.encoder_frozen else m.raw_ticks
                         m.power = 0
+                        m.velocity = 0
                         m.target = 0
                 elif action == "target": m.target = int(values[0])
                 elif action == "brake": m.brake = values[0]
@@ -178,8 +205,10 @@ class Session:
             compiler, java = executable("javac"), executable("java")
             if not compiler or not java:
                 raise ValueError("Instale JDK 17 ou superior; configure JAVA_HOME ou PATH. Java sem javac não compila código.")
-            stripped = re.sub(r"/\*.*?\*/|//[^\n]*", "", source, flags=re.S)
-            match = re.search(r"\bpublic\s+class\s+([A-Za-z_$][\w$]*)\s+extends\s+LinearOpMode\b", stripped)
+            # Preserve strings while discarding comments; URLs inside Java strings are not comments.
+            stripped = re.sub(r'""".*?"""|"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'|/\*.*?\*/|//[^\n]*',
+                              lambda m: ' ' if m.group().startswith(('//', '/*', '"', "'")) else m.group(), source, flags=re.S)
+            match = re.search(r"\bpublic\s+(?:(?:final|strictfp)\s+)*class\s+([A-Za-z_$][\w$]*)\s+extends\s+(?:com\.qualcomm\.robotcore\.eventloop\.opmode\.)?LinearOpMode\b", stripped)
             package = re.search(r"\bpackage\s+([\w.]+)\s*;", stripped)
             if not match:
                 raise ValueError("Cole uma classe pública que estenda LinearOpMode, com imports e runOpMode().")
@@ -230,7 +259,7 @@ class Session:
             if watchdog: watchdog.cancel()
             self.stop_event.set()
             with self.lock:
-                for m in self.world.motors.values(): m.power = 0
+                for m in self.world.motors.values(): m.power = 0; m.velocity = 0
             if self.process:
                 if self.process.poll() is None:
                     self.process.kill()
@@ -269,6 +298,10 @@ def handler_for(app):
             if not self.allowed_host(): return self.send({"error": "Host inválido"}, 403)
             path = urlparse(self.path).path
             if path == "/api/state": return self.send(app.session.snapshot())
+            if path == "/api/recording":
+                with app.session.lock:
+                    return self.send({"columns": ["time_s", "x_m", "y_m", "yaw_deg"] + [n+"_ticks" for n in app.session.world.motors],
+                                      "rows": list(app.session.history)})
             files = {"/": ("web/index.html", "text/html; charset=utf-8"),
                      "/app.js": ("web/app.js", "text/javascript; charset=utf-8"),
                      "/model.mjs": ("web/model.mjs", "text/javascript; charset=utf-8"),
@@ -290,6 +323,7 @@ def handler_for(app):
                 length = int(self.headers.get("Content-Length", 0))
                 if not 0 < length <= 250000: raise ValueError("Conteúdo ausente ou grande demais")
                 data = json.loads(self.rfile.read(length))
+                if not isinstance(data, dict): raise ValueError("Corpo deve ser um objeto JSON")
                 with app.lock:
                     session = app.session
                     if self.path == "/api/run":
@@ -298,6 +332,7 @@ def handler_for(app):
                         source = data.get("source", "")
                         if not isinstance(source, str): raise ValueError("Código inválido")
                         app.session = Session(data.get("config", {}))
+                        app.session.client_required = True
                         app.session.run(source)
                     elif self.path == "/api/start":
                         with session.lock:
@@ -309,14 +344,19 @@ def handler_for(app):
                         if session.worker and session.worker.is_alive():
                             return self.send({"error": "Pare e aguarde o Java encerrar antes de reiniciar"}, 409)
                         app.session = Session(data.get("config", {}))
+                    elif self.path == "/api/heartbeat":
+                        session.client_seen = time.monotonic()
                     elif self.path == "/api/gamepad":
                         with session.lock:
+                            validated = []
                             for index in range(2):
                                 values = data.get(str(index+1), [0]*20)
-                                if len(values) != 20: raise ValueError("Gamepad inválido")
+                                if not isinstance(values, list) or len(values) != 20: raise ValueError("Gamepad inválido")
                                 values = [float(v) for v in values]
                                 if not all(math.isfinite(v) for v in values): raise ValueError("Gamepad inválido")
-                                session.gamepads[index] = [max(-1, min(1,v)) for v in values[:4]] + [max(0,min(1,v)) for v in values[4:6]] + [int(bool(v)) for v in values[6:]]
+                                validated.append([max(-1, min(1,v)) for v in values[:4]] + [max(0,min(1,v)) for v in values[4:6]] + [int(bool(v)) for v in values[6:]])
+                            session.gamepads = validated
+                            session.input_seen = time.monotonic()
                     else: return self.send({"error": "Não encontrado"}, 404)
                 self.send({"ok": True})
             except (ValueError, TypeError, KeyError) as error:

@@ -18,7 +18,7 @@ def wait_init(session, start=True):
     if start:session.started=True;session.status='executando'
 
 def main():
-    repo=Path(sys.argv[1]).resolve() if len(sys.argv)>1 else ROOT.parent
+    repo=Path(sys.argv[1]).resolve() if len(sys.argv)>1 else ROOT/'tests/fixtures'
     base=repo/'TeamCode/src/main/java/org/firstinspires/ftc/teamcode'
     files=[base/'Autonomo'/x for x in ['autonomo.java','Autonomo32.java','Autonomo33.java','Autonomo34.java','Autonomo35.java']]+sorted((base/'teleOp').glob('*.java'))
     if not executable('javac'):raise SystemExit('JDK ausente: compatibilidade não testada')
