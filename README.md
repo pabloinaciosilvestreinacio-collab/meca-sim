@@ -29,6 +29,10 @@ Deixe o terminal aberto. Não exige bibliotecas Python para utilizar. Para diagn
 | Lançador | Offset local preso ao chassi, altura, elevação, azimute, alvo e velocidade; solução inversa do tiro ideal |
 | Arquivos | Salvar/reabrir projeto JSON, resultado JSON e trajetória CSV temporal |
 
+### Importar projeto FTC ZIP
+
+Na aba **Código Java**, também é possível carregar um ZIP de projeto FTC contendo a pasta `TeamCode/src/main/java`. O importador lê arquivos Java sem extraí-los no computador, detecta OpModes que estendam `LinearOpMode` e permite escolher qual executar. Outros arquivos Java ficam como auxiliares na compilação. ZIP até 1 MB; código Java descompactado até 220 kB e 31 arquivos, incluindo o OpMode. ZIPs de projetos grandes podem exceder esses limites: importe arquivos `.java` específicos nesse caso. **Não há compatibilidade integral com Gradle, hardware Android, bibliotecas externas ou FTC SDK.**
+
 ### Importar classes Java auxiliares
 
 Na aba **Código Java**, use **Importar arquivos Java (.java)** para selecionar vários arquivos ao mesmo tempo. O simulador identifica um OpMode que estenda `LinearOpMode`, coloca-o no editor e compila as demais classes junto com ele. Também é possível colar o OpMode e importar só os auxiliares. O caminho de cada classe é inferido da declaração `package`.
@@ -45,7 +49,7 @@ Teclado: W/S alimenta `left_stick_y`, A/D alimenta `right_stick_x`, espaço é A
 - Física padrão ideal. Aceleração/ganhos/patinagem e falhas de sensor são parâmetros artificiais para testar lógica.
 - Paredes rejeitam passos que colocariam parte do chassi fora do campo. Não simulam forças, rebote, obstáculos internos ou contato 3D.
 - A parábola usa g=9,81 m/s², bola pontual sem arrasto. O cálculo inverso resolve velocidade e azimute com elevação fixa; não determina potência/RPM de MS nem confirma pontuação.
-- MS/MI guardam comandos e ticks idealizados; não possuem peças, flywheel ou mecanismos simulados. Servo guarda posição lógica. Câmera/AprilTag, Android, Road Runner, SDK completo e projetos Java de múltiplos arquivos não estão implementados.
+- MS/MI guardam comandos e ticks idealizados; não possuem peças, flywheel ou mecanismos simulados. Servo guarda posição lógica. Câmera/AprilTag, Android, Road Runner e SDK completo não estão implementados; projetos Java com múltiplos arquivos são aceitos com limites e APIs parciais.
 - Java e Python comunicam em tempo real; escalonamento do sistema introduz variações. Não há replay determinístico nem validação de ajuste PID físico.
 - `RUN_TO_POSITION` é ideal e para até 2 ticks do alvo; com aceleração configurada, esse modo continua instantâneo. `RUN_USING_ENCODER` não simula o controlador interno REV.
 

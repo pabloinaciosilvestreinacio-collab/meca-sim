@@ -1,5 +1,10 @@
 # Histórico de alterações
 
+## Em desenvolvimento após 0.2
+
+- Importação local de ZIP de projetos FTC com identificação e escolha do OpMode, validação de arquivos, sem extração persistente.
+- Testes de ZIP, caminhos, tamanho e interface Chromium.
+
 ## 0.2 — 2026-10-13
 
 - Importação de arquivos Java auxiliares em diferentes pacotes com compilação conjunta, persistência e testes de segurança de caminhos.

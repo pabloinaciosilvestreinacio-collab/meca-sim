@@ -86,6 +86,33 @@ public class AuxiliarBrowser {
             saved=json.loads(Path(out.value.path()).read_text(encoding='utf-8'))
             assert len(saved['files'])==1
             passed('OpMode e auxiliar importados, compilados e salvos em JSON')
+        import io,zipfile,base64
+        with tempfile.TemporaryDirectory() as folder:
+            archive=Path(folder)/'TeamCode.zip'
+            with zipfile.ZipFile(archive,'w',zipfile.ZIP_DEFLATED) as stream:
+                stream.writestr('FTC/TeamCode/src/main/java/org/firstinspires/ftc/teamcode/ZipDemo.java',
+                  """package org.firstinspires.ftc.teamcode;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+public class ZipDemo extends LinearOpMode {
+  public void runOpMode() { waitForStart(); telemetry.addLine("ZIP FTC OK"); telemetry.update(); }
+}""")
+                stream.writestr('FTC/TeamCode/src/main/java/org/firstinspires/ftc/teamcode/ZipOutro.java',
+                  """package org.firstinspires.ftc.teamcode;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+public class ZipOutro extends LinearOpMode {
+  public void runOpMode() { waitForStart(); telemetry.addLine("OUTRO OK"); telemetry.update(); }
+}""")
+            page.locator('#import-zip').set_input_files(str(archive))
+            page.wait_for_function("document.querySelector('#source').value.includes('ZipDemo')")
+            assert page.locator('#opmode-choice option').count()==2
+            page.locator('#opmode-choice').select_option(label='ZipOutro — org/firstinspires/ftc/teamcode/ZipOutro.java')
+            assert 'ZipOutro' in page.locator('#source').input_value()
+            page.locator('#compile').click()
+            page.wait_for_function("document.querySelector('#status').textContent==='inicializando'",timeout=30000)
+            page.locator('#start').click()
+            page.wait_for_function("document.querySelector('#status').textContent==='concluído'",timeout=30000)
+            assert 'OUTRO OK' in page.locator('#telemetry').text_content()
+            passed('ZIP TeamCode seleciona OpMode, compila e executa Java')
         options=page.locator('#example option').all_text_contents()
         tele=next(x for x in options if 'TeleOp' in x)
         page.locator('#example').select_option(label=tele)

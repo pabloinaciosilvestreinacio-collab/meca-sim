@@ -10,7 +10,7 @@ Executar TESTE_LOCAL.md no computador da equipe. Resolver incompatibilidades de 
 
 ## Limites que exigem desenvolvimento futuro
 
-1. Importar projetos Java com múltiplos arquivos e ampliar APIs FTC a partir de casos reais que falharem na compilação.
+1. Ampliar APIs FTC a partir de casos reais; a importação de ZIP e múltiplos `.java` não executa tarefas Gradle nem suporta bibliotecas externas.
 2. Modelo de lançador ligado ao motor MS e ao alimentador MI, baseado em medições de RPM, perdas e velocidade da bola.
 3. Obstáculos internos e modelo de contato mais completo. A 0.2 tem apenas bloqueio geométrico nas paredes.
 4. Câmera/AprilTag sintética com extrínsecos, IDs e poses oficiais verificadas; visão real requer ensaio próprio.

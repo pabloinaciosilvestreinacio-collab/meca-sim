@@ -3,7 +3,7 @@ const $ = id => document.getElementById(id);
 const num = id => Number($(id).value);
 let state = {x:1.83,y:.65,yaw:0,width:.45,length:.45,trail:[],motors:{},time:0,status:'pronto'};
 let focused = document.hasFocus();
-let shot = null, examples = {}, javaFiles = {}, lastPad = 0, polling = false, padBusy = false;
+let shot = null, examples = {}, javaFiles = {}, zipOpModes = [], selectedJavaPath = '', lastPad = 0, polling = false, padBusy = false;
 const keys = new Set(), top = $('top'), side = $('side');
 const configIds = ['left','right','width','length','track','max_speed','ticks_per_m','duration','x','y','initial-yaw','invert_left','invert_right','acceleration','left_gain','right_gain','left_slip','right_slip','imu_delay','imu_drift','walls','imu_frozen','left_encoder_frozen','right_encoder_frozen'];
 const launchIds = ['offset-x','offset-y','height','speed','elevation','azimuth','target-x','target-y','target-h'];
@@ -17,6 +17,50 @@ function persist() {
     localStorage.setItem('meca-sim-v02',JSON.stringify({source:$('source').value,files:javaFiles,values})); } catch {}
 }
 function notice(text) {$('message').textContent=text;}
+function pathOfPrimary(code) {
+  const pkg=code.match(/^\s*package\s+([\w.]+)\s*;/m);
+  const cls=code.match(/\bpublic\s+(?:(?:final|strictfp)\s+)*class\s+([A-Za-z_$][\w$]*)\b/);
+  return cls?(pkg?pkg[1].replaceAll('.','/')+'/':'')+cls[1]+'.java':null;
+}
+function chooseOpMode(path) {
+  const candidate=javaFiles[path];
+  if(typeof candidate!=='string')throw Error('OpMode não encontrado: '+path);
+  const previous=pathOfPrimary($('source').value);
+  if(previous && selectedJavaPath)javaFiles[previous]=$('source').value;
+  delete javaFiles[path];$('source').value=candidate;
+  selectedJavaPath=path;
+  $('opmode-choice').value=path;
+  updateJavaFilesLabel();persist();
+}
+$('opmode-choice').addEventListener('change',e=>{try{chooseOpMode(e.target.value);}catch(error){notice(error.message);}});
+function populateOpModes(opmodes) {
+  zipOpModes=opmodes;
+  const select=$('opmode-choice');select.replaceChildren();
+  opmodes.forEach(({path,name})=>{const option=document.createElement('option');option.value=path;option.textContent=name+' — '+path;select.append(option);});
+  $('opmode-choice-label').hidden=opmodes.length<2;
+}
+$('import-zip').addEventListener('change',async event=>{
+  try{
+    if(['compilando','inicializando','executando'].includes(state.status))throw Error('Pare a simulação antes de importar.');
+    const file=event.target.files[0];if(!file)return;
+    if(file.size>1000000)throw Error('ZIP deve ter no máximo 1 MB.');
+    const encoded=await new Promise((resolve,reject)=>{
+      const reader=new FileReader();
+      reader.onload=()=>resolve(String(reader.result).split(',')[1]);
+      reader.onerror=()=>reject(Error('Não foi possível ler o ZIP'));
+      reader.readAsDataURL(file);
+    });
+    const result=await api('import-zip',{zip_base64:encoded});
+    const options=result.opmodes||[];
+    if(!options.length)throw Error('ZIP sem OpMode compatível.');
+    const path=options[0].path;
+    javaFiles={...result.files};
+    $('source').value='';selectedJavaPath='';
+    populateOpModes(options);
+    chooseOpMode(path);
+    notice('Projeto FTC importado: '+Object.keys(result.files).length+' arquivos, '+options.length+' OpMode(s). APIs FTC não implementadas ainda podem falhar na compilação.');
+  }catch(error){notice(error.message);}finally{event.target.value='';}
+});
 function updateJavaFilesLabel() {
   const count=Object.keys(javaFiles).length;
   $('java-file-count').textContent=count ? count+' arquivo(s) auxiliar(es) importado(s).' : 'Nenhum arquivo auxiliar importado.';
@@ -46,7 +90,7 @@ $('import-java').addEventListener('change',async event=>{
       Object.values(helpers).reduce((sum,code)=>sum+new TextEncoder().encode(code).length,0);
     if(Object.keys(helpers).length>30||size>220000)throw Error('Projeto excede 30 auxiliares ou 220 kB de Java.');
     if(main)$('source').value=main.code;
-    javaFiles=helpers;updateJavaFilesLabel();persist();
+    selectedJavaPath='';populateOpModes([]);javaFiles=helpers;updateJavaFilesLabel();persist();
     notice('Arquivos Java importados. Clique em Compilar / INIT.');
   }catch(error){notice(error.message);}finally{event.target.value='';}
 });
@@ -76,7 +120,7 @@ $('load-project').addEventListener('change',async e=>{
     if(!data.config||typeof data.config!=='object'||!data.launcher||typeof data.launcher!=='object')throw Error('Configuração ausente');
     if(data.files!==undefined && (typeof data.files!=='object'||data.files===null||Array.isArray(data.files)||Object.keys(data.files).length>30||Object.values(data.files).some(value=>typeof value!=='string')))throw Error('Arquivos Java do projeto inválidos');
     await api('reset',{config:data.config});
-    $('source').value=data.source;javaFiles={...(data.files||{})};updateJavaFilesLabel();
+    $('source').value=data.source;javaFiles={...(data.files||{})};selectedJavaPath='';populateOpModes([]);updateJavaFilesLabel();
     for(const id of configIds){const key=id==='initial-yaw'?'yaw':id;if(key in data.config)$(id).type==='checkbox'?$(id).checked=Boolean(data.config[key]):$(id).value=data.config[key];}
     for(const id of launchIds)if(id in data.launcher)$(id).value=data.launcher[id];
     shot=null;persist();notice('Projeto carregado. Clique em Compilar / INIT para executar.');
@@ -95,7 +139,7 @@ document.querySelectorAll('[data-tab]').forEach(button=>button.addEventListener(
 }));
 $('source').addEventListener('input',persist);
 [...configIds,...launchIds].forEach(id=>$(id).addEventListener('change',persist));
-$('example').addEventListener('change',()=>{if(examples[$('example').value]){$('source').value=examples[$('example').value];javaFiles={};updateJavaFilesLabel();persist();}});
+$('example').addEventListener('change',()=>{if(examples[$('example').value]){$('source').value=examples[$('example').value];javaFiles={};selectedJavaPath='';populateOpModes([]);updateJavaFilesLabel();persist();}});
 $('source').addEventListener('keydown',event=>{if(event.key==='Tab'){event.preventDefault();const input=event.target,start=input.selectionStart,end=input.selectionEnd;input.setRangeText('    ',start,end,'end');persist();}});
 
 function launchValues() {

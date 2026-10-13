@@ -16,6 +16,7 @@ from urllib.parse import urlparse
 
 from physics import World, Motor
 from sdk import write_sdk
+from project_import import import_ftc_zip
 
 ROOT = Path(__file__).resolve().parent
 
@@ -361,11 +362,14 @@ def handler_for(app):
                 return self.send({"error": "Origem inválida"}, 403)
             try:
                 length = int(self.headers.get("Content-Length", 0))
-                if not 0 < length <= 250000: raise ValueError("Conteúdo ausente ou grande demais")
+                limit = 1_400_000 if self.path == "/api/import-zip" else 250000
+                if not 0 < length <= limit: raise ValueError("Conteúdo ausente ou grande demais")
                 data = json.loads(self.rfile.read(length))
                 if not isinstance(data, dict): raise ValueError("Corpo deve ser um objeto JSON")
                 with app.lock:
                     session = app.session
+                    if self.path == "/api/import-zip":
+                        return self.send(import_ftc_zip(data.get("zip_base64")))
                     if self.path == "/api/run":
                         if session.worker and session.worker.is_alive():
                             return self.send({"error": "Pare a execução atual antes de compilar outra"}, 409)
