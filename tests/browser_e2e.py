@@ -222,6 +222,39 @@ public class ZipOutro extends LinearOpMode {
         page.locator('#reset').click()
         page.wait_for_function("document.querySelector('#status').textContent==='pronto'")
         page.locator('#example').select_option(label=options[1])
+        # Regressão do bug relatado: colar Autônomo 3.5 completo, sem metade preta
+        # e sem cortar o código. Só START após a confirmação de modo no INIT.
+        source35=(ROOT/'tests/fixtures/TeamCode/src/main/java/org/firstinspires/ftc/teamcode/Autonomo/Autonomo35.java').read_text(encoding='utf-8')
+        assert len(source35)>30000
+        page.locator('#source').fill(source35)
+        page.wait_for_function("document.querySelector('#code-stats').textContent.includes('linhas')")
+        assert page.locator('#source').input_value()==source35, 'Código 3.5 truncado'
+        assert '35' in page.locator('#source').input_value()
+        assert page.locator('#source').evaluate("(el)=>getComputedStyle(el).color")!='rgba(0, 0, 0, 0)'
+        assert page.locator('#source').evaluate("(el)=>getComputedStyle(el).webkitTextFillColor")!='transparent'
+        page.locator('[data-workspace="code"]').click()
+        assert page.locator('#source').is_visible()
+        assert page.locator('.views').is_hidden()
+        page.locator('[data-workspace="overview"]').click()
+        assert page.locator('#auto35-panel').is_visible()
+        passed('Autônomo 3.5 completo e editável, sem texto invisível; foco Código funcional')
+        page.locator('#compile').click()
+        page.wait_for_function("document.querySelector('#status').textContent==='inicializando'",timeout=45000)
+        page.locator('#auto35-mode').select_option('9')
+        page.locator('#auto35-confirm').click()
+        page.wait_for_function("document.querySelector('#telemetry').textContent.includes('Confirmado: true')",timeout=15000)
+        assert page.locator('#start').is_enabled()
+        page.locator('#start').click()
+        page.wait_for_function("document.querySelector('#status').textContent==='concluído'",timeout=45000)
+        assert 'Autonomo 3.5 concluido' in page.locator('#telemetry').text_content()
+        passed('Autônomo 3.5: INIT, seleção, confirmação A, START e término na JVM')
+        page.locator('#reset').click()
+        page.wait_for_function("document.querySelector('#status').textContent==='pronto'")
+        page.locator('[data-workspace="paths"]').click()
+        assert page.locator('#route-panel').get_attribute('open') is not None
+        assert page.locator('#top').is_visible()
+        page.locator('[data-workspace="overview"]').click()
+        passed('Abas Simulador, Código e Trajetórias funcionais')
         (ROOT/'reports').mkdir(exist_ok=True)
         page.screenshot(path=str(ROOT/'reports/interface-desktop.png'),full_page=True)
         page.set_viewport_size({'width':390,'height':844})
