@@ -148,18 +148,43 @@ test('Animação não calcula percurso negativo antes do primeiro frame do dispa
 });
 
 import {hiveShotImpact,registerPollen,SIM_TIP_POLLS} from '../web/model.mjs';
-test('POLLEN é interceptado na boca da CELL e não percorre a parábola inteira',()=>{
-  const pose={x:1.83,y:.65,yaw:0},cell=hiveCellById('red-lower');
+import {hiveSideGeometry,HIVE_SIDE} from '../web/arena.mjs';
+test('POLLEN só entra na CELL vermelha descendo, acima da borda da casinha',()=>{
+  const pose={x:1.83,y:.65,yaw:0},cell=hiveCellById('red-lower'),hiveAngle=-HIVE_SIDE.angleDeg;
   const [tx,ty]=[cell.x+cell.w/2,cell.y+cell.h/2];
-  const solution=targetSolution(pose,.1125,.225,.30,45,tx,ty,cell.openingHeight);
+  const gate=hiveSideGeometry(cell,hiveAngle);
+  assert.ok(Math.abs(gate.openingHeight-1.665)<.015);
+  assert.ok(Math.abs(gate.bottomOpeningHeight-1.359)<.020);
+  assert.ok(Math.abs(hiveSideGeometry(hiveCellById('red-upper'),hiveAngle).bottomOpeningHeight-.777)<.025);
+  const solution=targetSolution(pose,.1125,.225,.30,78,tx,ty,gate.openingHeight);
   const shot={origin:launcher(pose,.1125,.225),yaw:pose.yaw,azimuth:solution.azimuth,
-    speed:solution.speed,elevation:45,height:.30,tx,ty,radius:.12,heightTolerance:.12};
+    speed:solution.speed,elevation:78,height:.30,tx,ty,hiveAngle};
   const hit=hiveShotImpact(shot,cell);
   assert.equal(hit.hit,true,JSON.stringify(hit));
   assert.ok(hit.time>0&&hit.time<flight(shot.height,shot.speed,shot.elevation).time);
-  assert.ok(Math.hypot(hit.x-tx,hit.y-ty)<1e-9);
+  assert.ok(Math.abs(hit.height-hit.openingHeight)<.08);
+  assert.ok(Math.hypot(hit.x-tx,hit.y-ty)<HIVE_SIDE.sideDepth/2);
   assert.equal(hiveShotImpact({...shot,azimuth:shot.azimuth+45},cell).hit,false);
   assert.equal(hiveShotImpact({...shot,speed:1},cell).hit,false);
+  const rising=targetSolution(pose,.1125,.225,.30,70,tx,ty,gate.openingHeight);
+  const incoming=hiveShotImpact({...shot,elevation:70,speed:rising.speed,azimuth:rising.azimuth},cell);
+  assert.equal(incoming.hit,false,'não atravessar telhado em subida');
+  assert.ok(incoming.reason,'erro explicativo');
+});
+test('Ajustes na rampa entre 60–85 graus alteram o ponto de queda e captura',()=>{
+  const cell=hiveCellById('red-lower'),pose={x:1.83,y:.65,yaw:0};
+  const gate=hiveSideGeometry(cell,-34),tx=cell.x+cell.w/2,ty=cell.y+cell.h/2;
+  const origin=launcher(pose,.1125,.225);
+  const data=[60,65,70,75,78,80,82,85].map(elevation=>{
+    const sol=targetSolution(pose,.1125,.225,.30,elevation,tx,ty,gate.openingHeight);
+    const impact=hiveShotImpact({origin,yaw:0,azimuth:sol.azimuth,
+      speed:sol.speed,elevation,height:.30,hiveAngle:-34},cell);
+    return {elevation,...impact};
+  });
+  assert.equal(data.find(x=>x.elevation===78).hit,true);
+  assert.ok(data.some(x=>x.hit===false));
+  assert.ok(data.some(x=>x.hit===true));
+  assert.notEqual(data[0].hit,data[data.length-1].hit);
 });
 test('Tombamento didático ocorre só no oitavo POLLEN e reinicia o ciclo',()=>{
   assert.equal(SIM_TIP_POLLS,8);
