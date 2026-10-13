@@ -59,20 +59,37 @@ def build_world(config):
         if not math.isfinite(value) or not low <= value <= high:
             raise ValueError(f"{key}: valor deve estar entre {low} e {high}")
         setattr(world, key, value)
+    drivetrain = str(config.get("drivetrain", "differential"))
+    if drivetrain not in ("differential", "mecanum"):
+        raise ValueError("Drivetrain deve ser diferencial ou mecanum")
+    world.drivetrain = drivetrain
     yaw = float(config.get("yaw", 0))
-    if not math.isfinite(yaw):
-        raise ValueError("Yaw inválido")
+    if not math.isfinite(yaw): raise ValueError("Yaw inválido")
     world.yaw = math.radians(yaw)
-    world.walls = bool(config.get("walls", False))
+    world.walls = bool(config.get("walls", True))
     world.imu_frozen = bool(config.get("imu_frozen", False))
     if world.walls and not world.inside(): raise ValueError("Posição inicial atravessa a parede; ajuste X, Y e dimensões")
-    left, right = str(config.get("left", "ME")), str(config.get("right", "MD"))
-    if not left or not right or left == right or left in ("MS", "MI") or right in ("MS", "MI"):
-        raise ValueError("Nomes dos motores devem ser distintos e não podem ser MS/MI auxiliares")
-    world.motors = {left: Motor("left", -1 if config.get("invert_left", False) else 1),
-                    right: Motor("right", -1 if config.get("invert_right", True) else 1),
-                    "MS": Motor(), "MI": Motor()}
-    for side, name in (("left", left), ("right", right)):
+    if drivetrain == "mecanum":
+        names = {key: str(config.get(key, default)) for key, default in
+                 (("front_left","FL"),("front_right","FR"),("back_left","BL"),("back_right","BR"))}
+        if len(set(names.values())) != 4 or any(not name or name in ("MS","MI") for name in names.values()):
+            raise ValueError("Os quatro motores mecanum devem ter nomes distintos")
+        world.motors = {names["front_left"]: Motor("fl"), names["front_right"]: Motor("fr"),
+                        names["back_left"]: Motor("bl"), names["back_right"]: Motor("br"),
+                        "MS": Motor(), "MI": Motor()}
+    else:
+        left, right = str(config.get("left", "ME")), str(config.get("right", "MD"))
+        if not left or not right or left == right or left in ("MS", "MI") or right in ("MS", "MI"):
+            raise ValueError("Nomes dos motores devem ser distintos e não podem ser MS/MI auxiliares")
+        world.motors = {left: Motor("left", -1 if config.get("invert_left", False) else 1),
+                        right: Motor("right", -1 if config.get("invert_right", True) else 1),
+                        "MS": Motor(), "MI": Motor()}
+    for motor in world.motors.values():
+        if motor.side in ("aux",): continue
+        motor.gain = 1
+        motor.slip = 0
+    for side, name in (("left", str(config.get("left", "ME"))), ("right", str(config.get("right", "MD")))):
+        if name not in world.motors: continue
         motor = world.motors[name]
         for key, low, high, default in (("gain", 0, 2, 1), ("slip", 0, 1, 0)):
             value = float(config.get(side+"_"+key, default))
@@ -358,6 +375,7 @@ def handler_for(app):
                      "/arena.mjs": ("web/arena.mjs", "text/javascript; charset=utf-8"),
                      "/editor.mjs": ("web/editor.mjs", "text/javascript; charset=utf-8"),
                      "/route.mjs": ("web/route.mjs", "text/javascript; charset=utf-8"),
+                     "/meca-tiger-mark.svg": ("web/meca-tiger-mark.svg", "image/svg+xml"),
                      "/style.css": ("web/style.css", "text/css; charset=utf-8"),
                      "/examples": ("examples.json", "application/json; charset=utf-8")}
             if path not in files: return self.send({"error": "Não encontrado"}, 404)

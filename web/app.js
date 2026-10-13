@@ -1,5 +1,5 @@
 import {rotate, launcher, heightAt, flight, gamepadValues, targetSolution, encoderScale, connectedPlayers, speedFromForce, forceFromSpeed, shotFeasibility, shotElapsed} from './model.mjs';
-import {FIELD_METERS, ARENAS, validStart, drawArenaTop, drawArenaSide} from './arena.mjs';
+import {FIELD_METERS, ARENAS, validStart, drawArenaTop, drawArenaSide, hiveCellAt} from './arena.mjs';
 import {candidates, diagnostics, highlightJava} from './editor.mjs';
 import {routeSteps, routeWarnings, makeRouteJava, MAX_WAYPOINTS} from './route.mjs';
 const $ = id => document.getElementById(id);
@@ -8,10 +8,10 @@ let state = {x:1.83,y:.65,yaw:0,width:.45,length:.45,trail:[],motors:{},time:0,s
 let focused = document.hasFocus();
 let shot = null, examples = {}, javaFiles = {}, zipOpModes = [], selectedJavaPath = '', lastPad = 0, polling = false, padBusy = false, pickingStart = false;
 let lastDraw=0,lastLog='',lastMotorSignature='',lastDiagnosticSignature='',lastShotPoseKey='',highlightJob=0,routePicking=false;
-let routePoints=[],replayRows=[],replayIndex=-1,replayPlaying=false,replayLast=0;
+let routePoints=[],replayRows=[],replayIndex=-1,replayPlaying=false,replayLast=0,scoredShots=[];
 const LIBRARY_KEY='meca-sim-library-v1',LOGO_KEY='meca-sim-logo-v1';
 const keys = new Set(), top = $('top'), side = $('side');
-const configIds = ['arena','left','right','width','length','track','max_speed','ticks_per_m','duration','x','y','initial-yaw','invert_left','invert_right','acceleration','left_gain','right_gain','left_slip','right_slip','imu_delay','imu_drift','walls','imu_frozen','left_encoder_frozen','right_encoder_frozen'];
+const configIds = ['arena','drivetrain','robot-color','left','right','front_left','front_right','back_left','back_right','width','length','track','max_speed','ticks_per_m','duration','x','y','initial-yaw','invert_left','invert_right','acceleration','left_gain','right_gain','left_slip','right_slip','imu_delay','imu_drift','walls','imu_frozen','left_encoder_frozen','right_encoder_frozen'];
 const launchIds = ['offset-x','offset-y','height','shot-mode','force','speed','projectile-mass','acceleration-stroke','shot-efficiency','target-radius','target-tolerance','elevation','azimuth','target-x','target-y','target-h'];
 function config() {
   const data = {};
@@ -23,19 +23,7 @@ function persist() {
     localStorage.setItem('meca-sim-v02',JSON.stringify({source:$('source').value,files:javaFiles,values,route:routePoints})); } catch {}
 }
 function notice(text) {$('message').textContent=text;}
-function setTeamLogo(url){$('team-logo').src=url;$('team-logo').hidden=false;$('logo-fallback').hidden=true;}
-$('logo-file').addEventListener('change',async event=>{
-  try{
-    const file=event.target.files?.[0];if(!file)return;
-    if(!['image/png','image/jpeg','image/webp'].includes(file.type))throw Error('Use PNG, JPG ou WebP da logo oficial.');
-    if(file.size>2_000_000)throw Error('Imagem maior que 2 MB; reduza o tamanho.');
-    const image=await createImageBitmap(file),canvas=document.createElement('canvas');canvas.width=160;canvas.height=160;
-    const ctx=canvas.getContext('2d'),scale=Math.min(160/image.width,160/image.height),w=image.width*scale,h=image.height*scale;
-    ctx.drawImage(image,(160-w)/2,(160-h)/2,w,h);image.close();
-    const url=canvas.toDataURL('image/png');
-    localStorage.setItem(LOGO_KEY,url);setTeamLogo(url);notice('Logo salva neste navegador.');
-  }catch(error){notice('Logo: '+error.message);}finally{event.target.value='';}
-});
+function setTeamLogo(url){$('team-logo').src=url;$('team-logo').hidden=false;}
 function library(){try{const items=JSON.parse(localStorage.getItem(LIBRARY_KEY)||'[]');return Array.isArray(items)?items.filter(x=>x&&typeof x.name==='string'&&x.project?.version===2).slice(0,12):[];}catch{return [];}}
 function projectData(){return {format:'meca-sim-project',version:2,source:$('source').value,files:{...javaFiles},config:config(),launcher:Object.fromEntries(launchIds.map(id=>[id,id==='shot-mode'?$(id).value:num(id)])),route:routePoints.slice()};}
 function refreshExamples(selected=''){
@@ -213,6 +201,9 @@ action('shoot',async()=>{
   const values=launchValues();if(!values.valid)throw new Error('Confira altura, velocidade, elevação e coordenadas do lançador.');
   shot={...values,origin:launcher(state,values.lateral,values.forward),yaw:state.yaw,start:performance.now()};
 });
+function refreshLauncherReadouts(){['offset-x','offset-y','height'].forEach(id=>{const out=$(id+'-readout');if(out)out.textContent=num(id).toFixed(2)+' m';});}
+function refreshDriveMode(){const mecanum=$('drivetrain').value==='mecanum';$('mecanum-names').hidden=!mecanum;$('route-panel').hidden=mecanum;}
+$('drivetrain').addEventListener('change',()=>{refreshDriveMode();persist();notice($('drivetrain').value==='mecanum'?'Mecanum configurado: use FL, FR, BL e BR no Java.':'Diferencial configurado: Mequinha usa ME e MD.');});
 document.querySelectorAll('[data-tab]').forEach(button=>button.addEventListener('click',()=>{
   document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('selected',b===button));
   ['code','robot','launcher'].forEach(name=>$('tab-'+name).hidden=name!==button.dataset.tab);
@@ -261,7 +252,7 @@ function insertCompletion(term){
 $('source').addEventListener('click',()=>showSuggestions());
 $('source').addEventListener('keyup',()=>showSuggestions());
 [...configIds,...launchIds].forEach(id=>$(id).addEventListener('change',()=>{if(launchIds.includes(id))refreshShot();persist();}));
-launchIds.forEach(id=>$(id).addEventListener('input',()=>{refreshShot();persist();}));
+launchIds.forEach(id=>$(id).addEventListener('input',()=>{refreshLauncherReadouts();refreshShot();persist();}));
 $('example').addEventListener('change',async()=>{
   try{const choice=$('example').value;
     if(choice.startsWith('saved:')){const item=library().find(x=>x.name===choice.slice(6));if(item)await loadProjectData(item.project);}
@@ -334,7 +325,7 @@ function drawTop(now) {
       c.textAlign='center';c.fillStyle='#171717';c.font='bold 11px system-ui';c.fillText(String(i+1),q[0],q[1]+4);});}
   const shown=replayIndex>=0?{...state,x:replayRows[replayIndex][1],y:replayRows[replayIndex][2],yaw:replayRows[replayIndex][3]}:state;
   const corner=(x,y)=>{const r=rotate(x,y,shown.yaw);return project(shown.x+r[0],shown.y+r[1]);};
-  c.beginPath();[[-1,-1],[1,-1],[1,1],[-1,1]].forEach(([x,y],i)=>{const p=corner(x*state.width/2,y*state.length/2);i?c.lineTo(...p):c.moveTo(...p);});c.closePath();c.fillStyle='#ff852e20';c.fill();c.strokeStyle='#ff852e';c.stroke();
+  c.beginPath();[[-1,-1],[1,-1],[1,1],[-1,1]].forEach(([x,y],i)=>{const p=corner(x*state.width/2,y*state.length/2);i?c.lineTo(...p):c.moveTo(...p);});c.closePath();const robotColor=$('robot-color').value||'#ff7a1a';c.fillStyle=robotColor+'33';c.fill();c.strokeStyle=robotColor;c.stroke();
   const center=project(shown.x,shown.y),front=corner(0,shown.length*.6);c.beginPath();c.moveTo(...center);c.lineTo(...front);c.stroke();c.fillStyle='#fff';c.beginPath();c.arc(...center,3,0,Math.PI*2);c.fill();
   for(const sign of [-1,1]){const a=corner(sign*state.width/2,-state.length*.24),b=corner(sign*state.width/2,state.length*.24);c.strokeStyle='#d6dfeb';c.lineWidth=5;c.beginPath();c.moveTo(...a);c.lineTo(...b);c.stroke();}
   const v=launchValues();if(!v.valid)return;
@@ -367,7 +358,7 @@ $('pick-start').addEventListener('click',()=>{
   pickingStart=!pickingStart;$('pick-start').setAttribute('aria-pressed',String(pickingStart));
   $('start-hint').textContent=pickingStart?'Clique no campo na nova posição inicial (ou Shift+clique).':'Clique no campo para definir o alvo.';
 });
-$('arena').addEventListener('change',()=>{$('field-description').textContent=$('arena').value==='biobuzz'?'BIOBUZZ · layout do Desmos enviado; sem colisões internas':'Campo livre · grade cartesiana';persist();});
+$('arena').addEventListener('change',()=>{$('field-description').textContent=$('arena').value==='biobuzz'?'BIOBUZZ · escala real 3,66 × 3,66 m · paredes físicas':'Campo livre · grade cartesiana';persist();});
 function updateRoute(){
   const list=$('route-list');list.replaceChildren();
   let steps=[],warnings=[];
@@ -506,7 +497,7 @@ async function sendPads(now) {
   }catch{}finally{padBusy=false;}
 }
 function frame(now){
-  if(shot&&shotElapsed(now,shot.start)>flight(shot.height,shot.speed,shot.elevation).time+.8)shot=null;
+  if(shot&&shotElapsed(now,shot.start)>flight(shot.height,shot.speed,shot.elevation).time+.8){const origin=shot.origin,dir=rotate(0,1,shot.yaw+shot.azimuth),dx=shot.tx-origin[0],dy=shot.ty-origin[1],along=dx*dir[0]+dy*dir[1],cell=hiveCellAt(shot.tx,shot.ty),at=along>=0?heightAt(along,shot.height,shot.speed,shot.elevation):NaN;if(cell&&Number.isFinite(at)&&Math.abs(at-cell.openingHeight)<=.16){scoredShots.push({x:shot.tx,y:shot.ty});notice('Acerto no HIVE: peça registrada dentro da CELL.');}shot=null;}
   if(replayPlaying&&replayIndex>=0&&replayRows.length>1){
     if(now-replayLast>=50){replayLast=now;replayIndex=Math.min(replayRows.length-1,replayIndex+1);
       if(replayIndex===replayRows.length-1){replayPlaying=false;$('timeline-play').textContent='Reproduzir';}
@@ -523,7 +514,7 @@ async function init() {
     }else{$('source').value=Object.values(examples)[0];}
     $('field-description').textContent=$('arena').value==='biobuzz'?'BIOBUZZ · layout do Desmos enviado; sem colisões internas':'Campo livre · grade cartesiana';
     try{const logo=localStorage.getItem(LOGO_KEY);if(logo?.startsWith('data:image/'))setTeamLogo(logo);}catch{}
-    refreshHighlight();refreshShot();
+    refreshHighlight();refreshLauncherReadouts();refreshDriveMode();refreshShot();
     if(saved&&Array.isArray(saved.route))routePoints=saved.route.slice(0,MAX_WAYPOINTS).filter(p=>p&&Number.isFinite(p.x)&&Number.isFinite(p.y));
     updateRoute();
   }catch(e){notice('Não foi possível carregar exemplos ou configurações: '+e.message);}

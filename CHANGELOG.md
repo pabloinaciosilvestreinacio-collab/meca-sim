@@ -1,3 +1,11 @@
+## 0.3-rc2 — física e controle visual
+
+- Parede externa física ativada por padrão; objetos internos não bloqueiam o robô.
+- Shooter com controles por eixo compartilhados entre vista superior e lateral.
+- Acertos no HIVE ficam registrados visualmente.
+- Perfil mecanum configurável, preservando diferencial como padrão.
+- Removida a marca provisória MT; adicionada marca vetorial Meca Tiger e cor de robô.
+
 # Histórico de alterações
 
 ## Arena Desmos e viabilidade do shooter — 13/10/2026

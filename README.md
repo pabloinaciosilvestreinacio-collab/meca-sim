@@ -1,4 +1,4 @@
-# Meca Sim 0.3-rc1 — laboratório FTC em duas vistas
+# Meca Sim 0.3-rc2 — laboratório FTC em duas vistas
 
 Simulador **local e independente** da Meca Tiger: cole uma classe Java `LinearOpMode`, configure o chassi diferencial, execute INIT/START e observe encoders, IMU, telemetria e trajetória. Inclui controles USB e teclado, vista de cima e estudo balístico lateral.
 
@@ -8,6 +8,13 @@ Simulador **local e independente** da Meca Tiger: cole uma classe Java `LinearOp
 - Vista de cima: posição, heading, trilha e mira. Vista lateral: altura, ângulo da rampa, trajetória parabólica pontilhada, alvo e indicação matemática SIM/NÃO.
 - Dois modos: força média equivalente em newtons ou velocidade de saída em m/s. No modo força, `v=sqrt(2*eficiência*força*curso/massa)`; `força` não representa torque/potência do shooter MS.
 - A verificação SIM/NÃO utiliza alcance horizontal, erro lateral e diferença de altura na distância do alvo, segundo tolerâncias ajustáveis. Não representa pontuação oficial nem inclui arrasto, spin, impacto, mecanismos ou perdas variáveis.
+
+### Atualização rc2: física, shooter e configuração
+
+- **Parede física ativa por padrão:** somente as quatro paredes externas bloqueiam o chassi. FLOWERS, HIVE e marcações do campo continuam visuais, sem colisão.
+- **Shooter conectado às duas vistas:** controles de esquerda/direita, frente/trás e altura usam a mesma origem presa ao chassi. Um acerto em uma CELL configurada do HIVE deixa a peça desenhada dentro dela. É um modelo balístico ideal com gravidade, não pontuação oficial.
+- **Drivetrain selecionável:** diferencial é o perfil padrão da Mequinha (ME/MD). Mecanum é um modo alternativo, com FL/FR/BL/BR e cinemática ideal, para testar projetos de outras equipes.
+- **Escala e visual:** a arena é 3,66 × 3,66 m no modelo; a interface utiliza a marca vetorial Meca Tiger, cor de robô configurável e painéis Código/Chassi/Shooter.
 
 ### Nova interface: campos, projetos e editor
 

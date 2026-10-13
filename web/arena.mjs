@@ -10,10 +10,10 @@ export const DIMS=Object.freeze({
   loadingWidth:.584,loadingDepth:.2795
 });
 export const FLOWERS=Object.freeze([[.09,1.82],[1.22,3.57],[3.56,2.43],[2.44,.09]]);
-export const HIVE=Object.freeze({x:(FIELD_METERS-DIMS.frameWidth)/2,y:(FIELD_METERS-DIMS.frameDepth)/2,w:DIMS.frameWidth,h:DIMS.frameDepth});
+export const HIVE=Object.freeze({x:(FIELD_METERS-DIMS.frameWidth)/2,y:(FIELD_METERS-DIMS.frameDepth)/2,w:DIMS.frameWidth,h:DIMS.frameDepth,cells:Object.freeze([Object.freeze({x:1.39,y:1.84,w:.43,h:.31,openingHeight:.90}),Object.freeze({x:1.84,y:1.84,w:.43,h:.31,openingHeight:.90}),Object.freeze({x:1.39,y:1.49,w:.43,h:.31,openingHeight:.90}),Object.freeze({x:1.84,y:1.49,w:.43,h:.31,openingHeight:.90})])});
 export const ZONES=Object.freeze({
   redVertical:{x:0,y:2.43,w:.29,h:.62},
-  redBottom:{x:1.24,y:0,w:.49,h:.47},
+  redBottom:{x:0,y:0,w:0,h:0},
   redLine:{x:0,y:0,w:DIMS.gardenWidth,h:DIMS.gardenStrip},
   blueVertical:{x:FIELD_METERS-.28,y:.6,w:.28,h:.62},
   blueTop:{x:FIELD_METERS-DIMS.gardenWidth,y:FIELD_METERS-DIMS.gardenStrip,w:DIMS.gardenWidth,h:DIMS.gardenStrip}
@@ -67,3 +67,5 @@ export function drawArenaSide(ctx,point,mode,targetDistance,targetHeight){
   ctx.fillStyle='#c2ccda';ctx.font='10px system-ui';ctx.textAlign='center';ctx.fillText('Alvo · corte didático',b[0],b[1]-12);
   ctx.restore();
 }
+
+export function hiveCellAt(x,y){return HIVE.cells.find(cell=>x>=cell.x&&x<=cell.x+cell.w&&y>=cell.y&&y<=cell.y+cell.h)||null;}

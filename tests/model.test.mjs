@@ -1,5 +1,5 @@
 import test from 'node:test';
-import {validStart,FIELD_METERS,FLOWERS} from '../web/arena.mjs';
+import {validStart,FIELD_METERS,FLOWERS,hiveCellAt} from '../web/arena.mjs';
 import assert from 'node:assert/strict';
 import {rotate, launcher, heightAt, flight, gamepadValues, shotElapsed} from '../web/model.mjs';
 test('Ponto do Desmos permanece preso ao centro ao girar',()=>{
@@ -121,6 +121,10 @@ test('Viabilidade considera alcance, altura e desvio lateral do alvo',()=>{
   const behind=shotFeasibility(pose,{...base,ty:.2});
   assert.ok(behind.issues.some(s=>s.includes('atrás')));
 });
+test('CELL do HIVE usa coordenadas físicas do campo',()=>{
+  const cell=hiveCellAt(1.50,1.95);assert.ok(cell);assert.equal(hiveCellAt(.2,.2),null);
+});
+
 test('Desenho de arena segue referências observadas no Desmos',()=>{
   assert.ok(FLOWERS.some(([x,y])=>x<.2&&y>1.6&&y<2));
   assert.ok(FLOWERS.some(([x,y])=>y>3.5&&x>1));

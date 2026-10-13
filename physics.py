@@ -70,7 +70,8 @@ class World:
     motors: dict = field(default_factory=lambda: {"ME": Motor("left", 1), "MD": Motor("right", -1), "MS": Motor(), "MI": Motor()})
     trail: list = field(default_factory=list)
     acceleration: float = 0
-    walls: bool = False
+    drivetrain: str = "differential"
+    walls: bool = True
     field_size: float = 3.66
     collision: bool = False
     imu_frozen: bool = False
@@ -129,15 +130,26 @@ class World:
             motor.velocity = speed
             if motor.side in sides:
                 sides[motor.side].append(speed * motor.mount * (1-motor.slip))
-        vl = sum(sides["left"]) / max(1, len(sides["left"]))
-        vr = sum(sides["right"]) / max(1, len(sides["right"]))
-        v, w = (vl + vr) / 2, (vr - vl) / self.track
-        # Integração exata de arco: frente do robô = vetor (-sin(yaw), cos(yaw)).
-        half_turn = w*dt/2
-        sinc = math.sin(half_turn)/half_turn if abs(half_turn) > 1e-8 else 1-half_turn**2/6
-        distance = v*dt*sinc
-        heading = self.yaw + math.pi/2 + half_turn
-        x, y = self.x + distance*math.cos(heading), self.y + distance*math.sin(heading)
+        if self.drivetrain == "mecanum":
+            wheel = {motor.side: motor.velocity * motor.mount * (1-motor.slip) for motor in self.motors.values()
+                     if motor.side in ("fl", "fr", "bl", "br")}
+            fl, fr, bl, br = (wheel.get(key, 0) for key in ("fl", "fr", "bl", "br"))
+            # Convenção X local = direita, Y local = frente; mistura X-drive ideal.
+            forward = (fl + fr + bl + br) / 4
+            strafe = (fl - fr - bl + br) / 4
+            w = (-fl + fr - bl + br) / (2 * self.track)
+            mid = self.yaw + w * dt / 2
+            x, y = self.x + (strafe * math.cos(mid) - forward * math.sin(mid)) * dt, self.y + (strafe * math.sin(mid) + forward * math.cos(mid)) * dt
+        else:
+            vl = sum(sides["left"]) / max(1, len(sides["left"]))
+            vr = sum(sides["right"]) / max(1, len(sides["right"]))
+            v, w = (vl + vr) / 2, (vr - vl) / self.track
+            # Integração exata de arco: frente do robô = vetor (-sin(yaw), cos(yaw)).
+            half_turn = w*dt/2
+            sinc = math.sin(half_turn)/half_turn if abs(half_turn) > 1e-8 else 1-half_turn**2/6
+            distance = v*dt*sinc
+            heading = self.yaw + math.pi/2 + half_turn
+            x, y = self.x + distance*math.cos(heading), self.y + distance*math.sin(heading)
         yaw = (self.yaw + w*dt + math.pi) % (2*math.pi)-math.pi
         self.collision = self.walls and not self.inside(x, y, yaw)
         if not self.collision:
@@ -151,7 +163,7 @@ class World:
 
     def snapshot(self):
         return {"x": self.x, "y": self.y, "yaw": math.degrees(self.yaw), "time": self.elapsed,
-                "collision": self.collision, "walls": self.walls,
+                "collision": self.collision, "walls": self.walls, "drivetrain": self.drivetrain,
                 "width": self.width, "length": self.length, "trail": self.trail[:],
                 "motors": {name: {"power": m.power, "encoder": m.position(), "direction": m.direction,
                                   "mount": m.mount, "side": m.side, "mode": m.mode} for name, m in self.motors.items()}}
