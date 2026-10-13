@@ -1,0 +1,52 @@
+name: MecaSim Regression Hive & Java 3.5
+
+on:
+  pull_request:
+    paths:
+      - 'web/**'
+      - 'tests/**'
+      - '.github/workflows/regressao-hive.yml'
+  push:
+    branches:
+      - main
+      - fix/hive-editor-20261013
+    paths:
+      - 'web/**'
+      - 'tests/**'
+      - '.github/workflows/regressao-hive.yml'
+
+jobs:
+  model-and-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Validar modelo e captura do POLLEN
+        run: node --test tests/model.test.mjs
+      - name: Testes Python e JVM
+        run: |
+          python -m unittest discover -s tests -v
+          python tests/repository_compatibility.py
+      - name: Preparar navegador Chromium
+        run: |
+          python -m pip install playwright==1.58.0
+          python -m playwright install --with-deps chromium
+      - name: Executar navegação, colagem Java 3.5 e tiros
+        run: python tests/browser_e2e.py
+      - name: Relatórios do navegador
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mecasim-regressao-hive
+          path: reports/
+          if-no-files-found: ignore

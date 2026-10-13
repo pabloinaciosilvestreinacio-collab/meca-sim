@@ -73,6 +73,18 @@ try:
         page.locator('#solve-shot').click()
         page.wait_for_function("document.querySelector('#shot-verdict').dataset.possible==='yes'")
         page.locator('#shoot').click()
+        page.wait_for_function("document.querySelector('#hive-progress').textContent.includes('1/8 POLLEN')",timeout=10000)
+        assert '0 tombamento' in page.locator('#hive-progress').text_content()
+        page.wait_for_timeout(520)
+        for expected in range(2,9):
+            page.locator('#shoot').click()
+            if expected<8:
+                page.wait_for_function("(n)=>document.querySelector('#hive-progress').textContent.includes(n+'/8 POLLEN')",arg=str(expected),timeout=10000)
+            else:
+                page.wait_for_function("document.querySelector('#hive-progress').textContent.includes('0/8 POLLEN') && document.querySelector('#hive-progress').textContent.includes('1 tombamento')",timeout=10000)
+                assert 'TOMBOU' in page.locator('#shot-result').text_content()
+            page.wait_for_timeout(520)
+        passed('POLLEN capturado sem duplicação e HIVE tomba apenas no oitavo acerto')
         passed('Força, velocidade, ângulo, mira e parabola com veredito atualizam')
         page.locator('[data-tab="robot"]').click()
         page.locator('summary').filter(has_text='Calcular ticks').click()
@@ -92,7 +104,8 @@ try:
         assert all(m['power']==0 for m in result['motors'].values())
         assert 'CONCLUÍDO' in page.locator('#ds-state').text_content().upper()
         passed('Autônomo real via INIT/START/Driver Station concluiu e zerou motores')
-        page.locator('#timeline-panel summary').click()
+        page.locator('[data-workspace="paths"]').click()
+        assert page.locator('#timeline-panel').get_attribute('open') is not None
         page.locator('#timeline-load').click()
         page.wait_for_function("!document.querySelector('#timeline-range').disabled")
         assert int(page.locator('#timeline-range').get_attribute('max'))>8
@@ -103,7 +116,9 @@ try:
         page.locator('#timeline-play').click()
         page.locator('#timeline-exit').click()
         assert page.locator('#timeline-range').is_disabled()
+        page.locator('[data-workspace="overview"]').click()
         passed('Replay: scrub, reprodução, pausa e retorno à pose real')
+        page.locator('#files-menu summary').click()
         with page.expect_download() as out:page.locator('#csv').click()
         csv=out.value.path().read_text() if isinstance(out.value.path(),Path) else Path(out.value.path()).read_text()
         assert 'time_s,x_m,y_m,yaw_deg' in csv and len(csv.splitlines())>10
@@ -173,6 +188,8 @@ public class ZipOutro extends LinearOpMode {
             page.locator('#opmode-choice').select_option(label='ZipDemo — org/firstinspires/ftc/teamcode/ZipDemo.java')
             assert 'ZipDemo' in page.locator('#source').input_value()
             passed('ZIP TeamCode seleciona OpMode, compila, executa e restaura opções ao reabrir JSON')
+        if page.locator('#files-menu').get_attribute('open') is not None:
+            page.locator('#files-menu summary').click()
         options=page.locator('#example option').all_text_contents()
         tele=next(x for x in options if 'TeleOp' in x)
         page.locator('#example').select_option(label=tele)
@@ -188,7 +205,8 @@ public class ZipOutro extends LinearOpMode {
         result=page.request.get(f'http://127.0.0.1:{port}/api/state').json()
         assert all(m['power']==0 for m in result['motors'].values())
         passed('TeleOp: teclado movimenta e STOP encerra JVM')
-        page.locator('#route-panel summary').click()
+        page.locator('[data-workspace="paths"]').click()
+        assert page.locator('#route-panel').get_attribute('open') is not None
         page.locator('#route-add').click()
         rect=page.locator('#top').bounding_box()
         page.mouse.click(rect['x']+rect['width']/2+60,rect['y']+rect['height']/2-60)
@@ -222,6 +240,41 @@ public class ZipOutro extends LinearOpMode {
         page.locator('#reset').click()
         page.wait_for_function("document.querySelector('#status').textContent==='pronto'")
         page.locator('#example').select_option(label=options[1])
+        # Regressão do bug relatado: colar Autônomo 3.5 completo, sem metade preta
+        # e sem cortar o código. Só START após a confirmação de modo no INIT.
+        source35=(ROOT/'tests/fixtures/TeamCode/src/main/java/org/firstinspires/ftc/teamcode/Autonomo/Autonomo35.java').read_text(encoding='utf-8')
+        assert len(source35)>30000
+        page.locator('#source').fill(source35)
+        page.wait_for_function("document.querySelector('#code-stats').textContent.includes('linhas')")
+        assert page.locator('#source').input_value()==source35, 'Código 3.5 truncado'
+        assert '35' in page.locator('#source').input_value()
+        assert page.locator('#source').evaluate("(el)=>getComputedStyle(el).color")!='rgba(0, 0, 0, 0)'
+        assert page.locator('#source').evaluate("(el)=>getComputedStyle(el).webkitTextFillColor")!='transparent'
+        page.locator('[data-workspace="code"]').click()
+        assert page.locator('#source').is_visible()
+        assert page.locator('.views').is_hidden()
+        page.locator('[data-workspace="overview"]').click()
+        assert page.locator('#auto35-panel').is_visible()
+        passed('Autônomo 3.5 completo e editável, sem texto invisível; foco Código funcional')
+        page.locator('#compile').click()
+        page.wait_for_function("document.querySelector('#status').textContent==='inicializando'",timeout=45000)
+        page.locator('#auto35-mode').select_option('9')
+        page.locator('#auto35-confirm').click()
+        page.wait_for_function("document.querySelector('#telemetry').textContent.includes('Confirmado: true')",timeout=15000)
+        assert page.locator('#start').is_enabled()
+        page.locator('#start').click()
+        page.wait_for_function("document.querySelector('#status').textContent==='concluído'",timeout=45000)
+        assert 'Autonomo 3.5 concluido' in page.locator('#telemetry').text_content()
+        passed('Autônomo 3.5: INIT, seleção, confirmação A, START e término na JVM')
+        page.locator('#reset').click()
+        page.wait_for_function("document.querySelector('#status').textContent==='pronto'")
+        page.locator('[data-workspace="paths"]').click()
+        assert page.locator('#route-panel').get_attribute('open') is not None
+        assert page.locator('#top').is_visible()
+        page.locator('[data-workspace="overview"]').click()
+        passed('Abas Simulador, Código e Trajetórias funcionais')
+        if page.locator('#files-menu').get_attribute('open') is not None:
+            page.locator('#files-menu summary').click()
         (ROOT/'reports').mkdir(exist_ok=True)
         page.screenshot(path=str(ROOT/'reports/interface-desktop.png'),full_page=True)
         page.set_viewport_size({'width':390,'height':844})

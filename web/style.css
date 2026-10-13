@@ -22,3 +22,50 @@
 .shot-result[data-kind=running]{border-color:#7bd9ed;color:#bceff7}
 .shot-result[data-kind=hit]{border-color:#51c994;background:#132820;color:#bdf5d8}
 .shot-result[data-kind=error]{border-color:#e56e72;background:#2b1a20;color:#ffc0c3}
+
+/* MecaSim 0.3: canvas lateral legível e editor Java nativo, sem camada transparente. */
+#side{height:390px;min-height:390px}
+.workspace-switch{display:flex;gap:7px;flex-wrap:wrap;margin:15px 0 13px;padding:6px;border:1px solid var(--line);border-radius:10px;background:#181c23}
+.workspace-switch button{flex:1;min-width:150px;background:transparent;border:1px solid transparent;font-weight:650;font-size:12px}
+.workspace-switch button.active{background:#2f261f;color:#ffad71;border-color:#745035}
+main.mode-code .workspace{display:grid;grid-template-columns:minmax(0,1fr)}
+main.mode-code .workspace .views{display:none}
+main.mode-code #route-panel,main.mode-code #timeline-panel{display:none}
+main.mode-paths .workspace{grid-template-columns:minmax(0,1fr)}
+main.mode-paths .workspace .editor,main.mode-paths .views>.panel:not(:first-child){display:none}
+main.mode-paths #route-panel,main.mode-paths #timeline-panel{border-color:#80532c}
+.editor-heading{display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin:12px 0}
+.editor-heading label{font-size:12px;color:#cdd5df;flex:1;min-width:200px}
+.editor-heading #code-stats{color:#f4bb81;font:11px ui-monospace,Consolas,monospace}
+.editor-heading button{padding:6px 9px;font-size:11px}
+.code-frame{height:min(70vh,880px);min-height:460px;overflow:hidden}
+.code-frame #source{display:block;position:absolute;inset:0;z-index:1;box-sizing:border-box;
+ width:100%;height:100%;min-height:100%;max-height:none;margin:0;padding:16px;
+ background:#11151b;color:#e3edf7;-webkit-text-fill-color:#e3edf7;
+ caret-color:#ffb06a;resize:none;white-space:pre;overflow-wrap:normal;overflow:auto;
+ tab-size:4;font:13px/1.65 ui-monospace,SFMono-Regular,Consolas,monospace}
+.code-frame #source-highlight{display:none!important;max-height:none}
+.code-frame #source::selection{color:#fff;background:#526986}
+main.mode-code .code-frame{height:max(580px,72vh)}
+#code-stats{white-space:nowrap}
+@media(max-width:1000px){main.mode-code .workspace .editor{order:0}}
+@media(max-width:760px){#side{height:320px;min-height:320px}.code-frame{height:65vh;min-height:420px}main.mode-code .code-frame{height:73vh}}
+
+.auto35-controls{margin:0 10px 12px;padding:12px;border-top:1px solid #354250;background:#121b24}
+.auto35-controls label{display:block;font-size:12px;font-weight:700;color:#ffd0a0;margin-bottom:7px}
+.auto35-controls select{width:100%;margin-bottom:8px}
+.auto35-controls button{width:100%;background:#593b26;border-color:#a26b39}
+.auto35-controls p{font-size:11px;margin:8px 0 0}
+
+/* Navigation organization: one primary toolbar; technical tools in their own mode. */
+main:not(.mode-paths) #route-panel,main:not(.mode-paths) #timeline-panel{display:none}
+main.mode-code .arena-tools,main.mode-code .arena-source{display:none}
+.file-menu{position:relative;border:0;display:inline-flex;padding:0;margin:0;align-items:center;z-index:3}
+.file-menu summary{list-style:none;cursor:pointer;border:1px solid var(--line);border-radius:6px;padding:9px 11px;background:#202630;color:var(--text);font:inherit}
+.file-menu summary::-webkit-details-marker{display:none}
+.file-menu summary>span{color:var(--orange);margin-left:4px}
+.file-menu[open] summary{background:#312a26;border-color:#a56835}
+.file-menu-actions{position:absolute;top:calc(100% + 5px);right:0;min-width:245px;display:flex;flex-direction:column;gap:6px;background:#1b212a;border:1px solid #47505e;box-shadow:0 8px 30px #0008;padding:10px;border-radius:8px}
+.file-menu-actions button,.file-menu-actions label{width:100%;justify-content:center;text-align:center}
+.hive-progress{margin:8px 16px;padding:9px 12px;border:1px solid #79542f;border-radius:6px;background:#231d18;color:#ffd1a1;font:700 11px/1.6 ui-monospace,Consolas,monospace}
+@media(max-width:760px){.file-menu{width:100%}.file-menu summary{width:100%;text-align:center}.file-menu-actions{left:0;right:0;min-width:0}}

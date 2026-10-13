@@ -35,16 +35,61 @@ export function drawArenaTop(ctx,project,mode,selectedCellId='',scoredBalls=[],t
   for(const [x,y] of FLOWERS){const center=p(x,y),edge=p(x+DIMS.flowerDiameter/2,y);ctx.fillStyle='#ff952f';ctx.strokeStyle='#ffb670';ctx.lineWidth=1.2;ctx.beginPath();ctx.arc(center[0],center[1],Math.max(3.2,Math.abs(edge[0]-center[0])),0,Math.PI*2);ctx.fill();ctx.stroke();}
   ctx.restore();
 }
-export function drawArenaSide(ctx,point,mode,targetDistance,targetHeight,cell=null,scoredBalls=[],tipped=false){
-  if(mode!=='biobuzz'||!Number.isFinite(targetDistance)||targetDistance<=.25)return;
-  const h=Math.max(.35,Number.isFinite(cell?.openingHeight)?cell.openingHeight:Number.isFinite(targetHeight)?targetHeight:DIMS.pivotHeight),at=targetDistance,fill=cell?.team==='blue'?'#346fac':'#c9424e',stroke=cell?.team==='blue'?'#79b5ff':'#ef6770';
-  const p=(x,y)=>point(x,y),poly=points=>{ctx.beginPath();points.forEach((q,i)=>i?ctx.lineTo(...q):ctx.moveTo(...q));ctx.closePath();};
-  ctx.save();poly([p(at-.39,0),p(at,h-.08),p(at+.39,0)]);ctx.fillStyle='#15191e';ctx.fill();ctx.strokeStyle='#9098a2';ctx.lineWidth=1.5;ctx.stroke();
-  ctx.strokeStyle='#59616c';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(...p(at-.31,0));ctx.lineTo(...p(at,h-.22));ctx.lineTo(...p(at+.31,0));ctx.stroke();
-  const lean=tipped?.14:0,frame=[p(at-.20+lean,h-.04),p(at+.17+lean,h-.04),p(at+.26+lean,h+.22),p(at-.11+lean,h+.22)];poly(frame);ctx.fillStyle='#262c33';ctx.fill();ctx.strokeStyle='#d5d9df';ctx.lineWidth=1.5;ctx.stroke();
-  poly([p(at-.13+lean,h+.015),p(at+.10+lean,h+.015),p(at+.16+lean,h+.16),p(at-.07+lean,h+.16)]);ctx.fillStyle=fill+'cc';ctx.fill();ctx.strokeStyle=stroke;ctx.lineWidth=2;ctx.stroke();
-  (Array.isArray(scoredBalls)?scoredBalls.filter(ball=>!cell||ball?.cellId===cell.id):[]).forEach((ball,index)=>{const q=p(at+lean-.05+(index%3)*.05,h+.07+Math.floor(index/3)*.035);ctx.fillStyle='#fff4a9';ctx.strokeStyle='#7a5523';ctx.lineWidth=1;ctx.beginPath();ctx.arc(q[0],q[1],4,0,Math.PI*2);ctx.fill();ctx.stroke();});
-  const label=p(at+lean,h+.31);ctx.fillStyle='#dce3ec';ctx.font='bold 10px system-ui';ctx.textAlign='center';ctx.fillText((cell?.name||'HIVE selecionado')+(tipped?' · TOMBOU':''),label[0],label[1]);ctx.restore();
+// Vista lateral em corte orientado ao tiro (não é modelo CAD 3D).
+// A-frame no pivô oficial de 1,1165 m; duas CELLS em corpo pentagonal,
+// unidas por uma gangorra com rotação biestável perceptível.
+export function drawArenaSide(ctx,point,mode,targetDistance,targetHeight,cell=null,scoredBalls=[],hiveStatus={}){
+  if(mode!=='biobuzz'||!Number.isFinite(targetDistance)||targetDistance<=.25||!cell)return;
+  const team=cell.team,selectedLower=cell.id.endsWith('lower'),angle=(Number.isFinite(hiveStatus.angle)?hiveStatus.angle:-18)*Math.PI/180;
+  const halfSpan=DIMS.cellSpacing/2,spanX=halfSpan*Math.cos(angle),spanZ=halfSpan*Math.sin(angle);
+  const pivotX=targetDistance-(selectedLower?-spanX:spanX),pivotY=DIMS.pivotHeight;
+  const p=(x,y)=>point(x,y);
+  const poly=(pts,fill,stroke,width=1.5)=>{
+    ctx.beginPath();pts.forEach((pt,i)=>i?ctx.lineTo(...pt):ctx.moveTo(...pt));
+    ctx.closePath();ctx.fillStyle=fill;ctx.fill();ctx.strokeStyle=stroke;ctx.lineWidth=width;ctx.stroke();
+  };
+  const stroke=team==='blue'?'#79b5ff':'#ef6770',fill=team==='blue'?'#284e77':'#682b35';
+  ctx.save();
+  // Base triangular / dois montantes e eixo; nada gira neste suporte.
+  poly([p(pivotX-.47,0),p(pivotX,pivotY),p(pivotX+.47,0)],'#171b22','#b0bac5',2.5);
+  ctx.strokeStyle='#778491';ctx.lineWidth=3;
+  ctx.beginPath();ctx.moveTo(...p(pivotX-.38,.04));ctx.lineTo(...p(pivotX,pivotY));
+  ctx.lineTo(...p(pivotX+.38,.04));ctx.moveTo(...p(pivotX-.46,.025));ctx.lineTo(...p(pivotX+.46,.025));ctx.stroke();
+  // Barra da gangorra: o mesmo pivô articula as duas CELLS.
+  ctx.strokeStyle='#d4dde7';ctx.lineWidth=7;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(...p(pivotX-spanX,pivotY-spanZ));
+  ctx.lineTo(...p(pivotX+spanX,pivotY+spanZ));ctx.stroke();
+  ctx.strokeStyle='#ffb968';ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(...p(pivotX-.09*Math.cos(angle),pivotY-.09*Math.sin(angle)));
+  ctx.lineTo(...p(pivotX+.09*Math.cos(angle),pivotY+.09*Math.sin(angle)));ctx.stroke();
+  for(const sign of [-1,1]){
+    const id=team+'-'+(sign===-1?'lower':'upper');
+    const cx=pivotX+sign*spanX,cy=pivotY+sign*spanZ-.38;
+    const baseY=cy-.19;
+    // Rotaciona a casinha com a gangorra, não apenas translada suas coordenadas.
+    const cellPoint=(u,v)=>p(cx+u*Math.cos(angle)-v*Math.sin(angle),
+      cy+u*Math.sin(angle)+v*Math.cos(angle));
+    poly([cellPoint(-.155,-.19),cellPoint(.155,-.19),cellPoint(.155,.075),
+      cellPoint(0,.29),cellPoint(-.155,.075)],'#202731',stroke,2);
+    poly([cellPoint(-.13,-.175),cellPoint(.13,-.175),
+      cellPoint(.13,.053),cellPoint(-.13,.053)],fill+'bb',stroke,1.2);
+    ctx.strokeStyle='#f6d9a3';ctx.lineWidth=3;
+    ctx.beginPath();ctx.moveTo(...cellPoint(-.105,.10));ctx.lineTo(...cellPoint(.105,.10));ctx.stroke();
+    if(id===hiveStatus.activeCellId){
+      ctx.fillStyle='#f2e7b4';ctx.font='bold 10px system-ui';ctx.textAlign='center';
+      const up=p(cx,cy+.35);ctx.fillText('ABERTA ↑',up[0],up[1]);
+    }
+    (Array.isArray(scoredBalls)?scoredBalls:[]).filter(b=>b?.cellId===id).forEach((b,index)=>{
+      const q=cellPoint(-.075+(index%4)*.05,-.125+Math.floor(index/4)*.075);
+      ctx.beginPath();ctx.arc(...q,4.4,0,2*Math.PI);
+      ctx.fillStyle='#ffeb96';ctx.fill();ctx.strokeStyle='#a67d38';ctx.lineWidth=1;ctx.stroke();
+    });
+  }
+  const hinge=p(pivotX,pivotY);ctx.fillStyle='#ffb564';ctx.beginPath();ctx.arc(...hinge,5,0,Math.PI*2);ctx.fill();
+  const label=p(pivotX,pivotY+.58);ctx.textAlign='center';ctx.font='bold 11px system-ui';ctx.fillStyle=stroke;
+  ctx.fillText('HIVE '+(team==='red'?'VERMELHO':'AZUL')+' · '+(hiveStatus.count||0)+'/8 POLLEN',label[0],label[1]);
+  if(hiveStatus.tips>0){const q=p(pivotX,pivotY+.45);ctx.fillStyle='#ffd18b';ctx.fillText('TOMBAMENTOS: '+hiveStatus.tips,q[0],q[1]);}
+  ctx.restore();
 }
 export function hiveCellAt(x,y){return HIVE.cells.find(cell=>x>=cell.x&&x<=cell.x+cell.w&&y>=cell.y&&y<=cell.y+cell.h)||null;}
 export function hiveCellById(id){return HIVE.cells.find(cell=>cell.id===id)||null;}
