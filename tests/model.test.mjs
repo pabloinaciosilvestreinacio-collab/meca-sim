@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {validStart,FIELD_METERS,FLOWERS} from '../web/arena.mjs';
 import assert from 'node:assert/strict';
 import {rotate, launcher, heightAt, flight, gamepadValues} from '../web/model.mjs';
 test('Ponto do Desmos permanece preso ao centro ao girar',()=>{
@@ -45,4 +46,14 @@ test('desconectar controle 1 não promove o controle 2',()=>{
 test('conversão usa redução total e circunferência',()=>{
   assert.ok(Math.abs(encoderScale(28,20,.09)-1980.5948473658087)<1e-9);
   assert.throws(()=>encoderScale(28,20,0));
+});
+
+test('Partida válida respeita tamanho e rotação do chassi nas duas arenas',()=>{
+  assert.equal(FIELD_METERS,3.66);
+  assert.equal(FLOWERS.length,4);
+  assert.equal(validStart(1.83,.65,.45,.45,0),true);
+  assert.equal(validStart(.1,.1,.45,.45,0),false);
+  assert.equal(validStart(3.6,3.6,.45,.45,0),false);
+  assert.equal(validStart(.36,.36,.45,.45,45),true);
+  assert.equal(validStart(NaN,1,.45,.45,0),false);
 });

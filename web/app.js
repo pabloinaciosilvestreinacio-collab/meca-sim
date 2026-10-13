@@ -1,11 +1,13 @@
 import {rotate, launcher, heightAt, flight, gamepadValues, targetSolution, encoderScale, connectedPlayers} from './model.mjs';
+import {FIELD_METERS, ARENAS, validStart, drawArenaTop, drawArenaSide} from './arena.mjs';
 const $ = id => document.getElementById(id);
 const num = id => Number($(id).value);
 let state = {x:1.83,y:.65,yaw:0,width:.45,length:.45,trail:[],motors:{},time:0,status:'pronto'};
 let focused = document.hasFocus();
-let shot = null, examples = {}, javaFiles = {}, zipOpModes = [], selectedJavaPath = '', lastPad = 0, polling = false, padBusy = false;
+let shot = null, examples = {}, javaFiles = {}, zipOpModes = [], selectedJavaPath = '', lastPad = 0, polling = false, padBusy = false, pickingStart = false;
+const LIBRARY_KEY='meca-sim-library-v1';
 const keys = new Set(), top = $('top'), side = $('side');
-const configIds = ['left','right','width','length','track','max_speed','ticks_per_m','duration','x','y','initial-yaw','invert_left','invert_right','acceleration','left_gain','right_gain','left_slip','right_slip','imu_delay','imu_drift','walls','imu_frozen','left_encoder_frozen','right_encoder_frozen'];
+const configIds = ['arena','left','right','width','length','track','max_speed','ticks_per_m','duration','x','y','initial-yaw','invert_left','invert_right','acceleration','left_gain','right_gain','left_slip','right_slip','imu_delay','imu_drift','walls','imu_frozen','left_encoder_frozen','right_encoder_frozen'];
 const launchIds = ['offset-x','offset-y','height','speed','elevation','azimuth','target-x','target-y','target-h'];
 function config() {
   const data = {};
@@ -17,6 +19,37 @@ function persist() {
     localStorage.setItem('meca-sim-v02',JSON.stringify({source:$('source').value,files:javaFiles,values})); } catch {}
 }
 function notice(text) {$('message').textContent=text;}
+function library(){try{const items=JSON.parse(localStorage.getItem(LIBRARY_KEY)||'[]');return Array.isArray(items)?items.filter(x=>x&&typeof x.name==='string'&&x.project?.version===2).slice(0,12):[];}catch{return [];}}
+function projectData(){return {format:'meca-sim-project',version:2,source:$('source').value,files:{...javaFiles},config:config(),launcher:Object.fromEntries(launchIds.map(id=>[id,num(id)]))};}
+function refreshExamples(selected=''){
+  const menu=$('example');menu.replaceChildren();
+  const blank=document.createElement('option');blank.value='';blank.textContent='Selecione…';menu.append(blank);
+  const base=document.createElement('optgroup');base.label='Exemplos incluídos';
+  Object.keys(examples).forEach(name=>{const option=document.createElement('option');option.value=name;option.textContent=name;base.append(option);});
+  menu.append(base);
+  const saved=library();if(saved.length){const group=document.createElement('optgroup');group.label='Meus projetos salvos';
+    saved.forEach(item=>{const option=document.createElement('option');option.value='saved:'+item.name;option.textContent=item.name;group.append(option);});menu.append(group);}
+  menu.value=selected;
+  $('delete-library').disabled=!selected.startsWith('saved:');
+}
+function saveInLibrary(name){
+  if(!name||name.length>64)throw Error('Nome inválido (máximo 64 caracteres).');
+  const data=projectData();const bytes=new TextEncoder().encode(JSON.stringify(data)).length;
+  if(bytes>240000)throw Error('Projeto grande demais para a biblioteca local; exporte o JSON.');
+  const items=library().filter(item=>item.name!==name);
+  if(items.length>=12)throw Error('Limite de 12 projetos locais. Exclua um para salvar outro.');
+  items.push({name,project:data});localStorage.setItem(LIBRARY_KEY,JSON.stringify(items));refreshExamples('saved:'+name);
+}
+async function loadProjectData(data){
+  if(!data||data.format!=='meca-sim-project'||data.version!==2||typeof data.source!=='string')throw Error('Projeto salvo inválido.');
+  if(['compilando','inicializando','executando'].includes(state.status))throw Error('Clique em STOP antes de trocar de projeto.');
+  await api('reset',{config:data.config||{}});
+  $('source').value=data.source;javaFiles={...(data.files||{})};restoreOpModeChoices();updateJavaFilesLabel();
+  for(const id of configIds){const key=id==='initial-yaw'?'yaw':id;if(key in (data.config||{}))$(id).type==='checkbox'?$(id).checked=Boolean(data.config[key]):$(id).value=data.config[key];}
+  for(const id of launchIds)if(id in (data.launcher||{}))$(id).value=data.launcher[id];
+  shot=null;persist();notice('Projeto restaurado. Compile/INIT para executar.');
+}
+
 function pathOfPrimary(code) {
   const pkg=code.match(/^\s*package\s+([\w.]+)\s*;/m);
   const cls=code.match(/\bpublic\s+(?:(?:final|strictfp)\s+)*class\s+([A-Za-z_$][\w$]*)\b/);
@@ -126,18 +159,18 @@ action('export',async()=>{
 function download(data, filename, type='application/json') {
   const url=URL.createObjectURL(new Blob([data],{type})),a=document.createElement('a');a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
-action('save-project',()=>download(JSON.stringify({format:'meca-sim-project',version:2,source:$('source').value,files:javaFiles,config:config(),launcher:Object.fromEntries(launchIds.map(id=>[id,num(id)]))},null,2),'meca-sim-projeto.json'));
+action('save-project',()=>download(JSON.stringify(projectData(),null,2),'meca-sim-projeto.json'));
+action('save-library',()=>{const name=window.prompt('Nome do projeto na biblioteca:',pathOfPrimary($('source').value)?.split('/').pop().replace(/\\.java$/,'')||'Meu projeto');if(name===null)return;saveInLibrary(name.trim());notice('Projeto guardado no menu deste navegador.');});
+action('delete-library',()=>{const current=$('example').value;if(!current.startsWith('saved:'))return;const name=current.slice(6);if(!window.confirm('Excluir da biblioteca local: '+name+'?'))return;localStorage.setItem(LIBRARY_KEY,JSON.stringify(library().filter(item=>item.name!==name)));refreshExamples();notice('Removido do menu local. Arquivos JSON exportados não foram apagados.');});
 $('load-project').addEventListener('change',async e=>{
   try {const file=e.target.files[0];if(!file)return;if(file.size>250000)throw Error('Projeto excede 250 kB');
     const data=JSON.parse(await file.text());if(data.format!=='meca-sim-project'||data.version!==2||typeof data.source!=='string')throw Error('Arquivo de projeto inválido');
     if(['compilando','inicializando','executando'].includes(state.status))throw Error('Pare a execução antes de carregar o projeto.');
     if(!data.config||typeof data.config!=='object'||!data.launcher||typeof data.launcher!=='object')throw Error('Configuração ausente');
     if(data.files!==undefined && (typeof data.files!=='object'||data.files===null||Array.isArray(data.files)||Object.keys(data.files).length>30||Object.values(data.files).some(value=>typeof value!=='string')))throw Error('Arquivos Java do projeto inválidos');
-    await api('reset',{config:data.config});
-    $('source').value=data.source;javaFiles={...(data.files||{})};restoreOpModeChoices();updateJavaFilesLabel();
-    for(const id of configIds){const key=id==='initial-yaw'?'yaw':id;if(key in data.config)$(id).type==='checkbox'?$(id).checked=Boolean(data.config[key]):$(id).value=data.config[key];}
-    for(const id of launchIds)if(id in data.launcher)$(id).value=data.launcher[id];
-    shot=null;persist();notice('Projeto carregado. Clique em Compilar / INIT para executar.');
+    await loadProjectData(data);
+    const name=String(data.name||file.name.replace(/\\.json$/i,'')).slice(0,64);
+    try{saveInLibrary(name);}catch(error){notice('Projeto carregado, mas não salvo no menu: '+error.message);}
   }catch(error){notice(error.message);}finally{e.target.value='';}
 });
 action('csv',async()=>{const response=await fetch('/api/recording');if(!response.ok)throw Error('Falha ao exportar');const data=await response.json();download([data.columns.join(','),...data.rows.map(row=>row.join(','))].join('\n'),'meca-sim-trajetoria.csv','text/csv');});
@@ -153,7 +186,13 @@ document.querySelectorAll('[data-tab]').forEach(button=>button.addEventListener(
 }));
 $('source').addEventListener('input',persist);
 [...configIds,...launchIds].forEach(id=>$(id).addEventListener('change',persist));
-$('example').addEventListener('change',()=>{if(examples[$('example').value]){$('source').value=examples[$('example').value];javaFiles={};selectedJavaPath='';populateOpModes([]);updateJavaFilesLabel();persist();}});
+$('example').addEventListener('change',async()=>{
+  try{const choice=$('example').value;
+    if(choice.startsWith('saved:')){const item=library().find(x=>x.name===choice.slice(6));if(item)await loadProjectData(item.project);}
+    else if(examples[choice]){$('source').value=examples[choice];javaFiles={};selectedJavaPath='';populateOpModes([]);updateJavaFilesLabel();persist();}
+    $('delete-library').disabled=!choice.startsWith('saved:');
+  }catch(error){notice(error.message);}
+});
 $('source').addEventListener('keydown',event=>{if(event.key==='Tab'){event.preventDefault();const input=event.target,start=input.selectionStart,end=input.selectionEnd;input.setRangeText('    ',start,end,'end');persist();}});
 
 function launchValues() {
@@ -171,6 +210,7 @@ function geometry() {const r=top.getBoundingClientRect(),scale=Math.min((r.width
 function drawTop(now) {
   const {ctx:c,w,h}=canvasContext(top),g=geometry();
   const project=(x,y)=>[g.ox+x*g.scale,g.oy-y*g.scale];
+  drawArenaTop(c,project,$('arena').value);
   c.lineWidth=1;c.font='10px system-ui';
   for(let i=0;i<=6;i++){const p=i*3.66/6,[x,y]=project(p,p);c.strokeStyle='#242c37';c.beginPath();c.moveTo(x,g.oy);c.lineTo(x,g.oy-3.66*g.scale);c.moveTo(g.ox,y);c.lineTo(g.ox+3.66*g.scale,y);c.stroke();c.fillStyle='#627085';c.fillText(p.toFixed(2),x-9,g.oy+15);c.fillText(p.toFixed(2),g.ox-28,y+3);}
   c.strokeStyle='#536277';c.strokeRect(g.ox,g.oy-3.66*g.scale,3.66*g.scale,3.66*g.scale);
@@ -186,13 +226,31 @@ function drawTop(now) {
   if(shot){const elapsed=(now-shot.start)/1000,d=rotate(0,1,shot.yaw+shot.azimuth),ff=flight(shot.height,shot.speed,shot.elevation);if(elapsed<=ff.time){const distance=shot.speed*Math.cos(shot.elevation*Math.PI/180)*elapsed,q=project(shot.origin[0]+d[0]*distance,shot.origin[1]+d[1]*distance);c.fillStyle='#fff4a9';c.beginPath();c.arc(...q,5,0,Math.PI*2);c.fill();}}
   $('bounds').textContent=state.collision?'Contato com parede · rodas podem patinar':state.x<0||state.x>3.66||state.y<0||state.y>3.66?'Centro fora do campo · paredes desativadas':'Frente +Y · yaw positivo ↶';
 }
-top.addEventListener('click',event=>{const rect=top.getBoundingClientRect(),g=geometry();$('target-x').value=((event.clientX-rect.left-g.ox)/g.scale).toFixed(3);$('target-y').value=((g.oy-event.clientY+rect.top)/g.scale).toFixed(3);persist();});
+top.addEventListener('click',async event=>{
+  const rect=top.getBoundingClientRect(),g=geometry();
+  const x=(event.clientX-rect.left-g.ox)/g.scale,y=(g.oy-event.clientY+rect.top)/g.scale;
+  if(pickingStart||event.shiftKey){
+    if(['compilando','inicializando','executando'].includes(state.status)){notice('Use STOP antes de alterar a partida.');return;}
+    if(!validStart(x,y,num('width'),num('length'),num('initial-yaw'))){notice('A posição escolhida deixaria parte do robô fora do campo.');return;}
+    $('x').value=x.toFixed(3);$('y').value=y.toFixed(3);persist();pickingStart=false;
+    $('pick-start').setAttribute('aria-pressed','false');$('start-hint').textContent='Partida definida. Clique no campo para definir o alvo.';
+    try{await api('reset',{config:config()});notice('Posição inicial aplicada.');}catch(error){notice(error.message);}
+    return;
+  }
+  $('target-x').value=x.toFixed(3);$('target-y').value=y.toFixed(3);persist();
+});
+$('pick-start').addEventListener('click',()=>{
+  pickingStart=!pickingStart;$('pick-start').setAttribute('aria-pressed',String(pickingStart));
+  $('start-hint').textContent=pickingStart?'Clique no campo na nova posição inicial (ou Shift+clique).':'Clique no campo para definir o alvo.';
+});
+$('arena').addEventListener('change',()=>{$('field-description').textContent=$('arena').value==='biobuzz'?'BIOBUZZ · esquema ilustrativo, sem colisões nos elementos':'Campo livre · grade cartesiana';persist();});
 function drawSide(now) {
   const {ctx:c,w,h}=canvasContext(side),v=shot||launchValues();if(!v.valid){$('shot-info').textContent='Confira os parâmetros do lançador.';return;}
   const origin=shot?.origin||launcher(state,v.lateral,v.forward),yaw=shot?.yaw??state.yaw,dir=rotate(0,1,yaw+v.azimuth),dx=v.tx-origin[0],dy=v.ty-origin[1],along=dx*dir[0]+dy*dir[1],cross=Math.abs(dx*dir[1]-dy*dir[0]),f=flight(v.height,v.speed,v.elevation);
   const a=v.azimuth*Math.PI/180,half=(Math.abs(Math.sin(a))*state.width+Math.abs(Math.cos(a))*state.length)/2,offset=v.lateral*(-Math.sin(a))+v.forward*Math.cos(a),left=-offset-half,right=-offset+half;
   const minX=Math.min(-.6,left-.1,along-.1),maxX=Math.max(3.66,f.range+.3,along+.3,right+.1),peak=v.height+(v.speed*Math.sin(v.elevation*Math.PI/180))**2/(2*9.81),maxH=Math.max(1.5,peak+.3,v.th+.3),sx=(w-55)/(maxX-minX),sy=(h-35)/maxH;
   const point=(x,y)=>[40+(x-minX)*sx,h-25-y*sy];c.font='10px system-ui';c.lineWidth=1;
+  drawArenaSide(c,point,$('arena').value);
   for(let i=0;i<=4;i++){const value=i*maxH/4,p=point(0,value);c.strokeStyle='#242c37';c.beginPath();c.moveTo(...p);c.lineTo(w-10,p[1]);c.stroke();c.fillStyle='#627085';c.fillText(value.toFixed(1)+'m',5,p[1]+3);}
   c.strokeStyle='#536277';c.beginPath();c.moveTo(...point(0,0));c.lineTo(...point(maxX,0));c.stroke();
   // Projeção do chassi no eixo do tiro; o lançador está em x=0.
@@ -236,7 +294,9 @@ async function sendPads(now) {
 function frame(now){if(shot&&(now-shot.start)/1000>flight(shot.height,shot.speed,shot.elevation).time+.8)shot=null;drawTop(now);drawSide(now);if(!document.hidden)sendPads(now);requestAnimationFrame(frame);}
 async function init() {
   try{const response=await fetch('/examples');examples=await response.json();Object.keys(examples).forEach(name=>{const option=document.createElement('option');option.value=name;option.textContent=name;$('example').append(option);});
+    refreshExamples();
     const saved=JSON.parse(localStorage.getItem('meca-sim-v02')||'null');if(saved){$('source').value=saved.source||'';javaFiles=saved.files&&typeof saved.files==='object'&&!Array.isArray(saved.files)?saved.files:{};restoreOpModeChoices();updateJavaFilesLabel();Object.entries(saved.values||{}).forEach(([id,value])=>{if($(id))$(id).type==='checkbox'?$(id).checked=Boolean(value):$(id).value=value;});}else{$('source').value=Object.values(examples)[0];}
+    $('field-description').textContent=$('arena').value==='biobuzz'?'BIOBUZZ · esquema ilustrativo, sem colisões nos elementos':'Campo livre · grade cartesiana';
   }catch(e){notice('Não foi possível carregar exemplos ou configurações: '+e.message);}
   await poll();setInterval(poll,100);setInterval(()=>{if(!document.hidden)api('heartbeat').catch(()=>{});},500);requestAnimationFrame(frame);
 }
