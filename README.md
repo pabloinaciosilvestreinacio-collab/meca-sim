@@ -112,3 +112,11 @@ JDK é obrigatório para os testes Java. Sem ele, os unitários marcam integraç
 Base 0.1 extraída de `meca-tiger-autonomo`, commit `d8363b58e502611ca5d5948fbd2f791b0a2e6cee`. O código do robô permanece naquele projeto. `tests/fixtures` contém cópias preservadas de nove OpModes somente para regressão; não são arquivos a instalar juntos no Control Hub.
 
 Os commits são registrados diretamente neste repositório conforme solicitado. Para reverter uma evolução, use `git revert <commit>`; nunca é necessário apagar o histórico.
+
+
+### Correção de campo: HIVE selecionável, paredes e tempo
+
+- As quatro CELLs centrais — vermelhas à esquerda e azuis à direita — são as únicas miras do HIVE no modo BIOBUZZ. Clique em uma delas: a mira e a linha pontilhada passam exatamente pelo centro da CELL escolhida.
+- A parede externa está forçada no servidor e na interface; configurações antigas salvas no navegador não conseguem mais desligá-la. HIVE, FLOWERS e pintura do campo não recebem colisão.
+- Ao terminar a parábola, o modelo verifica alcance, desvio lateral, raio do projétil e altura da abertura. Acerto deixa a bolinha dentro da CELL nas vistas superior/lateral; erro é informado. O estado de “tombamento” exibido no HIVE é visual de missão, não simulação de massa/impacto.
+- “Remover bolinhas” limpa os registros de tiros e o estado visual do HIVE. Autônomo usa no máximo 30 s, TeleOp 2 min; o cronômetro pode ser desligado para ensaio manual.

@@ -1,5 +1,5 @@
 import test from 'node:test';
-import {validStart,FIELD_METERS,FLOWERS,hiveCellAt} from '../web/arena.mjs';
+import {validStart,FIELD_METERS,FLOWERS,hiveCellAt,hiveCellById,HIVE} from '../web/arena.mjs';
 import assert from 'node:assert/strict';
 import {rotate, launcher, heightAt, flight, gamepadValues, shotElapsed} from '../web/model.mjs';
 test('Ponto do Desmos permanece preso ao centro ao girar',()=>{
@@ -99,7 +99,7 @@ test('Medidas oficiais BIOBUZZ modeladas em SI',()=>{
 });
 
 import {speedFromForce,forceFromSpeed,shotFeasibility} from '../web/model.mjs';
-import {HIVE,ZONES} from '../web/arena.mjs';
+import {ZONES} from '../web/arena.mjs';
 test('Força, curso, eficiência e massa respeitam energia cinética ideal',()=>{
   const v=speedFromForce(6,.05,.15,.65);
   assert.ok(Math.abs(v-Math.sqrt(23.4))<1e-12);
@@ -122,7 +122,13 @@ test('Viabilidade considera alcance, altura e desvio lateral do alvo',()=>{
   assert.ok(behind.issues.some(s=>s.includes('atrás')));
 });
 test('CELL do HIVE usa coordenadas físicas do campo',()=>{
-  const cell=hiveCellAt(1.50,1.95);assert.ok(cell);assert.equal(hiveCellAt(.2,.2),null);
+  const cell=hiveCellAt(1.50,1.95);assert.ok(cell);assert.equal(cell.id,'red-upper');assert.equal(hiveCellAt(.2,.2),null);
+});
+test('Quatro HIVEs centrais têm mira estável e identificável',()=>{
+  assert.equal(HIVE.cells.length,4);
+  assert.deepEqual(HIVE.cells.map(cell=>cell.id),['red-lower','red-upper','blue-lower','blue-upper']);
+  for(const cell of HIVE.cells)assert.equal(hiveCellById(cell.id),cell);
+  assert.equal(hiveCellById('inexistente'),null);
 });
 
 test('Desenho de arena segue referências observadas no Desmos',()=>{

@@ -1,4 +1,14 @@
-# Validação — candidato 0.3-rc1
+# Validação — candidato 0.3-rc3
+
+## Correções solicitadas: parede, HIVE e tempo
+
+A colisão com a parede externa é agora imposta pelo servidor, portanto um valor antigo salvo no navegador não pode desligá-la. FLOWERS, HIVE e desenhos de campo seguem sem colisão, conforme o escopo solicitado.
+
+O HIVE é modelado como quatro CELLs centrais selecionáveis a partir da vista superior. O corte lateral desenha um apoio triangular e uma face inclinada baseada na referência Desmos; é esquema 2D, não CAD. A condição de entrada usa trajetória ideal com gravidade, alcance, desvio lateral, raio do projétil e faixa vertical da abertura. Bolinhas acertadas ficam registradas nas duas vistas. “Tombamento” é estado visual de missão, não cálculo de impacto/massa.
+
+Autônomo limita a 30 s e TeleOp a 120 s quando o cronômetro está habilitado; pode ser desligado para ensaio manual. A execução ainda depende de STOP, desconexão ou finalização do Java.
+
+CI deste commit deve ser consultada antes de qualificar esta versão como validada.
 
 ## Desmos: correção da arena e física do shooter
 

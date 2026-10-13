@@ -31,6 +31,13 @@ try:
         page.wait_for_function("document.querySelector('#source').value.includes('LinearOpMode')")
         assert page.locator('#top').evaluate('(e)=>e.width>0 && e.height>0')
         assert page.locator('#diagnostic-panel').count()==1
+        page.locator('[data-tab="robot"]').click()
+        assert page.locator('#walls').is_checked() and page.locator('#walls').is_disabled()
+        page.locator('#match-mode').select_option('teleop')
+        assert page.locator('#duration').input_value()=='120'
+        page.locator('#timer-enabled').uncheck()
+        assert page.locator('#clear-shots').count()==1
+        page.locator('[data-tab="code"]').click()
         passed('Interface inicial, exemplos e canvas carregados')
         assert page.locator('#arena').input_value() in ('biobuzz','livre')
         page.locator('#arena').select_option('livre')

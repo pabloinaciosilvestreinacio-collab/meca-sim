@@ -14,3 +14,11 @@
 .shot-verdict{margin:12px 0;padding:12px 14px;border:1px solid #4b5059;border-radius:8px;background:#1b2028;font-size:12px;line-height:1.65}.shot-verdict[data-possible=yes]{color:#9df1cb;border-color:#3d856b;background:#152821}.shot-verdict[data-possible=no]{color:#ffc1bc;border-color:#9a5053;background:#2b1a20}.shot-verdict[data-possible=invalid]{color:#ffd797;border-color:#a37b49}.tab select#shot-mode{margin:0;height:38px}
 
 .brand-note{margin-left:auto;color:#ff852e;font-size:.65rem;letter-spacing:.12em;font-weight:800}.tabs{position:sticky;top:0;z-index:2;background:#10151c;padding-bottom:10px}.tabs button{min-width:0;flex:1}.span-all{grid-column:1/-1}.fields output{display:block;color:#ffb564;font:700 .78rem ui-monospace,monospace;margin-top:4px}.fields input[type=range]{accent-color:#ff852e;width:100%}@media(max-width:760px){.brand-note{display:none}}
+
+
+/* Resultado persistente do lançamento; usa a paleta Meca Tiger sem esconder a telemetria. */
+.shot-result{min-height:1.5em;padding:8px 10px;border-left:3px solid #718093;background:#151a21;color:#c9d4df}
+.shot-result[data-kind=selected]{border-color:#ffbf6f;color:#ffe0a6}
+.shot-result[data-kind=running]{border-color:#7bd9ed;color:#bceff7}
+.shot-result[data-kind=hit]{border-color:#51c994;background:#132820;color:#bdf5d8}
+.shot-result[data-kind=error]{border-color:#e56e72;background:#2b1a20;color:#ffc0c3}

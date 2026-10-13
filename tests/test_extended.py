@@ -263,3 +263,16 @@ process.stdout.write(makeRouteJava(route,{left:'ME',right:'MD',ticksPerM:1980.6}
         s=Session();s.run('public class Acentos extends com.qualcomm.robotcore.eventloop.opmode.LinearOpMode {public void runOpMode(){System.out.println("Atenção: execução, posição e direção");}}')
         s.worker.join(15);self.assertEqual(s.status,'concluído',s.logs)
         self.assertIn('Atenção: execução, posição e direção',s.logs)
+
+
+class MatchRulesTests(unittest.TestCase):
+    def test_interface_match_rules_and_external_walls(self):
+        self.assertTrue(build_world({'walls':False}).walls)
+        autonomous=Session({'match-mode':'auto','duration':1})
+        teleop=Session({'match-mode':'teleop','duration':1})
+        rehearsal=Session({'match-mode':'teleop','timer-enabled':False})
+        self.assertEqual(autonomous.limit,30)
+        self.assertEqual(teleop.limit,120)
+        self.assertFalse(rehearsal.timer_enabled)
+    def test_legacy_duration_remains_available_to_automated_scenarios(self):
+        self.assertEqual(Session({'duration':1}).limit,1)

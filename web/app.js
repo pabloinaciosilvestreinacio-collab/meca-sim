@@ -1,5 +1,5 @@
 import {rotate, launcher, heightAt, flight, gamepadValues, targetSolution, encoderScale, connectedPlayers, speedFromForce, forceFromSpeed, shotFeasibility, shotElapsed} from './model.mjs';
-import {FIELD_METERS, ARENAS, validStart, drawArenaTop, drawArenaSide, hiveCellAt} from './arena.mjs';
+import {FIELD_METERS, ARENAS, validStart, drawArenaTop, drawArenaSide, hiveCellAt, hiveCellById} from './arena.mjs';
 import {candidates, diagnostics, highlightJava} from './editor.mjs';
 import {routeSteps, routeWarnings, makeRouteJava, MAX_WAYPOINTS} from './route.mjs';
 const $ = id => document.getElementById(id);
@@ -8,10 +8,10 @@ let state = {x:1.83,y:.65,yaw:0,width:.45,length:.45,trail:[],motors:{},time:0,s
 let focused = document.hasFocus();
 let shot = null, examples = {}, javaFiles = {}, zipOpModes = [], selectedJavaPath = '', lastPad = 0, polling = false, padBusy = false, pickingStart = false;
 let lastDraw=0,lastLog='',lastMotorSignature='',lastDiagnosticSignature='',lastShotPoseKey='',highlightJob=0,routePicking=false;
-let routePoints=[],replayRows=[],replayIndex=-1,replayPlaying=false,replayLast=0,scoredShots=[];
+let routePoints=[],replayRows=[],replayIndex=-1,replayPlaying=false,replayLast=0,scoredShots=[],selectedHiveId='red-lower',tippedHives=new Set();
 const LIBRARY_KEY='meca-sim-library-v1',LOGO_KEY='meca-sim-logo-v1';
 const keys = new Set(), top = $('top'), side = $('side');
-const configIds = ['arena','drivetrain','robot-color','left','right','front_left','front_right','back_left','back_right','width','length','track','max_speed','ticks_per_m','duration','x','y','initial-yaw','invert_left','invert_right','acceleration','left_gain','right_gain','left_slip','right_slip','imu_delay','imu_drift','walls','imu_frozen','left_encoder_frozen','right_encoder_frozen'];
+const configIds = ['arena','drivetrain','robot-color','left','right','front_left','front_right','back_left','back_right','width','length','track','max_speed','ticks_per_m','duration','match-mode','timer-enabled','x','y','initial-yaw','invert_left','invert_right','acceleration','left_gain','right_gain','left_slip','right_slip','imu_delay','imu_drift','walls','imu_frozen','left_encoder_frozen','right_encoder_frozen'];
 const launchIds = ['offset-x','offset-y','height','shot-mode','force','speed','projectile-mass','acceleration-stroke','shot-efficiency','target-radius','target-tolerance','elevation','azimuth','target-x','target-y','target-h'];
 function config() {
   const data = {};
@@ -20,12 +20,24 @@ function config() {
 }
 function persist() {
   try { const values={}; [...configIds,...launchIds].forEach(id=>values[id]=$(id).type==='checkbox'?$(id).checked:$(id).value);
-    localStorage.setItem('meca-sim-v02',JSON.stringify({source:$('source').value,files:javaFiles,values,route:routePoints})); } catch {}
+    localStorage.setItem('meca-sim-v02',JSON.stringify({source:$('source').value,files:javaFiles,values,route:routePoints,hive:selectedHiveId})); } catch {}
 }
 function notice(text) {$('message').textContent=text;}
+function setShotResult(text,kind='info'){const item=$('shot-result');if(item){item.textContent=text;item.dataset.kind=kind;}notice(text);}
+function selectedHive(){return hiveCellById(selectedHiveId);}
+function selectHive(cell,announce=true){
+  if(!cell)return;
+  selectedHiveId=cell.id;$('target-x').value=(cell.x+cell.w/2).toFixed(3);$('target-y').value=(cell.y+cell.h/2).toFixed(3);$('target-h').value=cell.openingHeight.toFixed(2);
+  refreshShot();if(announce)setShotResult('MIRA SELECIONADA · '+cell.name+'. A linha pontilhada termina nesta CELL.','selected');
+}
+function refreshMatchLimit(){
+  const mode=$('match-mode').value==='teleop'?'teleop':'auto';
+  $('match-mode').value=mode;$('duration').value=mode==='auto'?'30':'120';
+  $('duration').title=$('timer-enabled').checked?'Limite aplicado pelo simulador':'Cronômetro de partida desativado';
+}
 function setTeamLogo(url){$('team-logo').src=url;$('team-logo').hidden=false;}
 function library(){try{const items=JSON.parse(localStorage.getItem(LIBRARY_KEY)||'[]');return Array.isArray(items)?items.filter(x=>x&&typeof x.name==='string'&&x.project?.version===2).slice(0,12):[];}catch{return [];}}
-function projectData(){return {format:'meca-sim-project',version:2,source:$('source').value,files:{...javaFiles},config:config(),launcher:Object.fromEntries(launchIds.map(id=>[id,id==='shot-mode'?$(id).value:num(id)])),route:routePoints.slice()};}
+function projectData(){return {format:'meca-sim-project',version:2,source:$('source').value,files:{...javaFiles},config:config(),launcher:Object.fromEntries(launchIds.map(id=>[id,id==='shot-mode'?$(id).value:num(id)])),route:routePoints.slice(),hive:selectedHiveId};}
 function refreshExamples(selected=''){
   const menu=$('example');menu.replaceChildren();
   const blank=document.createElement('option');blank.value='';blank.textContent='Selecione…';menu.append(blank);
@@ -53,7 +65,7 @@ async function loadProjectData(data){
   for(const id of configIds){const key=id==='initial-yaw'?'yaw':id;if(key in (data.config||{}))$(id).type==='checkbox'?$(id).checked=Boolean(data.config[key]):$(id).value=data.config[key];}
   for(const id of launchIds)if(id in (data.launcher||{}))$(id).value=data.launcher[id];
   if(!Object.prototype.hasOwnProperty.call(data.launcher||{},'shot-mode'))$('shot-mode').value='speed'; // projeto v2 antigo
-  routePoints=Array.isArray(data.route)?data.route.slice(0,MAX_WAYPOINTS).filter(p=>p&&Number.isFinite(p.x)&&Number.isFinite(p.y)):[];updateRoute();
+  routePoints=Array.isArray(data.route)?data.route.slice(0,MAX_WAYPOINTS).filter(p=>p&&Number.isFinite(p.x)&&Number.isFinite(p.y)):[];if(hiveCellById(data.hive))selectedHiveId=data.hive;$('walls').checked=true;refreshMatchLimit();selectHive(selectedHive(),false);updateRoute();
   resetReplay();shot=null;refreshShot();persist();scheduleHighlight();notice('Projeto restaurado. Compile/INIT para executar.');
 }
 
@@ -160,6 +172,7 @@ for(const [id,target] of [['ds-init','compile'],['ds-start','start'],['ds-stop',
 action('start',async()=>{await api('heartbeat');await api('start');});
 action('stop',()=>api('stop'));
 action('reset',async()=>{resetReplay();shot=null;await api('reset',{config:config()});});
+action('clear-shots',()=>{scoredShots=[];tippedHives.clear();setShotResult('Bolinhas removidas da arena e dos HIVEs.','info');});
 action('export',async()=>{
   const blob=new Blob([JSON.stringify({version:'0.2',config:config(),launcher:Object.fromEntries(launchIds.map(id=>[id,id==='shot-mode'?$(id).value:num(id)])),result:state},null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob), a=document.createElement('a');a.href=url;a.download='meca-sim-resultado.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
@@ -198,12 +211,17 @@ action('solve-shot',()=>{
   shot=null;refreshShot();persist();notice('Mira e energia ideais calculadas. Confira o resultado e valide no robô real.');
 });
 action('shoot',async()=>{
-  const values=launchValues();if(!values.valid)throw new Error('Confira altura, velocidade, elevação e coordenadas do lançador.');
-  shot={...values,origin:launcher(state,values.lateral,values.forward),yaw:state.yaw,start:performance.now()};
+  const values=launchValues(),cell=$('arena').value==='biobuzz'?selectedHive():null;
+  if(!values.valid)throw new Error('Confira altura, velocidade, elevação e coordenadas do lançador.');
+  if($('arena').value==='biobuzz'&&!cell)throw new Error('Clique em uma CELL vermelha ou azul do HIVE para selecionar a mira.');
+  shot={...values,cellId:cell?.id||'',origin:launcher(state,values.lateral,values.forward),yaw:state.yaw,start:performance.now()};
+  setShotResult('LANÇAMENTO EM ANDAMENTO · acompanhando a bolinha nas duas vistas.','running');
 });
 function refreshLauncherReadouts(){['offset-x','offset-y','height'].forEach(id=>{const out=$(id+'-readout');if(out)out.textContent=num(id).toFixed(2)+' m';});}
 function refreshDriveMode(){const mecanum=$('drivetrain').value==='mecanum';$('mecanum-names').hidden=!mecanum;$('route-panel').hidden=mecanum;}
 $('drivetrain').addEventListener('change',()=>{refreshDriveMode();persist();notice($('drivetrain').value==='mecanum'?'Mecanum configurado: use FL, FR, BL e BR no Java.':'Diferencial configurado: Mequinha usa ME e MD.');});
+$('match-mode').addEventListener('change',()=>{refreshMatchLimit();persist();notice($('match-mode').value==='auto'?'Autônomo limitado a 30 s.':'TeleOp limitado a 2 min.');});
+$('timer-enabled').addEventListener('change',()=>{refreshMatchLimit();persist();notice($('timer-enabled').checked?'Cronômetro de partida ativado.':'Cronômetro de partida desativado; STOP manual continua disponível.');});
 document.querySelectorAll('[data-tab]').forEach(button=>button.addEventListener('click',()=>{
   document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('selected',b===button));
   ['code','robot','launcher'].forEach(name=>$('tab-'+name).hidden=name!==button.dataset.tab);
@@ -312,7 +330,7 @@ function geometry() {const r=top.getBoundingClientRect(),scale=Math.min((r.width
 function drawTop(now) {
   const {ctx:c,w,h}=canvasContext(top),g=geometry();
   const project=(x,y)=>[g.ox+x*g.scale,g.oy-y*g.scale];
-  drawArenaTop(c,project,$('arena').value);
+  drawArenaTop(c,project,$('arena').value,selectedHiveId,scoredShots,[...tippedHives]);
   c.lineWidth=1;c.font='10px system-ui';
   for(let i=0;i<=6;i++){const p=i*3.66/6,[x,y]=project(p,p);c.strokeStyle='#242c37';c.beginPath();c.moveTo(x,g.oy);c.lineTo(x,g.oy-3.66*g.scale);c.moveTo(g.ox,y);c.lineTo(g.ox+3.66*g.scale,y);c.stroke();c.fillStyle='#627085';c.fillText(p.toFixed(2),x-9,g.oy+15);c.fillText(p.toFixed(2),g.ox-28,y+3);}
   c.strokeStyle='#536277';c.strokeRect(g.ox,g.oy-3.66*g.scale,3.66*g.scale,3.66*g.scale);
@@ -334,7 +352,7 @@ function drawTop(now) {
   c.lineWidth=1;c.setLineDash([5,5]);c.strokeStyle='#6b7584';c.beginPath();c.moveTo(...start);c.lineTo(...target);c.stroke();c.strokeStyle='#51d1bb';c.beginPath();c.moveTo(...start);c.lineTo(...end);c.stroke();c.setLineDash([]);
   c.fillStyle='#51d1bb';c.beginPath();c.arc(...start,4,0,Math.PI*2);c.fill();c.strokeStyle=check.possible?'#55d9ab':'#ef727c';c.lineWidth=2;c.beginPath();c.arc(...target,9,0,Math.PI*2);c.moveTo(target[0]-14,target[1]);c.lineTo(target[0]+14,target[1]);c.moveTo(target[0],target[1]-14);c.lineTo(target[0],target[1]+14);c.stroke();
   if(shot){const elapsed=shotElapsed(now,shot.start),d=rotate(0,1,shot.yaw+shot.azimuth),ff=flight(shot.height,shot.speed,shot.elevation);if(elapsed<=ff.time){const distance=shot.speed*Math.cos(shot.elevation*Math.PI/180)*elapsed,q=project(shot.origin[0]+d[0]*distance,shot.origin[1]+d[1]*distance);c.fillStyle='#fff4a9';c.beginPath();c.arc(...q,5,0,Math.PI*2);c.fill();}}
-  $('bounds').textContent=state.collision?'Contato com parede · rodas podem patinar':state.x<0||state.x>3.66||state.y<0||state.y>3.66?'Centro fora do campo · paredes desativadas':'Frente +Y · yaw positivo ↶';
+  $('bounds').textContent=state.collision?'Contato com parede · rodas podem patinar':'Paredes externas físicas · frente +Y · yaw positivo ↶';
 }
 top.addEventListener('click',async event=>{
   const rect=top.getBoundingClientRect(),g=geometry();
@@ -351,6 +369,11 @@ top.addEventListener('click',async event=>{
     $('pick-start').setAttribute('aria-pressed','false');$('start-hint').textContent='Partida definida. Clique no campo para definir o alvo.';
     try{await api('reset',{config:config()});notice('Posição inicial aplicada.');}catch(error){notice(error.message);}
     return;
+  }
+  const cell=$('arena').value==='biobuzz'?hiveCellAt(x,y):null;
+  if($('arena').value==='biobuzz'){
+    if(!cell){setShotResult('MIRA NÃO SELECIONADA · clique em uma das quatro CELLs centrais vermelhas ou azuis.','error');return;}
+    selectHive(cell);persist();return;
   }
   $('target-x').value=x.toFixed(3);$('target-y').value=y.toFixed(3);refreshShot();persist();
 });
@@ -428,7 +451,7 @@ function drawSide(now) {
   const a=v.azimuth*Math.PI/180,half=(Math.abs(Math.sin(a))*state.width+Math.abs(Math.cos(a))*state.length)/2,offset=v.lateral*(-Math.sin(a))+v.forward*Math.cos(a),left=-offset-half,right=-offset+half;
   const minX=Math.min(-.6,left-.1,along-.1),maxX=Math.max(3.66,f.range+.3,along+.3,right+.1),peak=v.height+(v.speed*Math.sin(v.elevation*Math.PI/180))**2/(2*9.81),maxH=Math.max(1.5,peak+.3,v.th+.3),sx=(w-55)/(maxX-minX),sy=(h-35)/maxH;
   const point=(x,y)=>[40+(x-minX)*sx,h-25-y*sy];c.font='10px system-ui';c.lineWidth=1;
-  drawArenaSide(c,point,$('arena').value,along,v.th);
+  const sideCell=hiveCellById(shot?.cellId||selectedHiveId);drawArenaSide(c,point,$('arena').value,along,v.th,sideCell,scoredShots,tippedHives.has(sideCell?.id));
   for(let i=0;i<=4;i++){const value=i*maxH/4,p=point(0,value);c.strokeStyle='#242c37';c.beginPath();c.moveTo(...p);c.lineTo(w-10,p[1]);c.stroke();c.fillStyle='#627085';c.fillText(value.toFixed(1)+'m',5,p[1]+3);}
   c.strokeStyle='#536277';c.beginPath();c.moveTo(...point(0,0));c.lineTo(...point(maxX,0));c.stroke();
   // Projeção do chassi no eixo do tiro; o lançador está em x=0.
@@ -497,7 +520,16 @@ async function sendPads(now) {
   }catch{}finally{padBusy=false;}
 }
 function frame(now){
-  if(shot&&shotElapsed(now,shot.start)>flight(shot.height,shot.speed,shot.elevation).time+.8){const origin=shot.origin,dir=rotate(0,1,shot.yaw+shot.azimuth),dx=shot.tx-origin[0],dy=shot.ty-origin[1],along=dx*dir[0]+dy*dir[1],cell=hiveCellAt(shot.tx,shot.ty),at=along>=0?heightAt(along,shot.height,shot.speed,shot.elevation):NaN;if(cell&&Number.isFinite(at)&&Math.abs(at-cell.openingHeight)<=.16){scoredShots.push({x:shot.tx,y:shot.ty});notice('Acerto no HIVE: peça registrada dentro da CELL.');}shot=null;}
+  if(shot&&shotElapsed(now,shot.start)>flight(shot.height,shot.speed,shot.elevation).time+.8){
+    const origin=shot.origin,dir=rotate(0,1,shot.yaw+shot.azimuth),dx=shot.tx-origin[0],dy=shot.ty-origin[1],along=dx*dir[0]+dy*dir[1],cross=Math.abs(dx*dir[1]-dy*dir[0]),cell=hiveCellById(shot.cellId),at=along>=0?heightAt(along,shot.height,shot.speed,shot.elevation):NaN;
+    const radius=Math.max(0,shot.radius),horizontal=cell?Math.max(0,cell.w/2-radius):0,vertical=cell?Math.max(0,Math.min(cell.h/2-radius,shot.heightTolerance)):0;
+    if(cell&&along>0&&along<=flight(shot.height,shot.speed,shot.elevation).range&&cross<=horizontal&&Number.isFinite(at)&&Math.abs(at-cell.openingHeight)<=vertical){
+      scoredShots.push({cellId:cell.id,x:cell.x+cell.w/2,y:cell.y+cell.h/2,height:cell.openingHeight});
+      const firstTip=!tippedHives.has(cell.id);tippedHives.add(cell.id);
+      setShotResult('ACERTO NA COLMEIA · bolinha guardada em '+cell.name+(firstTip?' · TOMBAMENTO visual do HIVE registrado.':'') ,'hit');
+    }else setShotResult('ERRO NO LANÇAMENTO · a bolinha não entrou na abertura da colmeia selecionada.','error');
+    shot=null;
+  }
   if(replayPlaying&&replayIndex>=0&&replayRows.length>1){
     if(now-replayLast>=50){replayLast=now;replayIndex=Math.min(replayRows.length-1,replayIndex+1);
       if(replayIndex===replayRows.length-1){replayPlaying=false;$('timeline-play').textContent='Reproduzir';}
@@ -511,10 +543,12 @@ async function init() {
     refreshExamples();
     const saved=JSON.parse(localStorage.getItem('meca-sim-v02')||'null');if(saved){$('source').value=saved.source||'';javaFiles=saved.files&&typeof saved.files==='object'&&!Array.isArray(saved.files)?saved.files:{};restoreOpModeChoices();updateJavaFilesLabel();Object.entries(saved.values||{}).forEach(([id,value])=>{if($(id))$(id).type==='checkbox'?$(id).checked=Boolean(value):$(id).value=value;});
     if(!Object.prototype.hasOwnProperty.call(saved.values||{},'shot-mode'))$('shot-mode').value='speed';
+    if(hiveCellById(saved.hive))selectedHiveId=saved.hive;
     }else{$('source').value=Object.values(examples)[0];}
-    $('field-description').textContent=$('arena').value==='biobuzz'?'BIOBUZZ · layout do Desmos enviado; sem colisões internas':'Campo livre · grade cartesiana';
+    $('walls').checked=true;refreshMatchLimit();selectHive(selectedHive(),false);
+    $('field-description').textContent=$('arena').value==='biobuzz'?'BIOBUZZ · layout Desmos; paredes externas físicas, HIVE/FLOWERS livres':'Campo livre · grade cartesiana';
     try{const logo=localStorage.getItem(LOGO_KEY);if(logo?.startsWith('data:image/'))setTeamLogo(logo);}catch{}
-    refreshHighlight();refreshLauncherReadouts();refreshDriveMode();refreshShot();
+    refreshHighlight();refreshLauncherReadouts();refreshDriveMode();refreshShot();$('shot-result').textContent='Clique em uma CELL central vermelha ou azul para trocar a mira.';
     if(saved&&Array.isArray(saved.route))routePoints=saved.route.slice(0,MAX_WAYPOINTS).filter(p=>p&&Number.isFinite(p.x)&&Number.isFinite(p.y));
     updateRoute();
   }catch(e){notice('Não foi possível carregar exemplos ou configurações: '+e.message);}

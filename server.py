@@ -66,7 +66,8 @@ def build_world(config):
     yaw = float(config.get("yaw", 0))
     if not math.isfinite(yaw): raise ValueError("Yaw inválido")
     world.yaw = math.radians(yaw)
-    world.walls = bool(config.get("walls", True))
+    # A interface sempre usa paredes externas: configurações antigas do navegador não podem desligá-las.
+    world.walls = True
     world.imu_frozen = bool(config.get("imu_frozen", False))
     if world.walls and not world.inside(): raise ValueError("Posição inicial atravessa a parede; ajuste X, Y e dimensões")
     if drivetrain == "mecanum":
@@ -112,9 +113,19 @@ class Session:
         self.telemetry = ""
         self.gamepads = [[0] * 20, [0] * 20]
         self.servos = {"servo": .5}
-        self.limit = float((config or {}).get("duration", 30))
-        if not math.isfinite(self.limit) or not 1 <= self.limit <= 180:
-            raise ValueError("Duração deve ser de 1 a 180 segundos")
+        settings = config or {}
+        self.match_mode = str(settings.get("match-mode", "auto"))
+        if self.match_mode not in ("auto", "teleop"):
+            raise ValueError("Modo de partida deve ser auto ou teleop")
+        self.timer_enabled = bool(settings.get("timer-enabled", True))
+        # A interface envia match-mode e aplica as regras FTC. A duração livre é
+        # preservada somente para a API legada e para cenários automatizados.
+        if "match-mode" in settings:
+            self.limit = 30.0 if self.match_mode == "auto" else 120.0
+        else:
+            self.limit = float(settings.get("duration", 30))
+            if not math.isfinite(self.limit) or not 1 <= self.limit <= 180:
+                raise ValueError("Duração deve ser de 1 a 180 segundos")
         self.worker = None
         self.client_required = False
         self.client_seen = time.monotonic()
@@ -169,7 +180,7 @@ class Session:
                     if not self.history or self.world.elapsed-self.history[-1][0] >= .049:
                         self.history.append([self.world.elapsed, self.world.x, self.world.y, math.degrees(self.world.yaw)] +
                                             [self.world.motors[n].position() for n in self.world.motors])
-                    if self.world.elapsed >= self.limit:
+                    if self.timer_enabled and self.world.elapsed >= self.limit:
                         self.log("\nLimite de tempo atingido.\n")
                         self.inspector.warn('DURACAO','Duração máxima da simulação atingida. STOP automático.','atenção',self.world.elapsed)
                         self.stop()
@@ -297,9 +308,10 @@ class Session:
                     self.process = subprocess.Popen([java, "-Dfile.encoding=UTF-8", "-Xmx128m", "-cp", str(classes), "sim.Bridge", qualified],
                                                     stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                                     text=True, encoding="utf-8", errors="replace", bufsize=1)
-                watchdog = threading.Timer(190, self.stop)
-                watchdog.daemon = True
-                watchdog.start()
+                watchdog = threading.Timer(self.limit + 10, self.stop) if self.timer_enabled else None
+                if watchdog:
+                    watchdog.daemon = True
+                    watchdog.start()
                 ticker = threading.Thread(target=self.tick, daemon=True)
                 ticker.start()
                 for line in self.process.stdout:

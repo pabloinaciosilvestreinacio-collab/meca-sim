@@ -1,3 +1,11 @@
+## 0.3-rc3 — HIVE selecionável e regras de partida
+
+- Parede externa agora é obrigatória no servidor, evitando que preferências antigas do navegador desliguem a colisão.
+- As quatro CELLs centrais do HIVE têm ID, cor e seleção por clique; a linha de mira termina na CELL escolhida.
+- Corte lateral com suporte triangular, face inclinada, parábola/bolinha em movimento e bolinhas registradas na abertura.
+- Resultado explícito de lançamento: erro, acerto e evento visual de tombamento; botão para remover todas as bolinhas.
+- Autônomo limitado a 30 s e TeleOp a 120 s, com opção de desativar o cronômetro de partida.
+
 ## 0.3-rc2 — física e controle visual
 
 - Parede externa física ativada por padrão; objetos internos não bloqueiam o robô.
