@@ -97,3 +97,33 @@ test('Medidas oficiais BIOBUZZ modeladas em SI',()=>{
   assert.equal(DIMS.pivotHeight,1.1165);assert.equal(DIMS.flowerHeight,.546);
   assert.equal(DIMS.gardenWidth,.584);assert.equal(DIMS.loadingDepth,.2795);
 });
+
+import {speedFromForce,forceFromSpeed,shotFeasibility} from '../web/model.mjs';
+import {HIVE,ZONES} from '../web/arena.mjs';
+test('Força, curso, eficiência e massa respeitam energia cinética ideal',()=>{
+  const v=speedFromForce(6,.05,.15,.65);
+  assert.ok(Math.abs(v-Math.sqrt(23.4))<1e-12);
+  assert.ok(Math.abs(forceFromSpeed(v,.05,.15,.65)-6)<1e-12);
+  assert.throws(()=>speedFromForce(4,0,.1,.7));
+  assert.throws(()=>speedFromForce(4,.05,.1,1.2));
+});
+test('Viabilidade considera alcance, altura e desvio lateral do alvo',()=>{
+  const pose={x:1,y:1,yaw:0};
+  const base={lateral:0,forward:0,height:.3,speed:5,elevation:45,azimuth:0,tx:1,ty:2,th:.9,radius:.10,heightTolerance:.12};
+  const hit=shotFeasibility(pose,base);
+  assert.equal(hit.possible,true,JSON.stringify(hit));
+  const slow=shotFeasibility(pose,{...base,speed:2});
+  assert.equal(slow.possible,false);
+  assert.ok(slow.issues.some(s=>s.includes('solo')||s.includes('altura')));
+  const offAxis=shotFeasibility(pose,{...base,tx:1.5});
+  assert.equal(offAxis.possible,false);
+  assert.ok(offAxis.issues.some(s=>s.includes('desvio lateral')));
+  const behind=shotFeasibility(pose,{...base,ty:.2});
+  assert.ok(behind.issues.some(s=>s.includes('atrás')));
+});
+test('Desenho de arena segue referências observadas no Desmos',()=>{
+  assert.ok(FLOWERS.some(([x,y])=>x<.2&&y>1.6&&y<2));
+  assert.ok(FLOWERS.some(([x,y])=>y>3.5&&x>1));
+  assert.ok(ZONES.redVertical.y>2.4&&ZONES.blueVertical.y<1);
+  assert.ok(Math.abs(HIVE.w-1.2565)<1e-10);
+});

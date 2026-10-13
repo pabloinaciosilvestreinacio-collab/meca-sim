@@ -2,6 +2,13 @@
 
 Simulador **local e independente** da Meca Tiger: cole uma classe Java `LinearOpMode`, configure o chassi diferencial, execute INIT/START e observe encoders, IMU, telemetria e trajetória. Inclui controles USB e teclado, vista de cima e estudo balístico lateral.
 
+### Referência Desmos: arena e viabilidade do lançamento
+
+- Arena BIOBUZZ com disposição ilustrativa baseada na imagem Desmos da equipe: CELLS vermelhas à esquerda, azuis à direita, zonas vermelhas e azuis nas bordas correspondentes e marcadores laranja. As coordenadas são estimadas visualmente, não levantadas do CAD.
+- Vista de cima: posição, heading, trilha e mira. Vista lateral: altura, ângulo da rampa, trajetória parabólica pontilhada, alvo e indicação matemática SIM/NÃO.
+- Dois modos: força média equivalente em newtons ou velocidade de saída em m/s. No modo força, `v=sqrt(2*eficiência*força*curso/massa)`; `força` não representa torque/potência do shooter MS.
+- A verificação SIM/NÃO utiliza alcance horizontal, erro lateral e diferença de altura na distância do alvo, segundo tolerâncias ajustáveis. Não representa pontuação oficial nem inclui arrasto, spin, impacto, mecanismos ou perdas variáveis.
+
 ### Nova interface: campos, projetos e editor
 
 - **Arena:** seletor entre `BIOBUZZ 2026–2027` e `Arena livre`. As dimensões principais agora refletem o manual oficial: quadro HIVE de 1,2565 × 0,9895 m, pivô a 1,1165 m, espaçamento das CELLS 0,478 m, abertura dos FLOWERS a 0,546 m, GARDENS 0,584 × 0,051 m e LOADING ZONES 0,584 × 0,2795 m. Posições individuais e orientação das CELLS/FLOWERS continuam **esquemáticas**, não reproduzidas do STEP oficial; não existem colisões internas, articulações ou pontuação.

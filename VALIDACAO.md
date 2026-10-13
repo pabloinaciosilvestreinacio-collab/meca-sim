@@ -1,5 +1,11 @@
 # Validação — candidato 0.3-rc1
 
+## Desmos: correção da arena e física do shooter
+
+Disposição da arena estimada da imagem Desmos enviada pelo usuário (não CAD). Projeção lateral ao longo da direção de tiro. O veredito geométrico utiliza (i) projeção do deslocamento do alvo no eixo do tiro, (ii) desvio lateral na planta, (iii) altura no plano vertical do alvo e (iv) distância máxima até o solo. A velocidade por força usa trabalho ideal 0,5*m*v²=η*F*d; força média equivalente transmitida ao projétil não é diretamente a força do motor. Tolerâncias em metros, configuráveis; nenhum resultado determina pontuação oficial. Confirmar testes Actions deste commit.
+
+
+
 ## Implementações autorizadas (13/10/2026)
 
 Linha do tempo visual com reprodução/parada/scrub do histórico gerado pela simulação (sem pausar a JVM), diagnóstico automático dos sensores e motors e editor diferencial (16 waypoints com giros e avanço). O gerador Java usa API FTC simulada e requer calibração, conferência de sinais e inspeção antes do uso físico. Posições dos elementos BIOBUZZ ainda aproximadas; dimensões da base HIVE 1,2565 × 0,9895 m, pivô 1,1165 m, abertura dos FLOWERS 0,546 m, GARDEN e LOADING ZONE conforme manual seção 9. Fonte: https://ftc-resources.firstinspires.org/ftc/archive/2027/game e CAD: https://ftc-resources.firstinspires.org/ftc/archive/2027/field. Não afirmar fidelidade à posição física completa da arena sem extrair/validar o STEP.

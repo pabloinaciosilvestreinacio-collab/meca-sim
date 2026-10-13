@@ -1,5 +1,14 @@
 # Histórico de alterações
 
+## Arena Desmos e viabilidade do shooter — 13/10/2026
+
+- Corrige orientação e posição de CELLS, zonas e FLOWERS pela imagem fornecida no Desmos.
+- Altura do shooter, ângulo da rampa, força média, massa, curso e eficiência com velocidade calculada; modo de velocidade manual permanece disponível.
+- Cálculo de trajetória ideal e do acerto geométrico com tolerância lateral e vertical; condição/explicações visíveis nas duas vistas.
+- Testes de precisão da fórmula energética, de acerto/erro lateral e de controles do navegador.
+
+
+
 ## 0.3 — navegação, diagnósticos e campo dimensionado (13/10/2026)
 
 - Replay de trajetória: carregar amostras, selecionar tempo, reproduzir/pausar sem controlar JVM.
