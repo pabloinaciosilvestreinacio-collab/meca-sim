@@ -10,7 +10,7 @@ let shot = null, examples = {}, javaFiles = {}, zipOpModes = [], selectedJavaPat
 let lastDraw=0,lastLog='',lastMotorSignature='',lastDiagnosticSignature='',lastShotPoseKey='',highlightJob=0,routePicking=false;
 let routePoints=[],replayRows=[],replayIndex=-1,replayPlaying=false,replayLast=0,scoredShots=[],selectedHiveId='red-lower',tippedHives=new Set(),hiveCounts={red:0,blue:0},hiveFlips={red:0,blue:0},hiveMotion={};
 const LIBRARY_KEY='meca-sim-library-v1',LOGO_KEY='meca-sim-logo-v1';
-const keys = new Set(), top = $('top'), side = $('side');
+const keys = new Set(), virtualKeys=new Map(), top = $('top'), side = $('side');
 const configIds = ['arena','drivetrain','robot-color','left','right','front_left','front_right','back_left','back_right','width','length','track','max_speed','ticks_per_m','duration','match-mode','timer-enabled','x','y','initial-yaw','invert_left','invert_right','acceleration','left_gain','right_gain','left_slip','right_slip','imu_delay','imu_drift','walls','imu_frozen','left_encoder_frozen','right_encoder_frozen'];
 const launchIds = ['offset-x','offset-y','height','shot-mode','force','speed','projectile-mass','acceleration-stroke','shot-efficiency','target-radius','target-tolerance','elevation','azimuth','target-x','target-y','target-h'];
 function config() {
@@ -208,6 +208,28 @@ async function api(path, data={}) {
 }
 const action = (id, callback) => $(id).addEventListener('click',async()=>{try{notice('');await callback();}catch(e){notice(e.message);}});
 action('compile',async()=>{resetReplay();persist();shot=null;await api('run',{source:$('source').value,files:javaFiles,config:config()});});
+// O Autônomo 3.5 espera seleção (B/X/Y/↑) e confirmação A ANTES de START.
+// Envia pulsos no mesmo canal gamepad do Java, sem alterar o código original.
+$('auto35-confirm').addEventListener('click',async()=>{
+  try{
+    if(state.status!=='inicializando')throw Error('Execute INIT antes de confirmar o Autônomo 3.5.');
+    const pulse=async index=>{
+      virtualKeys.set(index,performance.now()+300);
+      await new Promise(resolve=>setTimeout(resolve,360));
+      virtualKeys.delete(index);
+      await new Promise(resolve=>setTimeout(resolve,80));
+    };
+    const mode=Number($('auto35-mode').value);
+    await pulse(mode);
+    await pulse(6); // A
+    await new Promise(resolve=>setTimeout(resolve,150));
+    const response=await fetch('/api/state');
+    if(!response.ok)throw Error('Falha ao ler confirmação da JVM');
+    const latest=await response.json();
+    if(!/Confirmado:\\s*true/i.test(latest.telemetry||''))throw Error('O Java ainda não confirmou a escolha. Verifique a telemetria e tente novamente.');
+    notice('Autônomo 3.5 confirmado pela JVM. START liberado.');
+  }catch(error){notice(error.message);}
+});
 for(const [id,target] of [['ds-init','compile'],['ds-start','start'],['ds-stop','stop']])$(id).addEventListener('click',()=>$(target).click());
 action('start',async()=>{await api('heartbeat');await api('start');});
 action('stop',()=>api('stop'));
@@ -299,6 +321,7 @@ function refreshHighlight(){
   const source=$('source').value;
   const stats=$('code-stats');
   if(stats)stats.textContent=source.split('\n').length+' linhas · '+new TextEncoder().encode(source).length.toLocaleString('pt-BR')+' bytes · '+(source.length>180000?'próximo do limite de 220 kB':'arquivo íntegro');
+  $('auto35-panel').hidden=!/class\\s+Autonomo35\\b|Autonomo\\s+3\\.5/i.test(source);
 }
 function scheduleHighlight(){
   if(highlightJob)cancelAnimationFrame(highlightJob);
@@ -564,6 +587,10 @@ function readouts() {
     warnings.forEach(w=>{const li=document.createElement('li');li.textContent='['+w.severity+'] '+w.message+' · t='+w.time+' s';list.append(li);});}
   $('execution-hint').textContent=state.status==='concluído'?'Java encerrado. Confira a telemetria: isso não comprova o sucesso da missão.':'';
   $('start').disabled=state.status!=='inicializando';$('compile').disabled=['compilando','inicializando','executando'].includes(state.status);
+  const auto35=!$('auto35-panel').hidden,confirmed=/Confirmado:\\s*true/i.test(state.telemetry||'');
+  if(auto35&&state.status==='inicializando'&&!confirmed)$('start').disabled=true;
+  if(auto35)$('auto35-hint').textContent=confirmed?'Modo CONFIRMADO. Pode pressionar START.':state.status==='inicializando'?'Escolha o teste e clique em Selecionar e confirmar (A) antes do START.':'Pressione INIT para escolher o teste.';
+  $('auto35-confirm').disabled=state.status!=='inicializando';
   $('ds-start').disabled=$('start').disabled;$('ds-init').disabled=$('compile').disabled;
   $('ds-state').textContent=state.status.toUpperCase();$('ds-time').textContent=state.time.toFixed(2)+' s';
   $('ds-mode').textContent=/@Autonomous\b/.test($('source').value)?'AUTÔNOMO · LinearOpMode':/@TeleOp\b/.test($('source').value)?'TELEOPERADO · LinearOpMode':'JAVA · LinearOpMode';
@@ -589,6 +616,9 @@ async function sendPads(now) {
   if(now-lastPad<40||padBusy)return;lastPad=now;padBusy=true;
   try{const pads=connectedPlayers(navigator.getGamepads?Array.from(navigator.getGamepads()):[]),p1=gamepadValues(focused?pads[0]:null),p2=gamepadValues(focused?pads[1]:null);
     if(focused&&!pads[0]){p1[1]=Number(keys.has('s'))-Number(keys.has('w'));p1[2]=Number(keys.has('d'))-Number(keys.has('a'));p1[6]=Number(keys.has(' '));['b','x','y'].forEach((k,i)=>p1[7+i]=Number(keys.has(k)));['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].forEach((k,i)=>p1[16+i]=Number(keys.has(k)));}
+    for(const [index,expiry] of virtualKeys){
+      if(now<expiry)p1[index]=1;else virtualKeys.delete(index);
+    }
     $('controller').textContent=pads[0]?(pads[0].mapping==='standard'?`Controle 1 conectado${pads[1]?' · controle 2 conectado':''}`:'Controle sem mapeamento padrão: não suportado nesta versão'):'Controle: pressione um botão · teclado W/A/S/D disponível';
     await api('gamepad',{'1':p1,'2':p2});
   }catch{}finally{padBusy=false;}
