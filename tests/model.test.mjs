@@ -146,3 +146,28 @@ test('Animação não calcula percurso negativo antes do primeiro frame do dispa
   assert.equal(heightAt(distance,.3,5,45),.3);
   assert.throws(()=>shotElapsed(NaN,1004));
 });
+
+import {hiveShotImpact,registerPollen,SIM_TIP_POLLS} from '../web/model.mjs';
+test('POLLEN é interceptado na boca da CELL e não percorre a parábola inteira',()=>{
+  const pose={x:1.83,y:.65,yaw:0},cell=hiveCellById('red-lower');
+  const [tx,ty]=[cell.x+cell.w/2,cell.y+cell.h/2];
+  const solution=targetSolution(pose,.1125,.225,.30,45,tx,ty,cell.openingHeight);
+  const shot={origin:launcher(pose,.1125,.225),yaw:pose.yaw,azimuth:solution.azimuth,
+    speed:solution.speed,elevation:45,height:.30,tx,ty,radius:.12,heightTolerance:.12};
+  const hit=hiveShotImpact(shot,cell);
+  assert.equal(hit.hit,true,JSON.stringify(hit));
+  assert.ok(hit.time>0&&hit.time<flight(shot.height,shot.speed,shot.elevation).time);
+  assert.ok(Math.hypot(hit.x-tx,hit.y-ty)<1e-9);
+  assert.equal(hiveShotImpact({...shot,azimuth:shot.azimuth+45},cell).hit,false);
+  assert.equal(hiveShotImpact({...shot,speed:1},cell).hit,false);
+});
+test('Tombamento didático ocorre só no oitavo POLLEN e reinicia o ciclo',()=>{
+  assert.equal(SIM_TIP_POLLS,8);
+  let count=0;
+  for(let i=1;i<=24;i++){
+    const step=registerPollen(count);count=step.count;
+    assert.equal(step.tipped,i%8===0,'tombamento fora da oitava bola, tiro '+i);
+    assert.equal(count,i%8);
+  }
+  assert.throws(()=>registerPollen(-1));
+});
