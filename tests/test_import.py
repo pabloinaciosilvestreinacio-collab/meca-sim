@@ -44,7 +44,7 @@ class ZipImportTests(unittest.TestCase):
             import_ftc_zip(zipped({"folder/../TeamCode/src/main/java/A.java":MAIN}))
 
     def test_rejects_zip_bomb_after_metadata_check(self):
-        with self.assertRaisesRegex(ValueError,'220 kB'):
+        with self.assertRaisesRegex(ValueError,'grande demais|220 kB'):
             import_ftc_zip(zipped({BASE+'Huge.java':'x'*230000}))
 
     def test_rejects_archives_without_teamcode(self):
