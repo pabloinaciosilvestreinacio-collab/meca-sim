@@ -50,3 +50,9 @@ main.mode-code .code-frame{height:max(580px,72vh)}
 #code-stats{white-space:nowrap}
 @media(max-width:1000px){main.mode-code .workspace .editor{order:0}}
 @media(max-width:760px){#side{height:320px;min-height:320px}.code-frame{height:65vh;min-height:420px}main.mode-code .code-frame{height:73vh}}
+
+.auto35-controls{margin:0 10px 12px;padding:12px;border-top:1px solid #354250;background:#121b24}
+.auto35-controls label{display:block;font-size:12px;font-weight:700;color:#ffd0a0;margin-bottom:7px}
+.auto35-controls select{width:100%;margin-bottom:8px}
+.auto35-controls button{width:100%;background:#593b26;border-color:#a26b39}
+.auto35-controls p{font-size:11px;margin:8px 0 0}
