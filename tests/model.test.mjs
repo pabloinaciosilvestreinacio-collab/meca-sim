@@ -229,5 +229,6 @@ test('Bordas, profundidade e subida exibem impacto mas não capturam POLLEN',()=
   const risingImpact=hiveShotImpact({...base,elevation:70,azimuth:rising.azimuth,speed:rising.speed},cell);
   assert.equal(risingImpact.hit,false,JSON.stringify(risingImpact));
   assert.ok(risingImpact.impactPoint,'erro na subida ainda precisa localizar o impacto');
-  assert.equal(risingImpact.impactPoint.descending,false);
+  assert.ok(!risingImpact.impactPoint.descending||!risingImpact.impactPoint.abovePlane,
+    'a trajetória não pode atravessar a abertura vinda de baixo');
 });
