@@ -7,7 +7,7 @@ const num = id => Number($(id).value);
 let state = {x:1.83,y:.65,yaw:0,width:.45,length:.45,trail:[],motors:{},time:0,status:'pronto'};
 let focused = document.hasFocus();
 let shot = null, examples = {}, javaFiles = {}, zipOpModes = [], selectedJavaPath = '', lastPad = 0, polling = false, padBusy = false, pickingStart = false;
-let lastDraw=0,lastLog='',lastMotorSignature='',lastDiagnosticSignature='',highlightJob=0,routePicking=false;
+let lastDraw=0,lastLog='',lastMotorSignature='',lastDiagnosticSignature='',lastShotPoseKey='',highlightJob=0,routePicking=false;
 let routePoints=[],replayRows=[],replayIndex=-1,replayPlaying=false,replayLast=0;
 const LIBRARY_KEY='meca-sim-library-v1',LOGO_KEY='meca-sim-logo-v1';
 const keys = new Set(), top = $('top'), side = $('side');
@@ -303,7 +303,8 @@ function refreshShot(){
   const verdict=$('shot-verdict');
   if(!v.valid){verdict.dataset.possible='invalid';verdict.textContent='Parâmetros inválidos. Verifique força, massa, eficiência e limites.';return;}
   try{
-    const test=shotFeasibility(state,v);
+    const pose=replayIndex>=0&&replayRows[replayIndex]?{...state,x:replayRows[replayIndex][1],y:replayRows[replayIndex][2],yaw:replayRows[replayIndex][3]}:state;
+    const test=shotFeasibility(pose,v);
     verdict.dataset.possible=test.possible?'yes':'no';
     verdict.textContent=(test.possible?'SIM — lançamento geometricamente possível no modelo ideal.':'NÃO — '+test.issues.join('; ')+'.')+
       ' Alcance: '+test.range.toFixed(2)+' m; altura no alvo: '+(test.heightAtTarget===null?'—':test.heightAtTarget.toFixed(2)+' m')+
@@ -460,6 +461,8 @@ function drawSide(now) {
 function readouts() {
   $('status').textContent=state.status;$('clock').textContent=state.time.toFixed(2).padStart(5,'0')+' s';
   const visible=replayIndex>=0&&replayRows[replayIndex]?{x:replayRows[replayIndex][1],y:replayRows[replayIndex][2],yaw:replayRows[replayIndex][3]}:state;
+  const shotPoseKey=visible.x+','+visible.y+','+visible.yaw;
+  if(lastShotPoseKey!==shotPoseKey){lastShotPoseKey=shotPoseKey;refreshShot();}
   $('px').textContent=visible.x.toFixed(3)+' m';$('py').textContent=visible.y.toFixed(3)+' m';$('yaw').textContent=visible.yaw.toFixed(1)+'°';
   $('imu-yaw').textContent=Number.isFinite(state.imu_yaw)?state.imu_yaw.toFixed(1)+'°':'—';
   $('sensor-status').textContent=state.imu_frozen?'Falha simulada ativa: IMU travado. Yaw real e yaw medido podem divergir.':'';
