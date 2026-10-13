@@ -6,7 +6,7 @@ export const DIMS=Object.freeze({frameWidth:1.2565,frameDepth:.9895,pivotHeight:
 // Corte ilustrativo calibrado pela figura 9-10: pivô em 1,1165 m;
 // abertura alta 1,665 m, borda inferior alta 1,359 m e baixa 0,777 m.
 // A distância dos braços no corte é aproximação VISUAL, não a medida do CAD.
-export const HIVE_SIDE=Object.freeze({angleDeg:34,arm:.52,openingTop:.256,openingBottom:-.050,
+export const HIVE_SIDE=Object.freeze({angleDeg:34,arm:.52,openingTop:.312,openingBottom:-.050,
   sideDepth:.305,ballRadius:.0355});
 export function hiveSideGeometry(cell,angleDeg){
   if(!cell)throw Error('CELL inválida');
@@ -81,22 +81,22 @@ export function drawArenaSide(ctx,point,mode,targetDistance,targetHeight,cell=nu
     const id='red-'+(sign===-1?'lower':'upper');
     const cx=pivotX+sign*arm*cos,cy=pivotY+sign*arm*sin;
     const local=(u,v)=>p(cx+u*cos-v*sin,cy+u*sin+v*cos);
-    const outline=[[-.175,-.20],[.175,-.20],[.175,.09],[.12,.256],[-.12,.256],[-.175,.09]];
+    const outline=[[-.175,-.20],[.175,-.20],[.175,.09],[.12,.312],[-.12,.312],[-.175,.09]];
     // Casinha vermelha: face frontal em formato de frontão, volume interno
     // rebaixado e abertura SUPERIOR sem uma linha de teto atravessando a boca.
     poly(outline.map(([u,v])=>local(u,v)),'#43202b',null);
     ctx.strokeStyle='#ef6770';ctx.lineWidth=2.6;
     const strokePoints=points=>{ctx.beginPath();points.forEach(([u,v],i)=>i?ctx.lineTo(...local(u,v)):ctx.moveTo(...local(u,v)));ctx.stroke();};
-    strokePoints([[-.12,.256],[-.175,.09],[-.175,-.20],[.175,-.20],[.175,.09],[.12,.256]]);
+    strokePoints([[-.12,.312],[-.175,.09],[-.175,-.20],[.175,-.20],[.175,.09],[.12,.312]]);
     // Revestimento e cantos visíveis atrás da abertura.
     poly([[-.14,-.17],[.14,-.17],[.14,.055],[-.14,.055]].map(([u,v])=>local(u,v)),
       '#762d3b77','#ffa1a0',1);
     ctx.strokeStyle='#ffd293';ctx.lineWidth=3;
-    strokePoints([[-.12,.256],[-.12,.222]]);strokePoints([[.12,.256],[.12,.222]]);
+    strokePoints([[-.12,.312],[-.12,.222]]);strokePoints([[.12,.312],[.12,.222]]);
     ctx.strokeStyle='#ae5660';ctx.lineWidth=1.2;
-    strokePoints([[-.12,.256],[-.12,-.05]]);strokePoints([[.12,.256],[.12,-.05]]);
+    strokePoints([[-.12,.312],[-.12,-.05]]);strokePoints([[.12,.312],[.12,-.05]]);
     if(id===hiveStatus.activeCellId){ctx.fillStyle='#ffdaa8';ctx.font='bold 10px system-ui';ctx.textAlign='center';
-      const q=local(0,.365);ctx.fillText('ABERTA',q[0],q[1]);}
+      const q=local(0,.420);ctx.fillText('ABERTA',q[0],q[1]);}
     (Array.isArray(scoredBalls)?scoredBalls:[]).filter(b=>b?.cellId===id).forEach((ball,i)=>{
       const q=local(-.085+(i%4)*.055,-.12+Math.floor(i/4)*.070);
       ctx.fillStyle='#ffea95';ctx.strokeStyle='#a27930';ctx.lineWidth=1;ctx.beginPath();ctx.arc(...q,4.4,0,2*Math.PI);ctx.fill();ctx.stroke();
