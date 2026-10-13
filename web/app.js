@@ -265,6 +265,30 @@ function refreshDriveMode(){const mecanum=$('drivetrain').value==='mecanum';$('m
 $('drivetrain').addEventListener('change',()=>{refreshDriveMode();persist();notice($('drivetrain').value==='mecanum'?'Mecanum configurado: use FL, FR, BL e BR no Java.':'Diferencial configurado: Mequinha usa ME e MD.');});
 $('match-mode').addEventListener('change',()=>{refreshMatchLimit();persist();notice($('match-mode').value==='auto'?'Autônomo limitado a 30 s.':'TeleOp limitado a 2 min.');});
 $('timer-enabled').addEventListener('change',()=>{refreshMatchLimit();persist();notice($('timer-enabled').checked?'Cronômetro de partida ativado.':'Cronômetro de partida desativado; STOP manual continua disponível.');});
+function switchWorkspace(mode){
+  const main=document.querySelector('main');
+  const next=['overview','code','paths'].includes(mode)?mode:'overview';
+  main.classList.remove('mode-code','mode-paths','mode-overview');
+  main.classList.add('mode-'+next);
+  document.querySelectorAll('[data-workspace]').forEach(button=>{
+    const active=button.dataset.workspace===next;
+    button.classList.toggle('active',active);
+    button.setAttribute('aria-pressed',String(active));
+  });
+  $('editor-full').setAttribute('aria-pressed',String(next==='code'));
+  $('editor-full').textContent=next==='code'?'Voltar ao simulador':'Expandir editor';
+  if(next==='code'){
+    document.querySelector('[data-tab="code"]').click();
+    $('source').focus({preventScroll:true});
+    document.querySelector('.workspace-switch').scrollIntoView({block:'start',behavior:'instant'});
+  }else if(next==='paths'){
+    $('route-panel').open=true;
+    $('timeline-panel').open=true;
+    $('route-panel').scrollIntoView({block:'start',behavior:'instant'});
+  }
+}
+document.querySelectorAll('[data-workspace]').forEach(button=>button.addEventListener('click',()=>switchWorkspace(button.dataset.workspace)));
+$('editor-full').addEventListener('click',()=>switchWorkspace(document.querySelector('main').classList.contains('mode-code')?'overview':'code'));
 document.querySelectorAll('[data-tab]').forEach(button=>button.addEventListener('click',()=>{
   document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('selected',b===button));
   ['code','robot','launcher'].forEach(name=>$('tab-'+name).hidden=name!==button.dataset.tab);
