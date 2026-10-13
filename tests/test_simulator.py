@@ -163,6 +163,43 @@ class JavaTests(unittest.TestCase):
         self.assertFalse(s.worker.is_alive())
         self.assertTrue(all(m.power==0 for m in s.world.motors.values()))
 
+    def test_new_linear_opmode_uses_generic_ftc_flow(self):
+        source='''import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.Servo;
+import com.qualcomm.robotcore.hardware.IMU;
+import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+@Autonomous(name="Código novo")
+public class CodigoNovo extends LinearOpMode {
+  public void runOpMode() {
+    DcMotor me=hardwareMap.get(DcMotor.class,"ME"), md=hardwareMap.get(DcMotor.class,"MD");
+    Servo garra=hardwareMap.get(Servo.class,"garra");
+    IMU imu=hardwareMap.get(IMU.class,"imu");
+    imu.initialize(new IMU.Parameters(new RevHubOrientationOnRobot(
+      RevHubOrientationOnRobot.LogoFacingDirection.UP,
+      RevHubOrientationOnRobot.UsbFacingDirection.FORWARD)));
+    telemetry.addData("estado","aguardando"); telemetry.update();
+    waitForStart(); if(isStopRequested()) return;
+    imu.resetYaw(); me.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+    md.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+    me.setTargetPosition(120); md.setTargetPosition(120);
+    me.setMode(DcMotor.RunMode.RUN_TO_POSITION); md.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+    me.setPower(.5); md.setPower(.5);
+    while(opModeIsActive() && (me.isBusy() || md.isBusy())) idle();
+    garra.setPosition(.7);
+    telemetry.addData("yaw",imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.DEGREES));
+    telemetry.addData("resultado","código novo executou"); telemetry.update();
+    me.setPower(0); md.setPower(0);
+  }
+}'''
+        s,deadline=self.run_java(source)
+        self.finish(s,deadline)
+        self.assertIn('código novo executou',s.telemetry)
+        self.assertGreaterEqual(s.world.motors['ME'].position(),118)
+        self.assertTrue(all(m.power==0 for m in s.world.motors.values()))
+
     def test_compilation_failure_is_visible(self):
         s=Session();s.run('public class Bad extends LinearOpMode { broken }');s.worker.join(10)
         self.assertEqual(s.status,'erro');self.assertIn('error:',s.logs)

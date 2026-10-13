@@ -447,6 +447,7 @@ function refreshShot(){
       ?(valid?'SIM — o POLLEN cruza a abertura do HIVE vermelho na descida.':
         'NÃO — '+(simulated.reason||'a CELL selecionada está voltada para baixo')+'.')
       :(test.possible?'SIM — lançamento geometricamente possível no modelo ideal.':'NÃO — '+test.issues.join('; ')+'.'))+
+      (simulated?.impactPoint?' Ponto no plano: '+simulated.impactPoint.lateralError.toFixed(3)+' m de desvio lateral; '+simulated.impactPoint.depthError.toFixed(3)+' m de erro de profundidade.':'')+
       ' Alcance: '+test.range.toFixed(2)+' m; altura no alvo: '+(test.heightAtTarget===null?'—':test.heightAtTarget.toFixed(2)+' m')+
       '; desvio lateral: '+Math.abs(test.lateralError).toFixed(2)+' m; v₀: '+v.speed.toFixed(2)+' m/s.';
   }catch(e){verdict.dataset.possible='invalid';verdict.textContent=e.message;}
@@ -482,9 +483,10 @@ function drawTop(now) {
   const gateCell=$('arena').value==='biobuzz'?selectedHive():null;
   const gateHit=gateCell?hiveShotImpact({...v,origin:launcher(shown,v.lateral,v.forward),
     yaw:shown.yaw,hiveAngle:(hiveFlips[gateCell.team]%2?1:-1)*HIVE_SIDE.angleDeg},gateCell):null;
-  const origin=launcher(shown,v.lateral,v.forward),start=project(...origin),target=project(v.tx,v.ty),dir=rotate(0,1,shown.yaw+v.azimuth),f=flight(v.height,v.speed,v.elevation),endDistance=gateHit?.hit?gateHit.distance:(check.along>0?Math.min(f.range,check.along):f.range),end=project(origin[0]+dir[0]*endDistance,origin[1]+dir[1]*endDistance);
+  const origin=launcher(shown,v.lateral,v.forward),start=project(...origin),target=project(v.tx,v.ty),dir=rotate(0,1,shown.yaw+v.azimuth),f=flight(v.height,v.speed,v.elevation),impactPoint=gateHit?.impactPoint||gateHit,endDistance=Number.isFinite(impactPoint?.distance)?impactPoint.distance:(check.along>0?Math.min(f.range,check.along):f.range),end=project(origin[0]+dir[0]*endDistance,origin[1]+dir[1]*endDistance);
   c.lineWidth=1;c.setLineDash([5,5]);c.strokeStyle='#6b7584';c.beginPath();c.moveTo(...start);c.lineTo(...target);c.stroke();c.strokeStyle='#51d1bb';c.beginPath();c.moveTo(...start);c.lineTo(...end);c.stroke();c.setLineDash([]);
   c.fillStyle='#51d1bb';c.beginPath();c.arc(...start,4,0,Math.PI*2);c.fill();c.strokeStyle=(gateHit?gateHit.hit:check.possible)?'#55d9ab':'#ef727c';c.lineWidth=2;c.beginPath();c.arc(...target,9,0,Math.PI*2);c.moveTo(target[0]-14,target[1]);c.lineTo(target[0]+14,target[1]);c.moveTo(target[0],target[1]-14);c.lineTo(target[0],target[1]+14);c.stroke();
+  if(impactPoint&&Number.isFinite(impactPoint.x)&&Number.isFinite(impactPoint.y)){const q=project(impactPoint.x,impactPoint.y);c.fillStyle='#ffe66d';c.strokeStyle=gateHit?.hit?'#fff7bd':'#ef727c';c.lineWidth=2;c.beginPath();c.arc(...q,6,0,Math.PI*2);c.fill();c.stroke();c.fillStyle='#1c2028';c.font='bold 9px system-ui';c.textAlign='center';c.fillText(gateHit?.hit?'ENTROU':'IMPACTO',q[0],q[1]-10);}
   if(shot){const q=currentShotBall(now);if(q){const pos=project(q.x,q.y);c.fillStyle='#fff4a9';c.beginPath();c.arc(...pos,5,0,Math.PI*2);c.fill();c.strokeStyle='#bd924e';c.stroke();}}
   $('bounds').textContent=state.collision?'Contato com parede · rodas podem patinar':'Paredes externas físicas · frente +Y · yaw positivo ↶';
 }
@@ -602,6 +604,7 @@ function drawSide(now) {
   const checkHive=viewedCell?hiveShotImpact({...v,origin:launcher(viewed,v.lateral,v.forward),
     yaw:viewed.yaw,hiveAngle:(hiveFlips[viewedCell.team]%2?1:-1)*HIVE_SIDE.angleDeg},viewedCell):null;
   const target=point(along,v.th);c.fillStyle=(checkHive?checkHive.hit:check.possible)?'#5bd8a8':'#ef727c';c.fillRect(target[0]-6,target[1]-6,12,12);
+  const sideImpact=checkHive?.impactPoint||checkHive;if(sideImpact&&Number.isFinite(sideImpact.distance)&&Number.isFinite(sideImpact.height)){const impact=point(sideImpact.distance,sideImpact.height);c.fillStyle='#ffe66d';c.strokeStyle=checkHive?.hit?'#fff7bd':'#ef727c';c.lineWidth=2;c.beginPath();c.arc(...impact,6,0,Math.PI*2);c.fill();c.stroke();c.fillStyle='#fff4cf';c.font='bold 9px system-ui';c.textAlign='center';c.fillText(checkHive?.hit?'ENTRADA':'IMPACTO',impact[0],impact[1]-10);}
   c.strokeStyle=c.fillStyle;c.setLineDash([3,5]);c.beginPath();c.moveTo(...point(along,0));c.lineTo(...target);c.stroke();c.setLineDash([]);
   // O muzzle coincide exatamente com a origem da parábola: (distância=0, altura=height).
   const angle=v.elevation*Math.PI/180,reach=angle>0?Math.min(.35,v.height/Math.tan(angle)):.35;
@@ -646,8 +649,15 @@ function readouts() {
   $('start').disabled=state.status!=='inicializando';$('compile').disabled=['compilando','inicializando','executando'].includes(state.status);
   const auto35=!$('auto35-panel').hidden,confirmed=/Confirmado:\s*true/i.test(state.telemetry||'');
   if(auto35&&state.status==='inicializando'&&!confirmed)$('start').disabled=true;
-  if(auto35)$('auto35-hint').textContent=confirmed?'Modo CONFIRMADO. Pode pressionar START.':state.status==='inicializando'?'Escolha o teste e clique em Selecionar e confirmar (A) antes do START.':'Pressione INIT para escolher o teste.';
-  $('auto35-confirm').disabled=state.status!=='inicializando';
+  if(auto35){
+    $('auto35-mode').disabled=state.status!=='inicializando'||confirmed;
+    $('auto35-hint').textContent=confirmed
+      ?'ETAPA 3/3 · modo CONFIRMADO pela JVM. Agora pressione START.'
+      :state.status==='inicializando'
+        ?'ETAPA 2/3 · escolha o teste e clique em Selecionar e confirmar (A). START permanece bloqueado até a telemetria confirmar.'
+        :'ETAPA 1/3 · pressione INIT; depois escolha o modo e confirme com A.';
+  }
+  $('auto35-confirm').disabled=state.status!=='inicializando'||confirmed;
   $('ds-start').disabled=$('start').disabled;$('ds-init').disabled=$('compile').disabled;
   $('ds-state').textContent=state.status.toUpperCase();$('ds-time').textContent=state.time.toFixed(2)+' s';
   $('ds-mode').textContent=/@Autonomous\b/.test($('source').value)?'AUTÔNOMO · LinearOpMode':/@TeleOp\b/.test($('source').value)?'TELEOPERADO · LinearOpMode':'JAVA · LinearOpMode';
