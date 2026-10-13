@@ -61,6 +61,20 @@ $('import-zip').addEventListener('change',async event=>{
     notice('Projeto FTC importado: '+Object.keys(result.files).length+' arquivos, '+options.length+' OpMode(s). APIs FTC não implementadas ainda podem falhar na compilação.');
   }catch(error){notice(error.message);}finally{event.target.value='';}
 });
+function restoreOpModeChoices() {
+  const entries=[];
+  const source=$('source').value,primary=pathOfPrimary(source);
+  const pattern=/\bpublic\s+(?:(?:final|strictfp)\s+)*class\s+([A-Za-z_$][\w$]*)\s+extends\s+(?:com\.qualcomm\.robotcore\.eventloop\.opmode\.)?LinearOpMode\b/;
+  const mainMatch=source.match(pattern);
+  if(primary && mainMatch)entries.push({path:primary,name:mainMatch[1]});
+  Object.entries(javaFiles).forEach(([path,code])=>{
+    const match=code.match(pattern);
+    if(match && !entries.some(entry=>entry.path===path))entries.push({path,name:match[1]});
+  });
+  populateOpModes(entries);
+  selectedJavaPath=mainMatch?primary:'';
+  if(selectedJavaPath)$('opmode-choice').value=selectedJavaPath;
+}
 function updateJavaFilesLabel() {
   const count=Object.keys(javaFiles).length;
   $('java-file-count').textContent=count ? count+' arquivo(s) auxiliar(es) importado(s).' : 'Nenhum arquivo auxiliar importado.';
@@ -90,7 +104,7 @@ $('import-java').addEventListener('change',async event=>{
       Object.values(helpers).reduce((sum,code)=>sum+new TextEncoder().encode(code).length,0);
     if(Object.keys(helpers).length>30||size>220000)throw Error('Projeto excede 30 auxiliares ou 220 kB de Java.');
     if(main)$('source').value=main.code;
-    selectedJavaPath='';populateOpModes([]);javaFiles=helpers;updateJavaFilesLabel();persist();
+    selectedJavaPath='';javaFiles=helpers;restoreOpModeChoices();updateJavaFilesLabel();persist();
     notice('Arquivos Java importados. Clique em Compilar / INIT.');
   }catch(error){notice(error.message);}finally{event.target.value='';}
 });
@@ -120,7 +134,7 @@ $('load-project').addEventListener('change',async e=>{
     if(!data.config||typeof data.config!=='object'||!data.launcher||typeof data.launcher!=='object')throw Error('Configuração ausente');
     if(data.files!==undefined && (typeof data.files!=='object'||data.files===null||Array.isArray(data.files)||Object.keys(data.files).length>30||Object.values(data.files).some(value=>typeof value!=='string')))throw Error('Arquivos Java do projeto inválidos');
     await api('reset',{config:data.config});
-    $('source').value=data.source;javaFiles={...(data.files||{})};selectedJavaPath='';populateOpModes([]);updateJavaFilesLabel();
+    $('source').value=data.source;javaFiles={...(data.files||{})};restoreOpModeChoices();updateJavaFilesLabel();
     for(const id of configIds){const key=id==='initial-yaw'?'yaw':id;if(key in data.config)$(id).type==='checkbox'?$(id).checked=Boolean(data.config[key]):$(id).value=data.config[key];}
     for(const id of launchIds)if(id in data.launcher)$(id).value=data.launcher[id];
     shot=null;persist();notice('Projeto carregado. Clique em Compilar / INIT para executar.');
@@ -219,7 +233,7 @@ async function sendPads(now) {
 function frame(now){if(shot&&(now-shot.start)/1000>flight(shot.height,shot.speed,shot.elevation).time+.8)shot=null;drawTop(now);drawSide(now);if(!document.hidden)sendPads(now);requestAnimationFrame(frame);}
 async function init() {
   try{const response=await fetch('/examples');examples=await response.json();Object.keys(examples).forEach(name=>{const option=document.createElement('option');option.value=name;option.textContent=name;$('example').append(option);});
-    const saved=JSON.parse(localStorage.getItem('meca-sim-v02')||'null');if(saved){$('source').value=saved.source||'';javaFiles=saved.files&&typeof saved.files==='object'&&!Array.isArray(saved.files)?saved.files:{};updateJavaFilesLabel();Object.entries(saved.values||{}).forEach(([id,value])=>{if($(id))$(id).type==='checkbox'?$(id).checked=Boolean(value):$(id).value=value;});}else{$('source').value=Object.values(examples)[0];}
+    const saved=JSON.parse(localStorage.getItem('meca-sim-v02')||'null');if(saved){$('source').value=saved.source||'';javaFiles=saved.files&&typeof saved.files==='object'&&!Array.isArray(saved.files)?saved.files:{};restoreOpModeChoices();updateJavaFilesLabel();Object.entries(saved.values||{}).forEach(([id,value])=>{if($(id))$(id).type==='checkbox'?$(id).checked=Boolean(value):$(id).value=value;});}else{$('source').value=Object.values(examples)[0];}
   }catch(e){notice('Não foi possível carregar exemplos ou configurações: '+e.message);}
   await poll();setInterval(poll,100);setInterval(()=>{if(!document.hidden)api('heartbeat').catch(()=>{});},500);requestAnimationFrame(frame);
 }

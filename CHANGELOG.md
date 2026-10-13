@@ -6,6 +6,7 @@
 
 - Importação local de ZIP de projetos FTC com identificação e escolha do OpMode, validação de arquivos, sem extração persistente.
 - Testes de ZIP, caminhos, tamanho e interface Chromium.
+- Ao reabrir projeto JSON, restaura a seleção entre diferentes OpModes importados.
 
 ## 0.2 — 2026-10-13
 
