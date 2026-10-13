@@ -9,11 +9,12 @@ export function routeSteps(start,points,dimensions={width:.45,length:.45}){
   if(!validStart(x,y,dimensions.width,dimensions.length,yaw))throw Error('Partida fora dos limites');
   const result=[];
   for(const point of points){
-    if(!point||!validStart(Number(point.x),Number(point.y),dimensions.width,dimensions.length,0))
-      throw Error('Waypoint inválido ou fora do campo');
+    if(!point||![point.x,point.y].every(Number.isFinite))throw Error('Waypoint inválido');
     const dx=point.x-x,dy=point.y-y,dist=Math.hypot(dx,dy);
     if(dist<.01)throw Error('Pontos consecutivos próximos demais (mínimo 1 cm)');
     const desired=Math.atan2(-dx,dy)*180/Math.PI;
+    if(!validStart(point.x,point.y,dimensions.width,dimensions.length,desired))
+      throw Error('Waypoint fora do campo após considerar a rotação do chassi');
     const turn=normalizeYaw(desired-yaw);
     result.push({x:point.x,y:point.y,turnDeg:turn,headingDeg:desired,distanceM:dist});
     x=point.x;y=point.y;yaw=desired;
