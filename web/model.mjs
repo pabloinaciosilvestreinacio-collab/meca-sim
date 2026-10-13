@@ -11,6 +11,12 @@ export function heightAt(distance, height, speed, elevation) {
   if (![distance,height,speed,elevation].every(Number.isFinite) || distance<0 || height<0 || !(speed > 0) || elevation < 0 || elevation >= 90) throw new Error('Lançamento inválido');
   return height + distance * Math.tan(a) - 9.81 * distance ** 2 / (2 * speed ** 2 * Math.cos(a) ** 2);
 }
+// requestAnimationFrame fornece o instante do início do frame, que pode ser
+// anterior ao performance.now() usado no clique que criou o lançamento.
+export function shotElapsed(frameTime,startTime){
+  if(!Number.isFinite(frameTime)||!Number.isFinite(startTime))throw Error('Tempo de lançamento inválido');
+  return Math.max(0,(frameTime-startTime)/1000);
+}
 export function flight(height, speed, elevation) {
   heightAt(0,height,speed,elevation);
   const a = elevation * Math.PI / 180;

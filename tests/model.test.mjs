@@ -1,7 +1,7 @@
 import test from 'node:test';
 import {validStart,FIELD_METERS,FLOWERS} from '../web/arena.mjs';
 import assert from 'node:assert/strict';
-import {rotate, launcher, heightAt, flight, gamepadValues} from '../web/model.mjs';
+import {rotate, launcher, heightAt, flight, gamepadValues, shotElapsed} from '../web/model.mjs';
 test('Ponto do Desmos permanece preso ao centro ao girar',()=>{
   for(const yaw of [0,45,90,180,-135]){
     const p={x:2,y:1,yaw},l=launcher(p,.1125,.225);
@@ -126,4 +126,13 @@ test('Desenho de arena segue referências observadas no Desmos',()=>{
   assert.ok(FLOWERS.some(([x,y])=>y>3.5&&x>1));
   assert.ok(ZONES.redVertical.y>2.4&&ZONES.blueVertical.y<1);
   assert.ok(Math.abs(HIVE.w-1.2565)<1e-10);
+});
+
+test('Animação não calcula percurso negativo antes do primeiro frame do disparo',()=>{
+  assert.equal(shotElapsed(1000,1004),0);
+  assert.equal(shotElapsed(1000,1000),0);
+  assert.ok(Math.abs(shotElapsed(1500,1000)-.5)<1e-12);
+  const distance=5*Math.cos(45*Math.PI/180)*shotElapsed(1000,1004);
+  assert.equal(heightAt(distance,.3,5,45),.3);
+  assert.throws(()=>shotElapsed(NaN,1004));
 });
