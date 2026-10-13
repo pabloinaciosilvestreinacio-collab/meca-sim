@@ -59,10 +59,10 @@ try:
         page.wait_for_function("document.querySelector('#shot-verdict').dataset.possible==='no'")
         page.locator('#force').fill('6.4')
         page.locator('#shot-mode').select_option('speed')
-        assert not page.locator('#speed').is_read_only()
+        assert page.locator('#speed').get_attribute('readonly') is None
         page.locator('#speed').fill('5')
         page.locator('#shot-mode').select_option('force')
-        assert page.locator('#speed').is_read_only()
+        assert page.locator('#speed').get_attribute('readonly') is not None
         page.locator('#solve-shot').click()
         page.wait_for_function("document.querySelector('#shot-verdict').dataset.possible==='yes'")
         page.locator('#shoot').click()
