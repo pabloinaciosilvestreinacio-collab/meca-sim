@@ -210,7 +210,13 @@ class Session:
                 return ""
             if op == "device":
                 kind, name = args
-                valid = (kind in ("DcMotor", "DcMotorEx") and name in w.motors) or (kind == "IMU" and name == "imu") or (kind == "Servo" and name in self.servos)
+                # Motores precisam existir no chassi configurado; servo e IMU são
+                # dispositivos lógicos genéricos para que novos OpModes não dependam
+                # de um nome de exemplo fixo do simulador.
+                if kind == "Servo":
+                    self.servos.setdefault(name, .5)
+                    return ""
+                valid = (kind in ("DcMotor", "DcMotorEx") and name in w.motors) or kind == "IMU"
                 if not valid: raise ValueError(f"Hardware não configurado: {kind} '{name}'")
                 return ""
             if op == "gamepad":
