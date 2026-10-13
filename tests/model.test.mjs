@@ -196,3 +196,38 @@ test('Tombamento didático ocorre só no oitavo POLLEN e reinicia o ciclo',()=>{
   }
   assert.throws(()=>registerPollen(-1));
 });
+
+
+test('Bordas, profundidade e subida exibem impacto mas não capturam POLLEN',()=>{
+  const pose={x:1.83,y:.65,yaw:0},cell=hiveCellById('red-lower'),hiveAngle=-HIVE_SIDE.angleDeg;
+  const gate=hiveSideGeometry(cell,hiveAngle),origin=launcher(pose,.1125,.225);
+  const center=[cell.x+cell.w/2,cell.y+cell.h/2];
+  const baseSolution=targetSolution(pose,.1125,.225,.30,78,...center,gate.openingHeight);
+  const base={origin,yaw:0,azimuth:baseSolution.azimuth,speed:baseSolution.speed,elevation:78,height:.30,hiveAngle};
+  assert.equal(hiveShotImpact(base,cell).hit,true);
+
+  const dir=rotate(0,1,base.azimuth);
+  const widthLimit=DIMS.cellOpeningWidth/2-HIVE_SIDE.ballRadius;
+  const inside=hiveShotImpact({...base,origin:[origin[0]+dir[1]*widthLimit*.999,origin[1]-dir[0]*widthLimit*.999]},cell);
+  const border=hiveShotImpact({...base,origin:[origin[0]+dir[1]*widthLimit*1.001,origin[1]-dir[0]*widthLimit*1.001]},cell);
+  assert.equal(inside.hit,true,JSON.stringify(inside));
+  assert.equal(border.hit,false,JSON.stringify(border));
+  assert.equal(border.reason,'impactou fora da largura útil da abertura');
+  assert.ok(border.impactPoint&&border.impactPoint.insideWidth===false);
+
+  const distance=Math.hypot(center[0]-origin[0],center[1]-origin[1]);
+  const depthLimit=gate.halfDepth-HIVE_SIDE.ballRadius,delta=depthLimit*1.01;
+  const depthTarget=[origin[0]+dir[0]*(distance+delta),origin[1]+dir[1]*(distance+delta)];
+  const depthSolution=targetSolution(pose,.1125,.225,.30,78,...depthTarget,
+    gate.openingHeight+Math.tan(gate.angle)*delta);
+  const deep=hiveShotImpact({...base,azimuth:depthSolution.azimuth,speed:depthSolution.speed},cell);
+  assert.equal(deep.hit,false,JSON.stringify(deep));
+  assert.equal(deep.reason,'impactou fora da profundidade útil da abertura');
+  assert.ok(deep.impactPoint&&deep.impactPoint.insideDepth===false);
+
+  const rising=targetSolution(pose,.1125,.225,.30,70,...center,gate.openingHeight);
+  const risingImpact=hiveShotImpact({...base,elevation:70,azimuth:rising.azimuth,speed:rising.speed},cell);
+  assert.equal(risingImpact.hit,false,JSON.stringify(risingImpact));
+  assert.ok(risingImpact.impactPoint,'erro na subida ainda precisa localizar o impacto');
+  assert.equal(risingImpact.impactPoint.descending,false);
+});
