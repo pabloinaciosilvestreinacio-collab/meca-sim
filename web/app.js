@@ -62,8 +62,15 @@ function currentShotBall(now){
   const dir=rotate(0,1,shot.yaw+shot.azimuth);
   let z=heightAt(along,shot.height,shot.speed,shot.elevation);
   const fall=impact&&t>=impact.time?Math.min(1,(t-impact.time)/.42):0;
-  if(fall>0)z=impact.height-.16*(fall*fall*(3-2*fall));
-  return {x:shot.origin[0]+dir[0]*along,y:shot.origin[1]+dir[1]*along,z,along,fall};
+  const eased=fall*fall*(3-2*fall),cell=hiveCellById(shot.cellId);
+  const index=shot.restIndex||0;
+  const landingX=cell?cell.x+cell.w*(.26+(index%3)*.24):shot.origin[0]+dir[0]*along;
+  const landingY=cell?cell.y+cell.h*(.25+Math.floor(index/3)*.28):shot.origin[1]+dir[1]*along;
+  const restZ=1.1165+(.478/2)*Math.sin(18*Math.PI/180)-.38-.19+.065;
+  if(fall>0)z=impact.height+(restZ-impact.height)*eased;
+  const ix=shot.origin[0]+dir[0]*along,iy=shot.origin[1]+dir[1]*along;
+  return {x:ix+(landingX-ix)*eased,y:iy+(landingY-iy)*eased,
+    z,along:along+(-.075+(index%4)*.05)*eased,fall};
 }
 function selectHive(cell,announce=true){
   if(!cell)return;
@@ -279,6 +286,7 @@ action('shoot',async()=>{
   const candidate={...values,cellId:cell?.id||'',origin:launcher(state,values.lateral,values.forward),yaw:state.yaw,start:performance.now()};
   candidate.impact=cell?hiveShotImpact(candidate,cell):{hit:false,reason:'arena livre'};
   if(cell&&activeCellId(cell.team)!==cell.id)candidate.impact={hit:false,reason:'a CELL escolhida está virada para baixo'};
+  candidate.restIndex=cell?scoredShots.filter(ball=>ball.cellId===cell.id).length:0;
   shot=candidate;
   setShotResult('LANÇAMENTO EM ANDAMENTO · '+(candidate.impact.hit?'trajetória converge para a abertura.':'trajetória sem captura: '+candidate.impact.reason)+'.','running');
 });
@@ -578,6 +586,11 @@ function readouts() {
   if(lastShotPoseKey!==shotPoseKey){lastShotPoseKey=shotPoseKey;refreshShot();}
   $('px').textContent=visible.x.toFixed(3)+' m';$('py').textContent=visible.y.toFixed(3)+' m';$('yaw').textContent=visible.yaw.toFixed(1)+'°';
   $('imu-yaw').textContent=Number.isFinite(state.imu_yaw)?state.imu_yaw.toFixed(1)+'°':'—';
+  const hive=selectedHive();
+  const progress=$('hive-progress');
+  if(hive&&progress)progress.textContent='HIVE '+(hive.team==='red'?'vermelho':'azul')+
+    ' · '+hiveCounts[hive.team]+'/'+SIM_TIP_POLLS+' POLLEN · '+hiveFlips[hive.team]+
+    ' tombamento(s) · abertura ativa: '+hiveCellById(activeCellId(hive.team)).name;
   $('sensor-status').textContent=state.imu_frozen?'Falha simulada ativa: IMU travado. Yaw real e yaw medido podem divergir.':'';
   const warnings=Array.isArray(state.diagnostics)?state.diagnostics:[];
   $('diagnostic-count').textContent=warnings.length+' aviso(s)';
