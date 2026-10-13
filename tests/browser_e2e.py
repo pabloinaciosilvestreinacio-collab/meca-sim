@@ -104,7 +104,8 @@ try:
         assert all(m['power']==0 for m in result['motors'].values())
         assert 'CONCLUÍDO' in page.locator('#ds-state').text_content().upper()
         passed('Autônomo real via INIT/START/Driver Station concluiu e zerou motores')
-        page.locator('#timeline-panel summary').click()
+        page.locator('[data-workspace="paths"]').click()
+        assert page.locator('#timeline-panel').get_attribute('open') is not None
         page.locator('#timeline-load').click()
         page.wait_for_function("!document.querySelector('#timeline-range').disabled")
         assert int(page.locator('#timeline-range').get_attribute('max'))>8
@@ -115,7 +116,9 @@ try:
         page.locator('#timeline-play').click()
         page.locator('#timeline-exit').click()
         assert page.locator('#timeline-range').is_disabled()
+        page.locator('[data-workspace="overview"]').click()
         passed('Replay: scrub, reprodução, pausa e retorno à pose real')
+        page.locator('#files-menu summary').click()
         with page.expect_download() as out:page.locator('#csv').click()
         csv=out.value.path().read_text() if isinstance(out.value.path(),Path) else Path(out.value.path()).read_text()
         assert 'time_s,x_m,y_m,yaw_deg' in csv and len(csv.splitlines())>10
@@ -200,7 +203,8 @@ public class ZipOutro extends LinearOpMode {
         result=page.request.get(f'http://127.0.0.1:{port}/api/state').json()
         assert all(m['power']==0 for m in result['motors'].values())
         passed('TeleOp: teclado movimenta e STOP encerra JVM')
-        page.locator('#route-panel summary').click()
+        page.locator('[data-workspace="paths"]').click()
+        assert page.locator('#route-panel').get_attribute('open') is not None
         page.locator('#route-add').click()
         rect=page.locator('#top').bounding_box()
         page.mouse.click(rect['x']+rect['width']/2+60,rect['y']+rect['height']/2-60)
