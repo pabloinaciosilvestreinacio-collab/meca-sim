@@ -482,7 +482,7 @@ function drawTop(now) {
   const gateCell=$('arena').value==='biobuzz'?selectedHive():null;
   const gateHit=gateCell?hiveShotImpact({...v,origin:launcher(shown,v.lateral,v.forward),
     yaw:shown.yaw,hiveAngle:(hiveFlips[gateCell.team]%2?1:-1)*HIVE_SIDE.angleDeg},gateCell):null;
-  const origin=launcher(shown,v.lateral,v.forward),start=project(...origin),target=project(v.tx,v.ty),dir=rotate(0,1,shown.yaw+v.azimuth),f=flight(v.height,v.speed,v.elevation),endDistance=gateHit?.hit?gateHit.distance:f.range,end=project(origin[0]+dir[0]*endDistance,origin[1]+dir[1]*endDistance);
+  const origin=launcher(shown,v.lateral,v.forward),start=project(...origin),target=project(v.tx,v.ty),dir=rotate(0,1,shown.yaw+v.azimuth),f=flight(v.height,v.speed,v.elevation),endDistance=gateHit?.hit?gateHit.distance:(check.along>0?Math.min(f.range,check.along):f.range),end=project(origin[0]+dir[0]*endDistance,origin[1]+dir[1]*endDistance);
   c.lineWidth=1;c.setLineDash([5,5]);c.strokeStyle='#6b7584';c.beginPath();c.moveTo(...start);c.lineTo(...target);c.stroke();c.strokeStyle='#51d1bb';c.beginPath();c.moveTo(...start);c.lineTo(...end);c.stroke();c.setLineDash([]);
   c.fillStyle='#51d1bb';c.beginPath();c.arc(...start,4,0,Math.PI*2);c.fill();c.strokeStyle=(gateHit?gateHit.hit:check.possible)?'#55d9ab':'#ef727c';c.lineWidth=2;c.beginPath();c.arc(...target,9,0,Math.PI*2);c.moveTo(target[0]-14,target[1]);c.lineTo(target[0]+14,target[1]);c.moveTo(target[0],target[1]-14);c.lineTo(target[0],target[1]+14);c.stroke();
   if(shot){const q=currentShotBall(now);if(q){const pos=project(q.x,q.y);c.fillStyle='#fff4a9';c.beginPath();c.arc(...pos,5,0,Math.PI*2);c.fill();c.strokeStyle='#bd924e';c.stroke();}}
