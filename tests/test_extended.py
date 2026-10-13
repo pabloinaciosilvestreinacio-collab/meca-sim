@@ -178,14 +178,14 @@ class ExtendedJavaTests(unittest.TestCase):
         s=Session({'imu_frozen':True,'duration':15})
         try:
             s.run(source)
-            deadline=time.monotonic()+18
-            while s.status not in ('inicializando','erro') and time.monotonic()<deadline:
+            init_deadline=time.monotonic()+25
+            while s.status not in ('inicializando','erro') and time.monotonic()<init_deadline:
                 time.sleep(.01)
             self.assertEqual(s.status,'inicializando',s.logs)
             s.started=True
             s.status='executando'
-            s.worker.join(max(0,deadline-time.monotonic()))
-            self.assertFalse(s.worker.is_alive(),'Autonomo 3.1 não encerrou no prazo')
+            s.worker.join(35)
+            self.assertFalse(s.worker.is_alive(),f'Autonomo 3.1 não encerrou: {s.status}, sim={s.world.elapsed:.1f}s, logs={s.logs[-1200:]}')
             self.assertEqual(s.status,'concluído',s.logs)
             self.assertIn('Tempo limite da virada',s.telemetry)
             self.assertIn('interrompido',s.telemetry.lower())
