@@ -336,9 +336,10 @@ function drawTop(now) {
   const center=project(shown.x,shown.y),front=corner(0,shown.length*.6);c.beginPath();c.moveTo(...center);c.lineTo(...front);c.stroke();c.fillStyle='#fff';c.beginPath();c.arc(...center,3,0,Math.PI*2);c.fill();
   for(const sign of [-1,1]){const a=corner(sign*state.width/2,-state.length*.24),b=corner(sign*state.width/2,state.length*.24);c.strokeStyle='#d6dfeb';c.lineWidth=5;c.beginPath();c.moveTo(...a);c.lineTo(...b);c.stroke();}
   const v=launchValues();if(!v.valid)return;
+  const check=shotFeasibility(shown,v);
   const origin=launcher(shown,v.lateral,v.forward),start=project(...origin),target=project(v.tx,v.ty),dir=rotate(0,1,shown.yaw+v.azimuth),f=flight(v.height,v.speed,v.elevation),end=project(origin[0]+dir[0]*f.range,origin[1]+dir[1]*f.range);
   c.lineWidth=1;c.setLineDash([5,5]);c.strokeStyle='#6b7584';c.beginPath();c.moveTo(...start);c.lineTo(...target);c.stroke();c.strokeStyle='#51d1bb';c.beginPath();c.moveTo(...start);c.lineTo(...end);c.stroke();c.setLineDash([]);
-  c.fillStyle='#51d1bb';c.beginPath();c.arc(...start,4,0,Math.PI*2);c.fill();c.strokeStyle='#91a8ff';c.lineWidth=2;c.beginPath();c.arc(...target,9,0,Math.PI*2);c.moveTo(target[0]-14,target[1]);c.lineTo(target[0]+14,target[1]);c.moveTo(target[0],target[1]-14);c.lineTo(target[0],target[1]+14);c.stroke();
+  c.fillStyle='#51d1bb';c.beginPath();c.arc(...start,4,0,Math.PI*2);c.fill();c.strokeStyle=check.possible?'#55d9ab':'#ef727c';c.lineWidth=2;c.beginPath();c.arc(...target,9,0,Math.PI*2);c.moveTo(target[0]-14,target[1]);c.lineTo(target[0]+14,target[1]);c.moveTo(target[0],target[1]-14);c.lineTo(target[0],target[1]+14);c.stroke();
   if(shot){const elapsed=(now-shot.start)/1000,d=rotate(0,1,shot.yaw+shot.azimuth),ff=flight(shot.height,shot.speed,shot.elevation);if(elapsed<=ff.time){const distance=shot.speed*Math.cos(shot.elevation*Math.PI/180)*elapsed,q=project(shot.origin[0]+d[0]*distance,shot.origin[1]+d[1]*distance);c.fillStyle='#fff4a9';c.beginPath();c.arc(...q,5,0,Math.PI*2);c.fill();}}
   $('bounds').textContent=state.collision?'Contato com parede · rodas podem patinar':state.x<0||state.x>3.66||state.y<0||state.y>3.66?'Centro fora do campo · paredes desativadas':'Frente +Y · yaw positivo ↶';
 }
@@ -434,16 +435,26 @@ function drawSide(now) {
   const a=v.azimuth*Math.PI/180,half=(Math.abs(Math.sin(a))*state.width+Math.abs(Math.cos(a))*state.length)/2,offset=v.lateral*(-Math.sin(a))+v.forward*Math.cos(a),left=-offset-half,right=-offset+half;
   const minX=Math.min(-.6,left-.1,along-.1),maxX=Math.max(3.66,f.range+.3,along+.3,right+.1),peak=v.height+(v.speed*Math.sin(v.elevation*Math.PI/180))**2/(2*9.81),maxH=Math.max(1.5,peak+.3,v.th+.3),sx=(w-55)/(maxX-minX),sy=(h-35)/maxH;
   const point=(x,y)=>[40+(x-minX)*sx,h-25-y*sy];c.font='10px system-ui';c.lineWidth=1;
-  drawArenaSide(c,point,$('arena').value);
+  drawArenaSide(c,point,$('arena').value,along,v.th);
   for(let i=0;i<=4;i++){const value=i*maxH/4,p=point(0,value);c.strokeStyle='#242c37';c.beginPath();c.moveTo(...p);c.lineTo(w-10,p[1]);c.stroke();c.fillStyle='#627085';c.fillText(value.toFixed(1)+'m',5,p[1]+3);}
   c.strokeStyle='#536277';c.beginPath();c.moveTo(...point(0,0));c.lineTo(...point(maxX,0));c.stroke();
   // Projeção do chassi no eixo do tiro; o lançador está em x=0.
   c.fillStyle='#ff852e20';c.strokeStyle='#ff852e';const p=point(left,.30);c.fillRect(p[0],p[1],(right-left)*sx,.30*sy);c.strokeRect(p[0],p[1],(right-left)*sx,.30*sy);
-  c.strokeStyle='#51d1bb';c.lineWidth=2;c.beginPath();for(let i=0;i<=120;i++){const x=f.range*i/120,q=point(x,Math.max(0,heightAt(x,v.height,v.speed,v.elevation)));i?c.lineTo(...q):c.moveTo(...q);}c.stroke();
-  const target=point(along,v.th);c.fillStyle='#91a8ff';c.fillRect(target[0]-5,target[1]-5,10,10);
+  c.strokeStyle='#f07a7b';c.lineWidth=2;c.setLineDash([7,4]);c.beginPath();
+  for(let i=0;i<=120;i++){const x=f.range*i/120,q=point(x,Math.max(0,heightAt(x,v.height,v.speed,v.elevation)));i?c.lineTo(...q):c.moveTo(...q);}
+  c.stroke();c.setLineDash([]);
+  const check=shotFeasibility(viewed,v);
+  const target=point(along,v.th);c.fillStyle=check.possible?'#5bd8a8':'#ef727c';c.fillRect(target[0]-6,target[1]-6,12,12);
+  c.strokeStyle=c.fillStyle;c.setLineDash([3,5]);c.beginPath();c.moveTo(...point(along,0));c.lineTo(...target);c.stroke();c.setLineDash([]);
+  const ramp=point(.32,v.height+.32*Math.tan(v.elevation*Math.PI/180)),hinge=point(0,v.height);
+  c.strokeStyle='#ffb564';c.lineWidth=5;c.beginPath();c.moveTo(...hinge);c.lineTo(...ramp);c.stroke();
+  c.fillStyle='#ffb564';c.beginPath();c.arc(...hinge,4,0,Math.PI*2);c.fill();
   if(shot){const elapsed=(now-shot.start)/1000;if(elapsed<=f.time){const x=v.speed*Math.cos(v.elevation*Math.PI/180)*elapsed,q=point(x,heightAt(x,v.height,v.speed,v.elevation));c.fillStyle='#fff4a9';c.beginPath();c.arc(...q,5,0,Math.PI*2);c.fill();}}
   const at=along>=0&&along<=f.range?heightAt(along,v.height,v.speed,v.elevation):null;
-  $('shot-info').textContent=`Prévia manual · alcance ${f.range.toFixed(2)} m · desvio lateral do alvo ${cross.toFixed(2)} m · ${at===null?'alvo fora do alcance frontal':`altura na distância do alvo ${at.toFixed(2)} m (alvo ${v.th.toFixed(2)} m)`}.`;
+  $('shot-info').textContent=(check.possible?'POSSÍVEL':'NÃO ATINGE O ALVO')+
+    ' · v₀ '+v.speed.toFixed(2)+' m/s · alcance '+f.range.toFixed(2)+' m · distância horizontal '+along.toFixed(2)+
+    ' m · desvio lateral '+cross.toFixed(2)+' m · altura na distância '+(at===null?'—':at.toFixed(2)+' m')+
+    ' / alvo '+v.th.toFixed(2)+' m. Modelo ideal sem resistência do ar.';
 }
 function readouts() {
   $('status').textContent=state.status;$('clock').textContent=state.time.toFixed(2).padStart(5,'0')+' s';
