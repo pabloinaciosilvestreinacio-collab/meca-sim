@@ -516,6 +516,7 @@ $('route-code').addEventListener('click',()=>{
     if(!window.confirm('Substituir o Java atual pelo roteiro? Salve seu projeto anterior antes de continuar.'))return;
     $('source').value=java;javaFiles={};restoreOpModeChoices();updateJavaFilesLabel();scheduleHighlight();persist();
     document.querySelector('[data-tab="code"]').click();
+    switchWorkspace('code');
     notice('Java gerado. Revise sentidos dos motores e timeout antes de compilar.');
   }catch(e){notice(e.message);}
 });
