@@ -1,4 +1,4 @@
-import {rotate, launcher, heightAt, flight, gamepadValues, targetSolution, encoderScale, connectedPlayers, speedFromForce, forceFromSpeed, shotFeasibility, shotElapsed} from './model.mjs';
+import {rotate, launcher, heightAt, flight, gamepadValues, targetSolution, encoderScale, connectedPlayers, speedFromForce, forceFromSpeed, shotFeasibility, shotElapsed, hiveShotImpact, registerPollen, SIM_TIP_POLLS} from './model.mjs';
 import {FIELD_METERS, ARENAS, validStart, drawArenaTop, drawArenaSide, hiveCellAt, hiveCellById} from './arena.mjs';
 import {candidates, diagnostics, highlightJava} from './editor.mjs';
 import {routeSteps, routeWarnings, makeRouteJava, MAX_WAYPOINTS} from './route.mjs';
@@ -8,7 +8,7 @@ let state = {x:1.83,y:.65,yaw:0,width:.45,length:.45,trail:[],motors:{},time:0,s
 let focused = document.hasFocus();
 let shot = null, examples = {}, javaFiles = {}, zipOpModes = [], selectedJavaPath = '', lastPad = 0, polling = false, padBusy = false, pickingStart = false;
 let lastDraw=0,lastLog='',lastMotorSignature='',lastDiagnosticSignature='',lastShotPoseKey='',highlightJob=0,routePicking=false;
-let routePoints=[],replayRows=[],replayIndex=-1,replayPlaying=false,replayLast=0,scoredShots=[],selectedHiveId='red-lower',tippedHives=new Set();
+let routePoints=[],replayRows=[],replayIndex=-1,replayPlaying=false,replayLast=0,scoredShots=[],selectedHiveId='red-lower',tippedHives=new Set(),hiveCounts={red:0,blue:0},hiveFlips={red:0,blue:0},hiveMotion={};
 const LIBRARY_KEY='meca-sim-library-v1',LOGO_KEY='meca-sim-logo-v1';
 const keys = new Set(), top = $('top'), side = $('side');
 const configIds = ['arena','drivetrain','robot-color','left','right','front_left','front_right','back_left','back_right','width','length','track','max_speed','ticks_per_m','duration','match-mode','timer-enabled','x','y','initial-yaw','invert_left','invert_right','acceleration','left_gain','right_gain','left_slip','right_slip','imu_delay','imu_drift','walls','imu_frozen','left_encoder_frozen','right_encoder_frozen'];
@@ -25,6 +25,46 @@ function persist() {
 function notice(text) {$('message').textContent=text;}
 function setShotResult(text,kind='info'){const item=$('shot-result');if(item){item.textContent=text;item.dataset.kind=kind;}notice(text);}
 function selectedHive(){return hiveCellById(selectedHiveId);}
+function activeCellId(team){return team+'-'+(hiveFlips[team]%2?'upper':'lower');}
+function hiveStatus(team,now){
+  const motion=hiveMotion[team],end=hiveFlips[team]%2?18:-18;
+  let angle=end;
+  if(motion){
+    const t=Math.min(1,Math.max(0,(now-motion.start)/650));
+    const ease=1-Math.pow(1-t,3);
+    angle=motion.from+(motion.to-motion.from)*ease+Math.sin(t*Math.PI*3)*(1-t)*2;
+    if(t>=1)delete hiveMotion[team];
+  }
+  return {angle,count:hiveCounts[team],tips:hiveFlips[team],activeCellId:activeCellId(team)};
+}
+function recordImpact(shot,now){
+  const cell=hiveCellById(shot.cellId);
+  if(!cell||!shot.impact?.hit)return;
+  const result=registerPollen(hiveCounts[cell.team],SIM_TIP_POLLS);
+  hiveCounts[cell.team]=result.count;
+  shot.registered=true;shot.tipped=result.tipped;
+  if(result.tipped){
+    const previous=hiveFlips[cell.team]%2?18:-18;
+    hiveFlips[cell.team]++;
+    hiveMotion[cell.team]={start:now,from:previous,to:-previous};
+    tippedHives.add(cell.id);
+    // Ao virar, a CELL anterior descarrega as bolas acumuladas.
+    scoredShots=scoredShots.filter(b=>b.cellId!==cell.id);
+    setShotResult('HIVE TOMBOU · '+SIM_TIP_POLLS+' POLLEN na '+cell.name+'; gangorra invertida.','hit');
+  }else setShotResult('POLLEN CAPTURADO · '+hiveCounts[cell.team]+'/'+SIM_TIP_POLLS+' na '+cell.name+'.','hit');
+}
+function currentShotBall(now){
+  if(!shot)return null;
+  const t=shotElapsed(now,shot.start);
+  const impact=shot.impact?.hit?shot.impact:null;
+  const time=impact?Math.min(t,impact.time):Math.min(t,flight(shot.height,shot.speed,shot.elevation).time);
+  const along=shot.speed*Math.cos(shot.elevation*Math.PI/180)*time;
+  const dir=rotate(0,1,shot.yaw+shot.azimuth);
+  let z=heightAt(along,shot.height,shot.speed,shot.elevation);
+  const fall=impact&&t>=impact.time?Math.min(1,(t-impact.time)/.42):0;
+  if(fall>0)z=impact.height-.16*(fall*fall*(3-2*fall));
+  return {x:shot.origin[0]+dir[0]*along,y:shot.origin[1]+dir[1]*along,z,along,fall};
+}
 function selectHive(cell,announce=true){
   if(!cell)return;
   selectedHiveId=cell.id;$('target-x').value=(cell.x+cell.w/2).toFixed(3);$('target-y').value=(cell.y+cell.h/2).toFixed(3);$('target-h').value=cell.openingHeight.toFixed(2);
@@ -172,7 +212,7 @@ for(const [id,target] of [['ds-init','compile'],['ds-start','start'],['ds-stop',
 action('start',async()=>{await api('heartbeat');await api('start');});
 action('stop',()=>api('stop'));
 action('reset',async()=>{resetReplay();shot=null;await api('reset',{config:config()});});
-action('clear-shots',()=>{scoredShots=[];tippedHives.clear();setShotResult('Bolinhas removidas da arena e dos HIVEs.','info');});
+action('clear-shots',()=>{scoredShots=[];shot=null;tippedHives.clear();hiveCounts={red:0,blue:0};hiveFlips={red:0,blue:0};hiveMotion={};setShotResult('POLLEN, contadores e gangorras reiniciados.','info');});
 action('export',async()=>{
   const blob=new Blob([JSON.stringify({version:'0.2',config:config(),launcher:Object.fromEntries(launchIds.map(id=>[id,id==='shot-mode'?$(id).value:num(id)])),result:state},null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob), a=document.createElement('a');a.href=url;a.download='meca-sim-resultado.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
@@ -214,8 +254,11 @@ action('shoot',async()=>{
   const values=launchValues(),cell=$('arena').value==='biobuzz'?selectedHive():null;
   if(!values.valid)throw new Error('Confira altura, velocidade, elevação e coordenadas do lançador.');
   if($('arena').value==='biobuzz'&&!cell)throw new Error('Clique em uma CELL vermelha ou azul do HIVE para selecionar a mira.');
-  shot={...values,cellId:cell?.id||'',origin:launcher(state,values.lateral,values.forward),yaw:state.yaw,start:performance.now()};
-  setShotResult('LANÇAMENTO EM ANDAMENTO · acompanhando a bolinha nas duas vistas.','running');
+  const candidate={...values,cellId:cell?.id||'',origin:launcher(state,values.lateral,values.forward),yaw:state.yaw,start:performance.now()};
+  candidate.impact=cell?hiveShotImpact(candidate,cell):{hit:false,reason:'arena livre'};
+  if(cell&&activeCellId(cell.team)!==cell.id)candidate.impact={hit:false,reason:'a CELL escolhida está virada para baixo'};
+  shot=candidate;
+  setShotResult('LANÇAMENTO EM ANDAMENTO · '+(candidate.impact.hit?'trajetória converge para a abertura.':'trajetória sem captura: '+candidate.impact.reason)+'.','running');
 });
 function refreshLauncherReadouts(){['offset-x','offset-y','height'].forEach(id=>{const out=$(id+'-readout');if(out)out.textContent=num(id).toFixed(2)+' m';});}
 function refreshDriveMode(){const mecanum=$('drivetrain').value==='mecanum';$('mecanum-names').hidden=!mecanum;$('route-panel').hidden=mecanum;}
@@ -226,7 +269,13 @@ document.querySelectorAll('[data-tab]').forEach(button=>button.addEventListener(
   document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('selected',b===button));
   ['code','robot','launcher'].forEach(name=>$('tab-'+name).hidden=name!==button.dataset.tab);
 }));
-function refreshHighlight(){$('source-highlight').innerHTML=highlightJava($('source').value);}
+function refreshHighlight(){
+  // Textarea nativo fica sempre visível: evita uma metade preta causada por
+  // pre limitado a 220 px e elimina travadas ao colar OpModes extensos.
+  const source=$('source').value;
+  const stats=$('code-stats');
+  if(stats)stats.textContent=source.split('\n').length+' linhas · '+new TextEncoder().encode(source).length.toLocaleString('pt-BR')+' bytes · '+(source.length>180000?'próximo do limite de 220 kB':'arquivo íntegro');
+}
 function scheduleHighlight(){
   if(highlightJob)cancelAnimationFrame(highlightJob);
   highlightJob=requestAnimationFrame(()=>{highlightJob=0;refreshHighlight();});
@@ -348,10 +397,10 @@ function drawTop(now) {
   for(const sign of [-1,1]){const a=corner(sign*state.width/2,-state.length*.24),b=corner(sign*state.width/2,state.length*.24);c.strokeStyle='#d6dfeb';c.lineWidth=5;c.beginPath();c.moveTo(...a);c.lineTo(...b);c.stroke();}
   const v=launchValues();if(!v.valid)return;
   const check=shotFeasibility(shown,v);
-  const origin=launcher(shown,v.lateral,v.forward),start=project(...origin),target=project(v.tx,v.ty),dir=rotate(0,1,shown.yaw+v.azimuth),f=flight(v.height,v.speed,v.elevation),end=project(origin[0]+dir[0]*f.range,origin[1]+dir[1]*f.range);
+  const origin=launcher(shown,v.lateral,v.forward),start=project(...origin),target=project(v.tx,v.ty),dir=rotate(0,1,shown.yaw+v.azimuth),f=flight(v.height,v.speed,v.elevation),endDistance=check.along>0?Math.min(f.range,check.along):f.range,end=project(origin[0]+dir[0]*endDistance,origin[1]+dir[1]*endDistance);
   c.lineWidth=1;c.setLineDash([5,5]);c.strokeStyle='#6b7584';c.beginPath();c.moveTo(...start);c.lineTo(...target);c.stroke();c.strokeStyle='#51d1bb';c.beginPath();c.moveTo(...start);c.lineTo(...end);c.stroke();c.setLineDash([]);
   c.fillStyle='#51d1bb';c.beginPath();c.arc(...start,4,0,Math.PI*2);c.fill();c.strokeStyle=check.possible?'#55d9ab':'#ef727c';c.lineWidth=2;c.beginPath();c.arc(...target,9,0,Math.PI*2);c.moveTo(target[0]-14,target[1]);c.lineTo(target[0]+14,target[1]);c.moveTo(target[0],target[1]-14);c.lineTo(target[0],target[1]+14);c.stroke();
-  if(shot){const elapsed=shotElapsed(now,shot.start),d=rotate(0,1,shot.yaw+shot.azimuth),ff=flight(shot.height,shot.speed,shot.elevation);if(elapsed<=ff.time){const distance=shot.speed*Math.cos(shot.elevation*Math.PI/180)*elapsed,q=project(shot.origin[0]+d[0]*distance,shot.origin[1]+d[1]*distance);c.fillStyle='#fff4a9';c.beginPath();c.arc(...q,5,0,Math.PI*2);c.fill();}}
+  if(shot){const q=currentShotBall(now);if(q){const pos=project(q.x,q.y);c.fillStyle='#fff4a9';c.beginPath();c.arc(...pos,5,0,Math.PI*2);c.fill();c.strokeStyle='#bd924e';c.stroke();}}
   $('bounds').textContent=state.collision?'Contato com parede · rodas podem patinar':'Paredes externas físicas · frente +Y · yaw positivo ↶';
 }
 top.addEventListener('click',async event=>{
@@ -449,15 +498,16 @@ function drawSide(now) {
   const viewed=replayIndex>=0&&replayRows[replayIndex]?{...state,x:replayRows[replayIndex][1],y:replayRows[replayIndex][2],yaw:replayRows[replayIndex][3]}:state;
   const origin=shot?.origin||launcher(viewed,v.lateral,v.forward),yaw=shot?.yaw??viewed.yaw,dir=rotate(0,1,yaw+v.azimuth),dx=v.tx-origin[0],dy=v.ty-origin[1],along=dx*dir[0]+dy*dir[1],cross=Math.abs(dx*dir[1]-dy*dir[0]),f=flight(v.height,v.speed,v.elevation);
   const a=v.azimuth*Math.PI/180,half=(Math.abs(Math.sin(a))*state.width+Math.abs(Math.cos(a))*state.length)/2,offset=v.lateral*(-Math.sin(a))+v.forward*Math.cos(a),left=-offset-half,right=-offset+half;
-  const minX=Math.min(-.6,left-.1,along-.1),maxX=Math.max(3.66,f.range+.3,along+.3,right+.1),peak=v.height+(v.speed*Math.sin(v.elevation*Math.PI/180))**2/(2*9.81),maxH=Math.max(1.5,peak+.3,v.th+.3),sx=(w-55)/(maxX-minX),sy=(h-35)/maxH;
+  const minX=Math.min(-.6,left-.1,along-.65),maxX=Math.max(2.2,along+.8,right+.1),peak=v.height+(v.speed*Math.sin(v.elevation*Math.PI/180))**2/(2*9.81),maxH=Math.max(1.5,peak+.3,v.th+.3),sx=(w-55)/(maxX-minX),sy=(h-35)/maxH;
   const point=(x,y)=>[40+(x-minX)*sx,h-25-y*sy];c.font='10px system-ui';c.lineWidth=1;
-  const sideCell=hiveCellById(shot?.cellId||selectedHiveId);drawArenaSide(c,point,$('arena').value,along,v.th,sideCell,scoredShots,tippedHives.has(sideCell?.id));
+  const sideCell=hiveCellById(shot?.cellId||selectedHiveId);drawArenaSide(c,point,$('arena').value,along,v.th,sideCell,scoredShots,hiveStatus(sideCell?.team||'red',now));
   for(let i=0;i<=4;i++){const value=i*maxH/4,p=point(0,value);c.strokeStyle='#242c37';c.beginPath();c.moveTo(...p);c.lineTo(w-10,p[1]);c.stroke();c.fillStyle='#627085';c.fillText(value.toFixed(1)+'m',5,p[1]+3);}
   c.strokeStyle='#536277';c.beginPath();c.moveTo(...point(0,0));c.lineTo(...point(maxX,0));c.stroke();
   // Projeção do chassi no eixo do tiro; o lançador está em x=0.
   c.fillStyle='#ff852e20';c.strokeStyle='#ff852e';const p=point(left,.30);c.fillRect(p[0],p[1],(right-left)*sx,.30*sy);c.strokeRect(p[0],p[1],(right-left)*sx,.30*sy);
   c.strokeStyle='#f07a7b';c.lineWidth=2;c.setLineDash([7,4]);c.beginPath();
-  for(let i=0;i<=120;i++){const x=f.range*i/120,q=point(x,Math.max(0,heightAt(x,v.height,v.speed,v.elevation)));i?c.lineTo(...q):c.moveTo(...q);}
+  const arcEnd=shot?.impact?.hit?shot.impact.distance:(along>0?Math.min(along,f.range):f.range);
+  for(let i=0;i<=120;i++){const x=arcEnd*i/120,q=point(x,Math.max(0,heightAt(x,v.height,v.speed,v.elevation)));i?c.lineTo(...q):c.moveTo(...q);}
   c.stroke();c.setLineDash([]);
   const check=shotFeasibility(viewed,v);
   const target=point(along,v.th);c.fillStyle=check.possible?'#5bd8a8':'#ef727c';c.fillRect(target[0]-6,target[1]-6,12,12);
@@ -467,7 +517,7 @@ function drawSide(now) {
   const ramp=point(-reach,Math.max(0,v.height-reach*Math.tan(angle))),muzzle=point(0,v.height);
   c.strokeStyle='#ffb564';c.lineWidth=5;c.beginPath();c.moveTo(...ramp);c.lineTo(...muzzle);c.stroke();
   c.fillStyle='#ffb564';c.beginPath();c.arc(...muzzle,4,0,Math.PI*2);c.fill();
-  if(shot){const elapsed=shotElapsed(now,shot.start);if(elapsed<=f.time){const x=v.speed*Math.cos(v.elevation*Math.PI/180)*elapsed,q=point(x,heightAt(x,v.height,v.speed,v.elevation));c.fillStyle='#fff4a9';c.beginPath();c.arc(...q,5,0,Math.PI*2);c.fill();}}
+  if(shot){const ball=currentShotBall(now);if(ball){const q=point(ball.along,ball.z);c.fillStyle='#fff4a9';c.beginPath();c.arc(...q,5,0,Math.PI*2);c.fill();c.strokeStyle='#b98944';c.stroke();}}
   const at=along>=0&&along<=f.range?heightAt(along,v.height,v.speed,v.elevation):null;
   $('shot-info').textContent=(check.possible?'POSSÍVEL':'NÃO ATINGE O ALVO')+
     ' · v₀ '+v.speed.toFixed(2)+' m/s · alcance '+f.range.toFixed(2)+' m · distância horizontal '+along.toFixed(2)+
@@ -520,15 +570,19 @@ async function sendPads(now) {
   }catch{}finally{padBusy=false;}
 }
 function frame(now){
-  if(shot&&shotElapsed(now,shot.start)>flight(shot.height,shot.speed,shot.elevation).time+.8){
-    const origin=shot.origin,dir=rotate(0,1,shot.yaw+shot.azimuth),dx=shot.tx-origin[0],dy=shot.ty-origin[1],along=dx*dir[0]+dy*dir[1],cross=Math.abs(dx*dir[1]-dy*dir[0]),cell=hiveCellById(shot.cellId),at=along>=0?heightAt(along,shot.height,shot.speed,shot.elevation):NaN;
-    const radius=Math.max(0,shot.radius),horizontal=cell?Math.max(0,cell.w/2-radius):0,vertical=cell?Math.max(0,Math.min(cell.h/2-radius,shot.heightTolerance)):0;
-    if(cell&&along>0&&along<=flight(shot.height,shot.speed,shot.elevation).range&&cross<=horizontal&&Number.isFinite(at)&&Math.abs(at-cell.openingHeight)<=vertical){
-      scoredShots.push({cellId:cell.id,x:cell.x+cell.w/2,y:cell.y+cell.h/2,height:cell.openingHeight});
-      const firstTip=!tippedHives.has(cell.id);tippedHives.add(cell.id);
-      setShotResult('ACERTO NA COLMEIA · bolinha guardada em '+cell.name+(firstTip?' · TOMBAMENTO visual do HIVE registrado.':'') ,'hit');
-    }else setShotResult('ERRO NO LANÇAMENTO · a bolinha não entrou na abertura da colmeia selecionada.','error');
-    shot=null;
+  if(shot){
+    const elapsed=shotElapsed(now,shot.start),impact=shot.impact?.hit?shot.impact:null;
+    if(impact&&!shot.registered&&elapsed>=impact.time)recordImpact(shot,now);
+    if(impact&&elapsed>=impact.time+.42){
+      if(!shot.tipped){const cell=hiveCellById(shot.cellId);
+        scoredShots.push({cellId:cell.id,x:impact.x,y:impact.y,height:impact.height});}
+      // A bolinha chega ao alvo, cai DENTRO e só então deixa a animação.
+      if(shot.tipped)selectHive(hiveCellById(activeCellId(impact.team)),false);
+      shot=null;
+    }else if(!impact&&elapsed>=flight(shot.height,shot.speed,shot.elevation).time){
+      setShotResult('ERRO · '+(shot.impact?.reason||'lançamento fora da abertura')+'.','error');
+      shot=null;
+    }
   }
   if(replayPlaying&&replayIndex>=0&&replayRows.length>1){
     if(now-replayLast>=50){replayLast=now;replayIndex=Math.min(replayRows.length-1,replayIndex+1);
