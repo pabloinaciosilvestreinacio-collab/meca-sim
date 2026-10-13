@@ -73,6 +73,18 @@ try:
         page.locator('#solve-shot').click()
         page.wait_for_function("document.querySelector('#shot-verdict').dataset.possible==='yes'")
         page.locator('#shoot').click()
+        page.wait_for_function("document.querySelector('#hive-progress').textContent.includes('1/8 POLLEN')",timeout=10000)
+        assert '0 tombamento' in page.locator('#hive-progress').text_content()
+        page.wait_for_timeout(520)
+        for expected in range(2,9):
+            page.locator('#shoot').click()
+            if expected<8:
+                page.wait_for_function("(n)=>document.querySelector('#hive-progress').textContent.includes(n+'/8 POLLEN')",arg=str(expected),timeout=10000)
+            else:
+                page.wait_for_function("document.querySelector('#hive-progress').textContent.includes('0/8 POLLEN') && document.querySelector('#hive-progress').textContent.includes('1 tombamento')",timeout=10000)
+                assert 'TOMBOU' in page.locator('#shot-result').text_content()
+            page.wait_for_timeout(520)
+        passed('POLLEN capturado sem duplicação e HIVE tomba apenas no oitavo acerto')
         passed('Força, velocidade, ângulo, mira e parabola com veredito atualizam')
         page.locator('[data-tab="robot"]').click()
         page.locator('summary').filter(has_text='Calcular ticks').click()
