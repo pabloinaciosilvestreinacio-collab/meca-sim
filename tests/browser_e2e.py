@@ -77,7 +77,7 @@ try:
         page.locator('#timeline-load').click()
         page.wait_for_function("!document.querySelector('#timeline-range').disabled")
         assert int(page.locator('#timeline-range').get_attribute('max'))>8
-        page.locator('#timeline-range').fill('5')
+        page.locator('#timeline-range').evaluate("(el)=>{el.value='5';el.dispatchEvent(new Event('input',{bubbles:true}));}")
         assert 't=' in page.locator('#timeline-info').text_content()
         page.locator('#timeline-play').click()
         page.wait_for_timeout(200)
