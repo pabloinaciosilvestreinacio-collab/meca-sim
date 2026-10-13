@@ -45,7 +45,7 @@ export function makeRouteJava(steps,settings){
   const left=settings.left,right=settings.right;
   if(!/^[A-Za-z0-9_]{1,32}$/.test(left)||!/^[A-Za-z0-9_]{1,32}$/.test(right)||left===right)throw Error('Hardware do chassi inválido');
   const commands=steps.map((s,i)=>'        if (!virar('+s.turnDeg.toFixed(6)+') || !andar('+s.distanceM.toFixed(6)+')) return; // waypoint '+(i+1)).join('\n');
-  return \`package org.firstinspires.ftc.teamcode;
+  return `package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
@@ -60,10 +60,10 @@ import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 public class RotaMecaSim extends LinearOpMode {
     private DcMotor ME, MD;
     private IMU imu;
-    private static final double TICKS_M = \${settings.ticksPerM.toFixed(6)};
+    private static final double TICKS_M = ${settings.ticksPerM.toFixed(6)};
     @Override public void runOpMode() {
-        ME = hardwareMap.get(DcMotor.class,"\${left}");
-        MD = hardwareMap.get(DcMotor.class,"\${right}");
+        ME = hardwareMap.get(DcMotor.class,"${left}");
+        MD = hardwareMap.get(DcMotor.class,"${right}");
         ME.setDirection(DcMotor.Direction.FORWARD);
         MD.setDirection(DcMotor.Direction.REVERSE);
         ME.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
@@ -78,7 +78,7 @@ public class RotaMecaSim extends LinearOpMode {
         if (isStopRequested()) return;
         imu.resetYaw();
         try {
-\${commands}
+${commands}
             telemetry.addLine("Roteiro executado (confirmar pose final)");
             telemetry.update();
         } finally { parar(); }
@@ -117,5 +117,5 @@ public class RotaMecaSim extends LinearOpMode {
         parar();telemetry.addLine("Falha: timeout de percurso");telemetry.update();return false;
     }
 }
-\`;
+`;
 }
