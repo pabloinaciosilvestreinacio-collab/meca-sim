@@ -1,10 +1,12 @@
 import {rotate, launcher, heightAt, flight, gamepadValues, targetSolution, encoderScale, connectedPlayers} from './model.mjs';
 import {FIELD_METERS, ARENAS, validStart, drawArenaTop, drawArenaSide} from './arena.mjs';
+import {candidates, diagnostics, highlightJava} from './editor.mjs';
 const $ = id => document.getElementById(id);
 const num = id => Number($(id).value);
 let state = {x:1.83,y:.65,yaw:0,width:.45,length:.45,trail:[],motors:{},time:0,status:'pronto'};
 let focused = document.hasFocus();
 let shot = null, examples = {}, javaFiles = {}, zipOpModes = [], selectedJavaPath = '', lastPad = 0, polling = false, padBusy = false, pickingStart = false;
+let lastDraw=0,lastLog='',lastMotorSignature='',highlightJob=0;
 const LIBRARY_KEY='meca-sim-library-v1',LOGO_KEY='meca-sim-logo-v1';
 const keys = new Set(), top = $('top'), side = $('side');
 const configIds = ['arena','left','right','width','length','track','max_speed','ticks_per_m','duration','x','y','initial-yaw','invert_left','invert_right','acceleration','left_gain','right_gain','left_slip','right_slip','imu_delay','imu_drift','walls','imu_frozen','left_encoder_frozen','right_encoder_frozen'];
@@ -198,7 +200,49 @@ document.querySelectorAll('[data-tab]').forEach(button=>button.addEventListener(
   document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('selected',b===button));
   ['code','robot','launcher'].forEach(name=>$('tab-'+name).hidden=name!==button.dataset.tab);
 }));
-$('source').addEventListener('input',persist);
+function refreshHighlight(){$('source-highlight').innerHTML=highlightJava($('source').value);}
+function scheduleHighlight(){
+  if(highlightJob)cancelAnimationFrame(highlightJob);
+  highlightJob=requestAnimationFrame(()=>{highlightJob=0;refreshHighlight();});
+}
+$('source').addEventListener('input',()=>{persist();scheduleHighlight();showSuggestions();});
+$('source').addEventListener('scroll',()=>{$('source-highlight').scrollTop=$('source').scrollTop;$('source-highlight').scrollLeft=$('source').scrollLeft;});
+function placeCursor(line){
+  const src=$('source'),lines=src.value.split('\n');
+  const pos=lines.slice(0,Math.max(0,line-1)).reduce((sum,x)=>sum+x.length+1,0);
+  src.focus();src.setSelectionRange(pos,pos);
+  const lh=parseFloat(getComputedStyle(src).lineHeight)||20;
+  src.scrollTop=Math.max(0,(line-5)*lh);$('source-highlight').scrollTop=src.scrollTop;
+}
+function showCodeErrors(logs){
+  const errors=diagnostics(logs),list=$('code-errors');list.replaceChildren();
+  if(!errors.length)return;
+  const title=document.createElement('strong');title.textContent=errors.length+' diagnóstico(s) do compilador';list.append(title);
+  const primary=pathOfPrimary($('source').value)?.split('/').pop();
+  for(const issue of errors){
+    const button=document.createElement('button');button.type='button';
+    button.className=issue.severity==='error'?'code-error':'code-warning';
+    button.textContent=issue.file+':'+issue.line+' · '+issue.message;
+    button.addEventListener('click',()=>{if(issue.file===primary)placeCursor(issue.line);else notice('Diagnóstico de '+issue.file+'; abra o arquivo auxiliar correspondente para editar.');});
+    list.append(button);
+  }
+}
+function showSuggestions(forced=false){
+  const src=$('source'),list=$('code-suggest');list.replaceChildren();
+  const options=candidates(src.value,src.selectionStart,forced);
+  for(const term of options){
+    const button=document.createElement('button');button.type='button';button.textContent=term;
+    button.addEventListener('click',()=>insertCompletion(term));list.append(button);
+  }
+  list.hidden=!options.length;
+}
+function insertCompletion(term){
+  const src=$('source'),start=src.selectionStart,match=src.value.slice(0,start).match(/[A-Za-z_$][\w$]*$/);
+  const begin=start-(match?.[0].length||0);src.focus();src.setRangeText(term,begin,start,'end');
+  $('code-suggest').hidden=true;persist();scheduleHighlight();
+}
+$('source').addEventListener('click',()=>showSuggestions());
+$('source').addEventListener('keyup',()=>showSuggestions());
 [...configIds,...launchIds].forEach(id=>$(id).addEventListener('change',persist));
 $('example').addEventListener('change',async()=>{
   try{const choice=$('example').value;
@@ -207,7 +251,17 @@ $('example').addEventListener('change',async()=>{
     $('delete-library').disabled=!choice.startsWith('saved:');
   }catch(error){notice(error.message);}
 });
-$('source').addEventListener('keydown',event=>{if(event.key==='Tab'){event.preventDefault();const input=event.target,start=input.selectionStart,end=input.selectionEnd;input.setRangeText('    ',start,end,'end');persist();}});
+$('source').addEventListener('keydown',event=>{
+  const src=event.target;
+  if(event.ctrlKey&&event.code==='Space'){event.preventDefault();showSuggestions(true);return;}
+  if(event.key==='Escape'){$('code-suggest').hidden=true;return;}
+  if(event.key==='Tab'){
+    event.preventDefault();
+    const suggested=$('code-suggest').hidden?null:$('code-suggest button');
+    if(suggested){insertCompletion(suggested.textContent);return;}
+    src.setRangeText('    ',src.selectionStart,src.selectionEnd,'end');persist();scheduleHighlight();
+  }
+});
 
 function launchValues() {
   const v={lateral:num('offset-x'),forward:num('offset-y'),height:num('height'),speed:num('speed'),elevation:num('elevation'),azimuth:num('azimuth'),tx:num('target-x'),ty:num('target-y'),th:num('target-h')};
@@ -285,8 +339,11 @@ function readouts() {
   $('ds-start').disabled=$('start').disabled;$('ds-init').disabled=$('compile').disabled;
   $('ds-state').textContent=state.status.toUpperCase();$('ds-time').textContent=state.time.toFixed(2)+' s';
   $('ds-mode').textContent=/@Autonomous\b/.test($('source').value)?'AUTÔNOMO · LinearOpMode':/@TeleOp\b/.test($('source').value)?'TELEOPERADO · LinearOpMode':'JAVA · LinearOpMode';
-  $('telemetry').textContent=state.telemetry||'Aguardando telemetry.update()';$('logs').textContent=state.logs||'Nenhum erro de compilação registrado.';
-  $('motors').replaceChildren();Object.entries(state.motors).forEach(([name,m])=>{const node=document.createElement('div');node.className='motor';const label=document.createElement('strong');label.textContent=name;const value=document.createElement('span');value.textContent=`P ${m.power.toFixed(2)} · ${m.encoder} ticks`;const bar=document.createElement('div');bar.className='bar';const fill=document.createElement('i');fill.style.width=Math.abs(m.power)*100+'%';bar.append(fill);node.append(label,value,bar);$('motors').append(node);});
+  $('telemetry').textContent=state.telemetry||'Aguardando telemetry.update()';
+  if(lastLog!==state.logs){lastLog=state.logs;$('logs').textContent=state.logs||'Nenhum erro de compilação registrado.';showCodeErrors(state.logs);}
+  const signature=JSON.stringify(state.motors);
+  if(signature!==lastMotorSignature){lastMotorSignature=signature;
+  $('motors').replaceChildren();Object.entries(state.motors).forEach(([name,m])=>{const node=document.createElement('div');node.className='motor';const label=document.createElement('strong');label.textContent=name;const value=document.createElement('span');value.textContent=`P ${m.power.toFixed(2)} · ${m.encoder} ticks`;const bar=document.createElement('div');bar.className='bar';const fill=document.createElement('i');fill.style.width=Math.abs(m.power)*100+'%';bar.append(fill);node.append(label,value,bar);$('motors').append(node);});}
 }
 async function poll() {
   if(polling)return;polling=true;
@@ -308,13 +365,18 @@ async function sendPads(now) {
     await api('gamepad',{'1':p1,'2':p2});
   }catch{}finally{padBusy=false;}
 }
-function frame(now){if(shot&&(now-shot.start)/1000>flight(shot.height,shot.speed,shot.elevation).time+.8)shot=null;drawTop(now);drawSide(now);if(!document.hidden)sendPads(now);requestAnimationFrame(frame);}
+function frame(now){
+  if(shot&&(now-shot.start)/1000>flight(shot.height,shot.speed,shot.elevation).time+.8)shot=null;
+  if(!document.hidden&&now-lastDraw>=33){lastDraw=now;drawTop(now);drawSide(now);sendPads(now);}
+  requestAnimationFrame(frame);
+}
 async function init() {
   try{const response=await fetch('/examples');examples=await response.json();Object.keys(examples).forEach(name=>{const option=document.createElement('option');option.value=name;option.textContent=name;$('example').append(option);});
     refreshExamples();
     const saved=JSON.parse(localStorage.getItem('meca-sim-v02')||'null');if(saved){$('source').value=saved.source||'';javaFiles=saved.files&&typeof saved.files==='object'&&!Array.isArray(saved.files)?saved.files:{};restoreOpModeChoices();updateJavaFilesLabel();Object.entries(saved.values||{}).forEach(([id,value])=>{if($(id))$(id).type==='checkbox'?$(id).checked=Boolean(value):$(id).value=value;});}else{$('source').value=Object.values(examples)[0];}
     $('field-description').textContent=$('arena').value==='biobuzz'?'BIOBUZZ · esquema ilustrativo, sem colisões nos elementos':'Campo livre · grade cartesiana';
     try{const logo=localStorage.getItem(LOGO_KEY);if(logo?.startsWith('data:image/'))setTeamLogo(logo);}catch{}
+    refreshHighlight();
   }catch(e){notice('Não foi possível carregar exemplos ou configurações: '+e.message);}
   await poll();setInterval(poll,100);setInterval(()=>{if(!document.hidden)api('heartbeat').catch(()=>{});},500);requestAnimationFrame(frame);
 }

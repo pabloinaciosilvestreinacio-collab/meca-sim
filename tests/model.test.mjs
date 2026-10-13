@@ -57,3 +57,14 @@ test('Partida válida respeita tamanho e rotação do chassi nas duas arenas',()
   assert.equal(validStart(.36,.36,.45,.45,45),true);
   assert.equal(validStart(NaN,1,.45,.45,0),false);
 });
+
+import {candidates,diagnostics,highlightJava} from '../web/editor.mjs';
+test('Editor Java: sugestões locais e completamento',()=>{
+  assert.ok(candidates('setPow',6).includes('setPower'));
+  assert.equal(candidates('se',2).length,0);
+});
+test('Editor Java: javac aponta arquivo e linha e HTML não é executado',()=>{
+  const errors=diagnostics('C:/temp/Robot.java:15: error: cannot find symbol\n  symbol: variable MISSING');
+  assert.deepEqual(errors,[{file:'Robot.java',line:15,severity:'error',message:'cannot find symbol'}]);
+  assert.match(highlightJava('class A { String x="<script>"; // ok }'),/&lt;script&gt;/);
+});
