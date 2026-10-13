@@ -1,5 +1,17 @@
 # Histórico de alterações
 
+## 0.3 — experiência de laboratório (13/10/2026)
+
+- Alternância entre arena livre e diagrama esquemático BIOBUZZ 2026–2027 nas duas vistas.
+- Partida configurável clicando no campo, preservada em projetos JSON.
+- Biblioteca local de até 12 projetos e seleção junto dos exemplos.
+- Driver Station virtual, com INIT/START/STOP vinculados à JVM existente.
+- Editor offline com destaque Java, autocomplete de termos FTC e erros do javac clicáveis.
+- Upload local da logo oficial da Meca Tiger, sem impor identidade visual inventada.
+- Renderização limitada a ~30 FPS, evitando reconstruir a lista de motores sem alteração.
+- Testes Node/Chromium adicionados para validar os novos fluxos.
+
+
 ## Diagnóstico de sensores e conclusão Java — 13/10/2026
 
 - Vista superior distingue yaw real da pose e yaw informado pelo IMU, com indicação de IMU congelado.

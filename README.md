@@ -2,6 +2,17 @@
 
 Simulador **local e independente** da Meca Tiger: cole uma classe Java `LinearOpMode`, configure o chassi diferencial, execute INIT/START e observe encoders, IMU, telemetria e trajetória. Inclui controles USB e teclado, vista de cima e estudo balístico lateral.
 
+### Nova interface: campos, projetos e editor
+
+- **Arena:** seletor entre `BIOBUZZ 2026–2027` e `Arena livre`. O BIOBUZZ exibe somente **elementos esquemáticos** (HIVE central, FLOWERS e zonas de cor) nas vistas de cima e lateral, com base no manual oficial; não representa CAD, posições/alturas exatas, obstáculos com colisão nem pontuação.
+- **Posição inicial:** `Definir posição inicial no campo` (ou Shift+clique). O robô deve caber inteiramente no retângulo 3,66 m × 3,66 m. O clique simples continua apontando o alvo do lançador.
+- **Biblioteca:** `Guardar no menu` salva até 12 projetos nomeados no armazenamento local do navegador; o seletor `Exemplo de partida` mostra os exemplos e os projetos. `Salvar projeto` continua exportando JSON para backup ou compartilhamento. Abrir JSON também tenta adicioná-lo à biblioteca.
+- **Driver Station virtual:** INIT, START e STOP na área de hardware executam as mesmas ações do painel superior. Não se conecta ao Driver Hub.
+- **Editor Java:** texto editável, realce local leve, sugestões via digitação/Ctrl+Espaço, Tab para completar e erros do `javac` com arquivo e linha. Não é um IDE completo nem oferece compreensão semântica das bibliotecas FTC ausentes.
+- **Identidade:** o botão `Inserir logo da equipe` permite escolher o PNG/JPG/WebP oficial, reduzido para armazenamento local e mostrado na marca do cabeçalho. Enquanto o arquivo não for fornecido, aparece uma marca provisória `MT`. A logo **não é enviada ao GitHub ou a servidores**.
+
+Os projetos da biblioteca e a logo ficam apenas no **navegador usado**, podendo ser perdidos ao limpar os dados do site; exporte JSON para backup.
+
 **Candidato de lançamento técnico, ainda sujeito a validação física e testes de uso no computador da equipe.** SDK parcial; não substitui o robô. Modelos de falha são sintéticos e não são calibração. Repositório privado, ainda sem licença de distribuição definida.
 
 **Interpretação dos resultados:** o estado `concluído` indica apenas que o programa Java terminou normalmente; uma sequência autônoma também pode terminar por timeout ou falha controlada. Confira sempre a telemetria. A interface mostra separadamente o **yaw real** da pose simulada e o **yaw IMU** que o Java recebe (relativo ao último `resetYaw()`), além de indicar quando a opção de IMU travado está ativa.
