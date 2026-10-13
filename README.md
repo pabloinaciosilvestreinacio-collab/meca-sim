@@ -122,3 +122,15 @@ Os commits são registrados diretamente neste repositório conforme solicitado. 
 - “Remover bolinhas” limpa os registros de tiros e o estado visual do HIVE. Autônomo usa no máximo 30 s, TeleOp 2 min; o cronômetro pode ser desligado para ensaio manual.
 
 - O diagnóstico do executável portátil tolera a primeira inicialização lenta do JDK no Windows; ele ainda exige `java` e `javac` funcionais.
+
+## Revisão estrutural — 13/10/2026 (branch de validação)
+
+- **HIVE lateral:** representa o A-frame triangular, pivô a 1,1165 m, barra articulada e duas CELLS com boca e contorno pentagonal. O desenho 2D é uma aproximação do corte de referência da equipe/Desmos, não o CAD completo do campo.
+- **POLLEN em continuidade:** uma única bolinha se desloca até o plano da abertura, desacelera ao entrar e segue até o lugar de repouso visual nas vistas superior e lateral; a trajetória verde de mira termina no plano do alvo. Acertos são decididos durante o voo, não ao fim da parábola.
+- **Tombamento didático:** oito POLLEN capturados no mesmo HIVE invertem a gangorra com animação; a contagem zera e o HIVE passa a aceitar lançamentos na outra CELL. O manual FIRST **não define oito como constante oficial**: depende de massa/posição dos elementos, amortecedores e da mecânica real. O protótipo não simula NECTAR, momento angular nem colisão rígida da gangorra.
+- **Editor grande:** o textarea mostra texto real com rolagem nativa, contador de linhas/bytes e aba Código em foco, eliminando a sobreposição transparente que deixava parte do código invisível. A compilação ainda usa um subconjunto das APIs do FTC SDK e os limites de importação informados acima.
+- **Autônomo 3.5:** durante INIT selecione Y/B/X/↑, confirme com A no Driver Station virtual, aguarde telemetria Confirmado:true e depois use START. O controle de pré-START é necessário para a execução; classes externas e câmera real continuam fora do SDK parcial.
+- **Identidade:** marca retirada do arquivo de imagem já utilizado no cabeçalho do site oficial da equipe no repositório `mecatiger-hub/public/Screenshot_20261004_131612_Instagram.jpg`, em vez de uma nova logomarca inventada.
+- **Navegação:** abas dedicadas Simulador, Código Java e Trajetórias/replay, sem remover os painéis existentes.
+
+Regressões complementares: `tests/model.test.mjs` (captura e 8 POLLEN) e `tests/browser_e2e.py` (8 tiros, Autonomo35 completo, confirmação Java, troca de abas, colagem de 35 kB). As regressões do navegador devem ser confirmadas no GitHub Actions; testes sem validação de hardware não comprovam fidelidade física.
