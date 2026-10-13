@@ -649,8 +649,15 @@ function readouts() {
   $('start').disabled=state.status!=='inicializando';$('compile').disabled=['compilando','inicializando','executando'].includes(state.status);
   const auto35=!$('auto35-panel').hidden,confirmed=/Confirmado:\s*true/i.test(state.telemetry||'');
   if(auto35&&state.status==='inicializando'&&!confirmed)$('start').disabled=true;
-  if(auto35)$('auto35-hint').textContent=confirmed?'Modo CONFIRMADO. Pode pressionar START.':state.status==='inicializando'?'Escolha o teste e clique em Selecionar e confirmar (A) antes do START.':'Pressione INIT para escolher o teste.';
-  $('auto35-confirm').disabled=state.status!=='inicializando';
+  if(auto35){
+    $('auto35-mode').disabled=state.status!=='inicializando'||confirmed;
+    $('auto35-hint').textContent=confirmed
+      ?'ETAPA 3/3 · modo CONFIRMADO pela JVM. Agora pressione START.'
+      :state.status==='inicializando'
+        ?'ETAPA 2/3 · escolha o teste e clique em Selecionar e confirmar (A). START permanece bloqueado até a telemetria confirmar.'
+        :'ETAPA 1/3 · pressione INIT; depois escolha o modo e confirme com A.';
+  }
+  $('auto35-confirm').disabled=state.status!=='inicializando'||confirmed;
   $('ds-start').disabled=$('start').disabled;$('ds-init').disabled=$('compile').disabled;
   $('ds-state').textContent=state.status.toUpperCase();$('ds-time').textContent=state.time.toFixed(2)+' s';
   $('ds-mode').textContent=/@Autonomous\b/.test($('source').value)?'AUTÔNOMO · LinearOpMode':/@TeleOp\b/.test($('source').value)?'TELEOPERADO · LinearOpMode':'JAVA · LinearOpMode';
