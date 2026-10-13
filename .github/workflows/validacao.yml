@@ -1,5 +1,9 @@
 name: Validar Meca Sim
 on: [push, workflow_dispatch]
+# Apenas o HEAD mais recente gera um kit de distribuição.
+concurrency:
+  group: meca-sim-${{ github.ref }}
+  cancel-in-progress: true
 env:
   PYTHONUTF8: "1"
 permissions:
