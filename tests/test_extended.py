@@ -37,6 +37,15 @@ public class Auxiliar { public static String mensagem() { return "Arquivos junto
         self.assertTrue(all(m.power==0 for m in session.world.motors.values()))
 
 
+class StopRaceTests(unittest.TestCase):
+    def test_delayed_java_finish_does_not_override_stop(self):
+        session=Session()
+        session.stop()
+        session.rpc('finish')
+        self.assertEqual(session.status,'parado')
+        self.assertTrue(all(m.power==0 for m in session.world.motors.values()))
+
+
 class NumericalTests(unittest.TestCase):
     def test_thousand_random_arcs_against_analytical_solution(self):
         rng=random.Random(32578)

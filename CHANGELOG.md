@@ -3,6 +3,7 @@
 ## 0.2 — 2026-10-13
 
 - Importação de arquivos Java auxiliares em diferentes pacotes com compilação conjunta, persistência e testes de segurança de caminhos.
+- Correção da corrida STOP/finalização tardia da JVM e teste end-to-end Chromium da importação.
 
 - Repositório exclusivo `meca-sim`; base 0.1 preservada no histórico.
 - Integração numericamente estável, falhas sintéticas de motor/encoder/IMU e paredes opcionais.

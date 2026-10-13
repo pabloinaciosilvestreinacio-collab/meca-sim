@@ -61,6 +61,31 @@ try:
         page.locator('#load-project').set_input_files(str(project))
         page.wait_for_function("document.querySelector('#source').value.includes('LinearOpMode')")
         passed('Salvar e reabrir projeto restaura o código')
+        with tempfile.TemporaryDirectory() as folder:
+            main=Path(folder)/'MultiBrowser.java'
+            helper=Path(folder)/'AuxiliarBrowser.java'
+            main.write_text("""package org.firstinspires.ftc.teamcode;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import org.firstinspires.ftc.teamcode.util.AuxiliarBrowser;
+public class MultiBrowser extends LinearOpMode {
+    public void runOpMode() { waitForStart(); telemetry.addLine(AuxiliarBrowser.mensagem()); telemetry.update(); }
+}""",encoding='utf-8')
+            helper.write_text("""package org.firstinspires.ftc.teamcode.util;
+public class AuxiliarBrowser {
+    public static String mensagem() { return "Importacao multipla OK"; }
+}""",encoding='utf-8')
+            page.locator('#import-java').set_input_files([str(main),str(helper)])
+            page.wait_for_function("document.querySelector('#source').value.includes('MultiBrowser')")
+            assert '1 arquivo(s)' in page.locator('#java-file-count').text_content()
+            page.locator('#compile').click()
+            page.wait_for_function("document.querySelector('#status').textContent==='inicializando'",timeout=30000)
+            page.locator('#start').click()
+            page.wait_for_function("document.querySelector('#status').textContent==='concluído'",timeout=30000)
+            assert 'Importacao multipla OK' in page.locator('#telemetry').text_content()
+            with page.expect_download() as out:page.locator('#save-project').click()
+            saved=json.loads(Path(out.value.path()).read_text(encoding='utf-8'))
+            assert len(saved['files'])==1
+            passed('OpMode e auxiliar importados, compilados e salvos em JSON')
         options=page.locator('#example option').all_text_contents()
         tele=next(x for x in options if 'TeleOp' in x)
         page.locator('#example').select_option(label=tele)

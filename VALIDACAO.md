@@ -19,7 +19,7 @@ O navegador remoto deste ambiente não alcança o servidor local (conexão recus
 
 ## Importação de múltiplos arquivos Java
 
-Testes adicionados para caminhos inválidos e compilação real de OpMode com classe auxiliar de outro pacote. A integração da interface e o Windows precisam ser confirmados no Actions; não representam calibração física.
+Testes adicionados para caminhos inválidos e compilação real de OpMode com classe auxiliar de outro pacote. Incluído teste Chromium para importar dois arquivos, compilar, executar e preservar o auxiliar no JSON. O resultado da nova CI ainda precisa ser confirmado no Actions; não representa calibração física.
 
 ## Não validado
 

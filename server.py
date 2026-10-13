@@ -163,8 +163,12 @@ class Session:
             if op == "started": return str(self.started).lower()
             if op == "stopped": return str(self.stop_event.is_set()).lower()
             if op in ("stop", "finish"):
+                # Um finish atrasado da JVM não pode anular o STOP do usuário.
+                if op == "stop" and self.status != "erro":
+                    self.status = "parado"
+                elif op == "finish" and not self.stop_event.is_set() and self.status not in ("parado", "erro"):
+                    self.status = "concluído"
                 self.stop_event.set()
-                self.status = "concluído" if op == "finish" else "parado"
                 for m in w.motors.values(): m.power = 0; m.velocity = 0
                 return ""
             if op == "device":
