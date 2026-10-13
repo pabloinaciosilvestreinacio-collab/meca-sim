@@ -448,9 +448,11 @@ function drawSide(now) {
   const check=shotFeasibility(viewed,v);
   const target=point(along,v.th);c.fillStyle=check.possible?'#5bd8a8':'#ef727c';c.fillRect(target[0]-6,target[1]-6,12,12);
   c.strokeStyle=c.fillStyle;c.setLineDash([3,5]);c.beginPath();c.moveTo(...point(along,0));c.lineTo(...target);c.stroke();c.setLineDash([]);
-  const ramp=point(.32,v.height+.32*Math.tan(v.elevation*Math.PI/180)),hinge=point(0,v.height);
-  c.strokeStyle='#ffb564';c.lineWidth=5;c.beginPath();c.moveTo(...hinge);c.lineTo(...ramp);c.stroke();
-  c.fillStyle='#ffb564';c.beginPath();c.arc(...hinge,4,0,Math.PI*2);c.fill();
+  // O muzzle coincide exatamente com a origem da parábola: (distância=0, altura=height).
+  const angle=v.elevation*Math.PI/180,reach=angle>0?Math.min(.35,v.height/Math.tan(angle)):.35;
+  const ramp=point(-reach,Math.max(0,v.height-reach*Math.tan(angle))),muzzle=point(0,v.height);
+  c.strokeStyle='#ffb564';c.lineWidth=5;c.beginPath();c.moveTo(...ramp);c.lineTo(...muzzle);c.stroke();
+  c.fillStyle='#ffb564';c.beginPath();c.arc(...muzzle,4,0,Math.PI*2);c.fill();
   if(shot){const elapsed=(now-shot.start)/1000;if(elapsed<=f.time){const x=v.speed*Math.cos(v.elevation*Math.PI/180)*elapsed,q=point(x,heightAt(x,v.height,v.speed,v.elevation));c.fillStyle='#fff4a9';c.beginPath();c.arc(...q,5,0,Math.PI*2);c.fill();}}
   const at=along>=0&&along<=f.range?heightAt(along,v.height,v.speed,v.elevation):null;
   $('shot-info').textContent=(check.possible?'POSSÍVEL':'NÃO ATINGE O ALVO')+
