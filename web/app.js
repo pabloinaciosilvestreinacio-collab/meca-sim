@@ -226,7 +226,7 @@ $('auto35-confirm').addEventListener('click',async()=>{
     const response=await fetch('/api/state');
     if(!response.ok)throw Error('Falha ao ler confirmação da JVM');
     const latest=await response.json();
-    if(!/Confirmado:\\s*true/i.test(latest.telemetry||''))throw Error('O Java ainda não confirmou a escolha. Verifique a telemetria e tente novamente.');
+    if(!/Confirmado:\s*true/i.test(latest.telemetry||''))throw Error('O Java ainda não confirmou a escolha. Verifique a telemetria e tente novamente.');
     notice('Autônomo 3.5 confirmado pela JVM. START liberado.');
   }catch(error){notice(error.message);}
 });
@@ -321,7 +321,7 @@ function refreshHighlight(){
   const source=$('source').value;
   const stats=$('code-stats');
   if(stats)stats.textContent=source.split('\n').length+' linhas · '+new TextEncoder().encode(source).length.toLocaleString('pt-BR')+' bytes · '+(source.length>180000?'próximo do limite de 220 kB':'arquivo íntegro');
-  $('auto35-panel').hidden=!/class\\s+Autonomo35\\b|Autonomo\\s+3\\.5/i.test(source);
+  $('auto35-panel').hidden=!/class\s+Autonomo35\b|Autonomo\s+3\.5/i.test(source);
 }
 function scheduleHighlight(){
   if(highlightJob)cancelAnimationFrame(highlightJob);
@@ -587,7 +587,7 @@ function readouts() {
     warnings.forEach(w=>{const li=document.createElement('li');li.textContent='['+w.severity+'] '+w.message+' · t='+w.time+' s';list.append(li);});}
   $('execution-hint').textContent=state.status==='concluído'?'Java encerrado. Confira a telemetria: isso não comprova o sucesso da missão.':'';
   $('start').disabled=state.status!=='inicializando';$('compile').disabled=['compilando','inicializando','executando'].includes(state.status);
-  const auto35=!$('auto35-panel').hidden,confirmed=/Confirmado:\\s*true/i.test(state.telemetry||'');
+  const auto35=!$('auto35-panel').hidden,confirmed=/Confirmado:\s*true/i.test(state.telemetry||'');
   if(auto35&&state.status==='inicializando'&&!confirmed)$('start').disabled=true;
   if(auto35)$('auto35-hint').textContent=confirmed?'Modo CONFIRMADO. Pode pressionar START.':state.status==='inicializando'?'Escolha o teste e clique em Selecionar e confirmar (A) antes do START.':'Pressione INIT para escolher o teste.';
   $('auto35-confirm').disabled=state.status!=='inicializando';
