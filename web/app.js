@@ -1,4 +1,4 @@
-import {rotate, launcher, heightAt, flight, gamepadValues, targetSolution, encoderScale, connectedPlayers} from './model.mjs';
+import {rotate, launcher, heightAt, flight, gamepadValues, targetSolution, encoderScale, connectedPlayers, speedFromForce, forceFromSpeed, shotFeasibility} from './model.mjs';
 import {FIELD_METERS, ARENAS, validStart, drawArenaTop, drawArenaSide} from './arena.mjs';
 import {candidates, diagnostics, highlightJava} from './editor.mjs';
 import {routeSteps, routeWarnings, makeRouteJava, MAX_WAYPOINTS} from './route.mjs';
@@ -12,7 +12,7 @@ let routePoints=[],replayRows=[],replayIndex=-1,replayPlaying=false,replayLast=0
 const LIBRARY_KEY='meca-sim-library-v1',LOGO_KEY='meca-sim-logo-v1';
 const keys = new Set(), top = $('top'), side = $('side');
 const configIds = ['arena','left','right','width','length','track','max_speed','ticks_per_m','duration','x','y','initial-yaw','invert_left','invert_right','acceleration','left_gain','right_gain','left_slip','right_slip','imu_delay','imu_drift','walls','imu_frozen','left_encoder_frozen','right_encoder_frozen'];
-const launchIds = ['offset-x','offset-y','height','speed','elevation','azimuth','target-x','target-y','target-h'];
+const launchIds = ['offset-x','offset-y','height','shot-mode','force','speed','projectile-mass','acceleration-stroke','shot-efficiency','target-radius','target-tolerance','elevation','azimuth','target-x','target-y','target-h'];
 function config() {
   const data = {};
   configIds.forEach(id => { const input=$(id); data[id==='initial-yaw'?'yaw':id]=input.type==='checkbox'?input.checked:input.type==='number'?Number(input.value):input.value; });
@@ -37,7 +37,7 @@ $('logo-file').addEventListener('change',async event=>{
   }catch(error){notice('Logo: '+error.message);}finally{event.target.value='';}
 });
 function library(){try{const items=JSON.parse(localStorage.getItem(LIBRARY_KEY)||'[]');return Array.isArray(items)?items.filter(x=>x&&typeof x.name==='string'&&x.project?.version===2).slice(0,12):[];}catch{return [];}}
-function projectData(){return {format:'meca-sim-project',version:2,source:$('source').value,files:{...javaFiles},config:config(),launcher:Object.fromEntries(launchIds.map(id=>[id,num(id)])),route:routePoints.slice()};}
+function projectData(){return {format:'meca-sim-project',version:2,source:$('source').value,files:{...javaFiles},config:config(),launcher:Object.fromEntries(launchIds.map(id=>[id,id==='shot-mode'?$(id).value:num(id)])),route:routePoints.slice()};}
 function refreshExamples(selected=''){
   const menu=$('example');menu.replaceChildren();
   const blank=document.createElement('option');blank.value='';blank.textContent='Selecione…';menu.append(blank);
@@ -65,7 +65,7 @@ async function loadProjectData(data){
   for(const id of configIds){const key=id==='initial-yaw'?'yaw':id;if(key in (data.config||{}))$(id).type==='checkbox'?$(id).checked=Boolean(data.config[key]):$(id).value=data.config[key];}
   for(const id of launchIds)if(id in (data.launcher||{}))$(id).value=data.launcher[id];
   routePoints=Array.isArray(data.route)?data.route.slice(0,MAX_WAYPOINTS).filter(p=>p&&Number.isFinite(p.x)&&Number.isFinite(p.y)):[];updateRoute();
-  resetReplay();shot=null;persist();scheduleHighlight();notice('Projeto restaurado. Compile/INIT para executar.');
+  resetReplay();shot=null;refreshShot();persist();scheduleHighlight();notice('Projeto restaurado. Compile/INIT para executar.');
 }
 
 function pathOfPrimary(code) {
@@ -172,7 +172,7 @@ action('start',async()=>{await api('heartbeat');await api('start');});
 action('stop',()=>api('stop'));
 action('reset',async()=>{resetReplay();shot=null;await api('reset',{config:config()});});
 action('export',async()=>{
-  const blob=new Blob([JSON.stringify({version:'0.2',config:config(),launcher:Object.fromEntries(launchIds.map(id=>[id,num(id)])),result:state},null,2)],{type:'application/json'});
+  const blob=new Blob([JSON.stringify({version:'0.2',config:config(),launcher:Object.fromEntries(launchIds.map(id=>[id,id==='shot-mode'?$(id).value:num(id)])),result:state},null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob), a=document.createElement('a');a.href=url;a.download='meca-sim-resultado.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 });
 function download(data, filename, type='application/json') {
@@ -200,7 +200,14 @@ $('load-project').addEventListener('change',async e=>{
 });
 action('csv',async()=>{const response=await fetch('/api/recording');if(!response.ok)throw Error('Falha ao exportar');const data=await response.json();download([data.columns.join(','),...data.rows.map(row=>row.join(','))].join('\n'),'meca-sim-trajetoria.csv','text/csv');});
 action('calc-encoder',()=>{$('ticks_per_m').value=encoderScale(num('encoder-ticks'),num('gear-ratio'),num('wheel-diameter')/1000).toFixed(6);persist();notice('Conversão calculada; aplicada no próximo INIT ou Reiniciar posição.');});
-action('solve-shot',()=>{const v=launchValues();if(!v.valid)throw Error('Confira os valores do lançador.');const result=targetSolution(state,v.lateral,v.forward,v.height,v.elevation,v.tx,v.ty,v.th);if(result.speed>30)throw Error('Solução acima de 30 m/s; altere a elevação ou a posição.');$('speed').value=result.speed.toFixed(6);$('azimuth').value=result.azimuth.toFixed(6);shot=null;persist();notice('Solução ideal calculada. Não estima a potência do motor MS.');});
+action('solve-shot',()=>{
+  const v=launchValues();if(!v.valid)throw Error('Confira os dados do shooter.');
+  const result=targetSolution(state,v.lateral,v.forward,v.height,v.elevation,v.tx,v.ty,v.th);
+  if(result.speed>30)throw Error('Velocidade necessária acima de 30 m/s; altere a elevação ou a posição.');
+  if($('shot-mode').value==='force')$('force').value=forceFromSpeed(result.speed,v.mass,v.stroke,v.efficiency).toFixed(4);
+  $('speed').value=result.speed.toFixed(6);$('azimuth').value=result.azimuth.toFixed(6);
+  shot=null;refreshShot();persist();notice('Mira e energia ideais calculadas. Confira o resultado e valide no robô real.');
+});
 action('shoot',async()=>{
   const values=launchValues();if(!values.valid)throw new Error('Confira altura, velocidade, elevação e coordenadas do lançador.');
   shot={...values,origin:launcher(state,values.lateral,values.forward),yaw:state.yaw,start:performance.now()};
@@ -252,7 +259,8 @@ function insertCompletion(term){
 }
 $('source').addEventListener('click',()=>showSuggestions());
 $('source').addEventListener('keyup',()=>showSuggestions());
-[...configIds,...launchIds].forEach(id=>$(id).addEventListener('change',persist));
+[...configIds,...launchIds].forEach(id=>$(id).addEventListener('change',()=>{if(launchIds.includes(id))refreshShot();persist();}));
+launchIds.forEach(id=>$(id).addEventListener('input',()=>{refreshShot();persist();}));
 $('example').addEventListener('change',async()=>{
   try{const choice=$('example').value;
     if(choice.startsWith('saved:')){const item=library().find(x=>x.name===choice.slice(6));if(item)await loadProjectData(item.project);}
@@ -273,9 +281,33 @@ $('source').addEventListener('keydown',event=>{
 });
 
 function launchValues() {
-  const v={lateral:num('offset-x'),forward:num('offset-y'),height:num('height'),speed:num('speed'),elevation:num('elevation'),azimuth:num('azimuth'),tx:num('target-x'),ty:num('target-y'),th:num('target-h')};
-  v.valid=Object.values(v).every(Number.isFinite)&&v.height>=0&&v.height<=5&&v.speed>0&&v.speed<=30&&v.elevation>=0&&v.elevation<90&&v.th>=0&&v.th<=5;
+  const v={lateral:num('offset-x'),forward:num('offset-y'),height:num('height'),elevation:num('elevation'),
+    azimuth:num('azimuth'),tx:num('target-x'),ty:num('target-y'),th:num('target-h'),
+    mass:num('projectile-mass'),stroke:num('acceleration-stroke'),efficiency:num('shot-efficiency'),
+    force:num('force'),radius:num('target-radius'),heightTolerance:num('target-tolerance'),
+    speed:num('speed')};
+  try{
+    if($('shot-mode').value==='force')v.speed=speedFromForce(v.force,v.mass,v.stroke,v.efficiency);
+    v.valid=Object.values(v).every(Number.isFinite)&&v.height>=0&&v.height<=5&&
+      v.speed>0&&v.speed<=30&&v.elevation>=0&&v.elevation<90&&v.th>=0&&v.th<=5&&
+      v.radius>0&&v.heightTolerance>0&&v.mass>0&&v.stroke>0&&v.efficiency>0&&v.efficiency<=1;
+  }catch{v.valid=false;}
   return v;
+}
+function refreshShot(){
+  const inForceMode=$('shot-mode').value==='force';$('speed').readOnly=inForceMode;
+  $('force').disabled=!inForceMode;
+  const v=launchValues();
+  if(v.valid&&inForceMode)$('speed').value=v.speed.toFixed(3);
+  const verdict=$('shot-verdict');
+  if(!v.valid){verdict.dataset.possible='invalid';verdict.textContent='Parâmetros inválidos. Verifique força, massa, eficiência e limites.';return;}
+  try{
+    const test=shotFeasibility(state,v);
+    verdict.dataset.possible=test.possible?'yes':'no';
+    verdict.textContent=(test.possible?'SIM — lançamento geometricamente possível no modelo ideal.':'NÃO — '+test.issues.join('; ')+'.')+
+      ' Alcance: '+test.range.toFixed(2)+' m; altura no alvo: '+(test.heightAtTarget===null?'—':test.heightAtTarget.toFixed(2)+' m')+
+      '; desvio lateral: '+Math.abs(test.lateralError).toFixed(2)+' m; v₀: '+v.speed.toFixed(2)+' m/s.';
+  }catch(e){verdict.dataset.possible='invalid';verdict.textContent=e.message;}
 }
 function canvasContext(canvas) {
   const rect=canvas.getBoundingClientRect(),dpr=window.devicePixelRatio||1;
@@ -326,13 +358,13 @@ top.addEventListener('click',async event=>{
     try{await api('reset',{config:config()});notice('Posição inicial aplicada.');}catch(error){notice(error.message);}
     return;
   }
-  $('target-x').value=x.toFixed(3);$('target-y').value=y.toFixed(3);persist();
+  $('target-x').value=x.toFixed(3);$('target-y').value=y.toFixed(3);refreshShot();persist();
 });
 $('pick-start').addEventListener('click',()=>{
   pickingStart=!pickingStart;$('pick-start').setAttribute('aria-pressed',String(pickingStart));
   $('start-hint').textContent=pickingStart?'Clique no campo na nova posição inicial (ou Shift+clique).':'Clique no campo para definir o alvo.';
 });
-$('arena').addEventListener('change',()=>{$('field-description').textContent=$('arena').value==='biobuzz'?'BIOBUZZ · esquema ilustrativo, sem colisões nos elementos':'Campo livre · grade cartesiana';persist();});
+$('arena').addEventListener('change',()=>{$('field-description').textContent=$('arena').value==='biobuzz'?'BIOBUZZ · layout do Desmos enviado; sem colisões internas':'Campo livre · grade cartesiana';persist();});
 function updateRoute(){
   const list=$('route-list');list.replaceChildren();
   let steps=[],warnings=[];
@@ -470,9 +502,9 @@ async function init() {
   try{const response=await fetch('/examples');examples=await response.json();Object.keys(examples).forEach(name=>{const option=document.createElement('option');option.value=name;option.textContent=name;$('example').append(option);});
     refreshExamples();
     const saved=JSON.parse(localStorage.getItem('meca-sim-v02')||'null');if(saved){$('source').value=saved.source||'';javaFiles=saved.files&&typeof saved.files==='object'&&!Array.isArray(saved.files)?saved.files:{};restoreOpModeChoices();updateJavaFilesLabel();Object.entries(saved.values||{}).forEach(([id,value])=>{if($(id))$(id).type==='checkbox'?$(id).checked=Boolean(value):$(id).value=value;});}else{$('source').value=Object.values(examples)[0];}
-    $('field-description').textContent=$('arena').value==='biobuzz'?'BIOBUZZ · esquema ilustrativo, sem colisões nos elementos':'Campo livre · grade cartesiana';
+    $('field-description').textContent=$('arena').value==='biobuzz'?'BIOBUZZ · layout do Desmos enviado; sem colisões internas':'Campo livre · grade cartesiana';
     try{const logo=localStorage.getItem(LOGO_KEY);if(logo?.startsWith('data:image/'))setTeamLogo(logo);}catch{}
-    refreshHighlight();
+    refreshHighlight();refreshShot();
     if(saved&&Array.isArray(saved.route))routePoints=saved.route.slice(0,MAX_WAYPOINTS).filter(p=>p&&Number.isFinite(p.x)&&Number.isFinite(p.y));
     updateRoute();
   }catch(e){notice('Não foi possível carregar exemplos ou configurações: '+e.message);}
