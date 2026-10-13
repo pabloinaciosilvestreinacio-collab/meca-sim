@@ -1,8 +1,12 @@
-# Meca Sim 0.2 — laboratório FTC em duas vistas
+# Meca Sim 0.3-rc1 — laboratório FTC em duas vistas
 
 Simulador **local e independente** da Meca Tiger: cole uma classe Java `LinearOpMode`, configure o chassi diferencial, execute INIT/START e observe encoders, IMU, telemetria e trajetória. Inclui controles USB e teclado, vista de cima e estudo balístico lateral.
 
-**Candidato a teste no computador da equipe.** SDK parcial; não substitui o robô. Modelos de falha são sintéticos e não são calibração. Repositório privado, ainda sem licença de distribuição definida.
+**Candidato de lançamento técnico, ainda sujeito a validação física e testes de uso no computador da equipe.** SDK parcial; não substitui o robô. Modelos de falha são sintéticos e não são calibração. Repositório privado, ainda sem licença de distribuição definida.
+
+## Windows sem instalar Python
+
+O pipeline de CI prepara um executável portátil **MecaSim.exe**, disponível em **Actions → Validar Meca Sim → execução aprovada → Artifacts → MecaSim-Windows-portatil**. Extraia o artefato antes de executar. O executável inclui Python, servidor e interface e é verificado por um teste de inicialização no Windows. **Ele ainda exige JDK 17+ com java e javac**: pode reutilizar um JDK instalado ou o `jbr` do Android Studio. O arquivo não é assinado e o Windows pode emitir um aviso SmartScreen. Ainda não é uma distribuição pública com instalador.
 
 ## Abrir em três passos
 
@@ -16,7 +20,7 @@ Deixe o terminal aberto. Não exige bibliotecas Python para utilizar. Para diagn
 
 ## O que testar
 
-| Área | Disponível na 0.2 |
+| Área | Disponível no candidato 0.3 |
 | --- | --- |
 | Java | Uma classe pública `LinearOpMode` e até 30 arquivos Java auxiliares; compilação real com `javac` |
 | Movimento | Reta, ré, arcos e giro pelo centro; integração exata para velocidade constante |
@@ -27,7 +31,7 @@ Deixe o terminal aberto. Não exige bibliotecas Python para utilizar. Para diagn
 | Controles | Dois gamepads standard com índices preservados; teclado W/S, A/D, espaço, B/X/Y, setas |
 | Proteções | STOP, duração máxima, watchdog JVM, entradas expiradas e perda de conexão do navegador |
 | Lançador | Offset local preso ao chassi, altura, elevação, azimute, alvo e velocidade; solução inversa do tiro ideal |
-| Arquivos | Salvar/reabrir projeto JSON, resultado JSON e trajetória CSV temporal |
+| Arquivos | Salvar/reabrir projeto JSON, importar arquivos `.java`/ZIP TeamCode, resultado JSON e trajetória CSV temporal |
 
 ### Importar projeto FTC ZIP
 
@@ -37,7 +41,7 @@ Na aba **Código Java**, também é possível carregar um ZIP de projeto FTC con
 
 Na aba **Código Java**, use **Importar arquivos Java (.java)** para selecionar vários arquivos ao mesmo tempo. O simulador identifica um OpMode que estenda `LinearOpMode`, coloca-o no editor e compila as demais classes junto com ele. Também é possível colar o OpMode e importar só os auxiliares. O caminho de cada classe é inferido da declaração `package`.
 
-O projeto JSON salvo preserva os arquivos auxiliares e os JSON anteriores continuam abrindo. Limites: 30 auxiliares, 220 kB de código Java, 250 kB por solicitação HTTP. Ainda não importa ZIP, bibliotecas Gradle/Android, nem todas as APIs FTC. Importar arquivos Java desconhecidos pode executar código arbitrário na sua máquina: utilize somente fontes confiáveis.
+O projeto JSON salvo preserva os arquivos auxiliares e os JSON anteriores continuam abrindo. Limites: 30 auxiliares, 220 kB de código Java, 250 kB por compilação enviada. O importador ZIP possui limites próprios. Não executa Gradle nem carrega bibliotecas Android ou todas as APIs FTC. Importar arquivos Java desconhecidos pode executar código arbitrário na sua máquina: utilize somente fontes confiáveis.
 
 O perfil inicial usa ME FORWARD, MD REVERSE e montagem direita invertida. É uma hipótese editável. O TeleOp histórico da equipe tem outra mistura; o teste preservado usa montagem dos dois lados invertida e **não comprova sinais do robô**.
 

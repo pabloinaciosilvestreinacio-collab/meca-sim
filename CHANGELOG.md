@@ -1,6 +1,8 @@
 # Histórico de alterações
 
-## Em desenvolvimento após 0.2
+## 0.3-rc1 — preparação para lançamento
+
+- Build Windows portátil com PyInstaller, verificação de dependências e smoke test da interface empacotada.
 
 - Importação local de ZIP de projetos FTC com identificação e escolha do OpMode, validação de arquivos, sem extração persistente.
 - Testes de ZIP, caminhos, tamanho e interface Chromium.
@@ -17,8 +19,6 @@
 - Parser aceita classe final e base qualificada; strings contendo URL não quebram reconhecimento.
 - Exemplo autônomo interrompe sequência se uma etapa não alcançar a meta no prazo.
 - Iniciadores e diagnóstico; fixtures independentes e CI Windows/Linux/Chromium.
-
-# Histórico do Meca Sim
 
 ## 0.1 — 13/10/2026 UTC (12/10 à noite no Brasil)
 

@@ -1,4 +1,4 @@
-# Validação — candidato 0.2
+# Validação — candidato 0.3-rc1
 
 ## Resultado local
 
@@ -15,7 +15,7 @@ Não confundir término normal da JVM (`concluído`) com sucesso do autônomo: n
 
 ## Integração e interface
 
-O navegador remoto deste ambiente não alcança o servidor local (conexão recusada). A CI foi preparada para executar servidor + JVM + Chromium em Windows e Linux, incluindo INIT/START, lançamento, calculadora, exportar/reabrir projeto, CSV, teclado/STOP, erro de compilação e capturas desktop/celular. **Resultado da CI pendente nesta revisão; consultar Actions e atualização posterior deste relatório.**
+O navegador remoto deste ambiente não alcança o servidor local (conexão recusada). A CI foi preparada para executar servidor + JVM + Chromium em Windows e Linux, incluindo INIT/START, lançamento, calculadora, exportar/reabrir projeto, CSV, teclado/STOP, erro de compilação e capturas desktop/celular. A base anterior, no commit `dcf77a4`, passou na CI Windows e Linux. As funções adicionais de ZIP e empacotamento exigem uma nova execução completa do Actions, incluindo testes Chromium e EXE.
 
 ## Importação de múltiplos arquivos Java
 
@@ -24,6 +24,10 @@ Testes adicionados para caminhos inválidos e compilação real de OpMode com cl
 ## Importação de ZIP
 
 Criados testes de ZIP válido, múltiplos OpModes, caminhos maliciosos, limites e execução no Chromium. Validar na nova CI Windows/Linux antes de marcar aprovada.
+
+## EXE Windows portátil
+
+Pipeline acrescentado: build PyInstaller, diagnóstico `java`/`javac`, teste HTTP de servidor com assets embutidos e upload de artefato somente após aprovação de Windows e Linux. Teste de execução em ambiente do usuário continua pendente.
 
 ## Não validado
 
