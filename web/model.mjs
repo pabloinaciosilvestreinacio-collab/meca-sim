@@ -1,4 +1,4 @@
-import {hiveSideGeometry,HIVE_SIDE} from './arena.mjs';
+import {DIMS,hiveSideGeometry,HIVE_SIDE} from './arena.mjs';
 export function rotate(x, y, degrees) {
   const a = degrees * Math.PI / 180;
   return [x * Math.cos(a) - y * Math.sin(a), x * Math.sin(a) + y * Math.cos(a)];
@@ -118,8 +118,11 @@ export function hiveShotImpact(shot,cell){
   const height=shot.height+vy*t-4.905*t*t;
   // O marcador é devolvido mesmo no erro: ele mostra a interseção real
   // com o plano da boca, não um ponto mágico no centro da CELL.
+  // A boca útil vem do manual, não da largura do retângulo ilustrativo da CELL.
+  // Tangenciar a moldura é erro: a esfera precisa atravessar integralmente a abertura.
+  const widthLimit=DIMS.cellOpeningWidth/2-r,depthLimit=gate.halfDepth-r;
   const impactPoint={x,y,height,time:t,distance:forward,lateralError:cross,depthError,
-    insideWidth:cross<=cell.w/2-r,insideDepth:Math.abs(depthError)<=gate.halfDepth-r,
+    insideWidth:cross<widthLimit,insideDepth:Math.abs(depthError)<depthLimit,
     descending:vy-9.81*t<0,abovePlane:relativeVy-9.81*t<0};
   if(!impactPoint.insideWidth)return {hit:false,reason:'impactou fora da largura útil da abertura',impactPoint};
   if(!impactPoint.insideDepth)return {hit:false,reason:'impactou fora da profundidade útil da abertura',impactPoint};
