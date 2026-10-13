@@ -190,7 +190,11 @@ public class ZipOutro extends LinearOpMode {
         page.locator('#route-code').click()
         page.wait_for_function("document.querySelector('#source').value.includes('RotaMecaSim')")
         page.locator('#compile').click()
-        page.wait_for_function("document.querySelector('#status').textContent==='inicializando'",timeout=30000)
+        page.wait_for_function("['inicializando','erro'].includes(document.querySelector('#status').textContent)",timeout=30000)
+        assert page.locator('#status').text_content()=='inicializando', {
+            'logs':page.locator('#logs').text_content()[-2500:],
+            'message':page.locator('#message').text_content(),
+            'source':page.locator('#source').input_value()[-900:]}
         page.locator('#stop').click()
         page.wait_for_function("document.querySelector('#status').textContent==='parado'")
         passed('Editor de waypoints gera Java e compila contra SDK parcial')
