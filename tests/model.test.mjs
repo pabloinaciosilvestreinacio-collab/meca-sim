@@ -90,3 +90,10 @@ test('Editor de rota gera Java LinearOpMode com API FTC parcial',()=>{
   assert.equal(routeWarnings({x:0,y:0},[{x:3.6,y:3.6}]).length,1);
   assert.equal(routeWarnings({x:0,y:0},[{x:3.6,y:3.6}],'livre').length,0);
 });
+
+import {DIMS} from '../web/arena.mjs';
+test('Medidas oficiais BIOBUZZ modeladas em SI',()=>{
+  assert.equal(DIMS.frameWidth,1.2565);assert.equal(DIMS.frameDepth,.9895);
+  assert.equal(DIMS.pivotHeight,1.1165);assert.equal(DIMS.flowerHeight,.546);
+  assert.equal(DIMS.gardenWidth,.584);assert.equal(DIMS.loadingDepth,.2795);
+});

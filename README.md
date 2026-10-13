@@ -4,12 +4,16 @@ Simulador **local e independente** da Meca Tiger: cole uma classe Java `LinearOp
 
 ### Nova interface: campos, projetos e editor
 
-- **Arena:** seletor entre `BIOBUZZ 2026–2027` e `Arena livre`. O BIOBUZZ exibe somente **elementos esquemáticos** (HIVE central, FLOWERS e zonas de cor) nas vistas de cima e lateral, com base no manual oficial; não representa CAD, posições/alturas exatas, obstáculos com colisão nem pontuação.
+- **Arena:** seletor entre `BIOBUZZ 2026–2027` e `Arena livre`. As dimensões principais agora refletem o manual oficial: quadro HIVE de 1,2565 × 0,9895 m, pivô a 1,1165 m, espaçamento das CELLS 0,478 m, abertura dos FLOWERS a 0,546 m, GARDENS 0,584 × 0,051 m e LOADING ZONES 0,584 × 0,2795 m. Posições individuais e orientação das CELLS/FLOWERS continuam **esquemáticas**, não reproduzidas do STEP oficial; não existem colisões internas, articulações ou pontuação.
 - **Posição inicial:** `Definir posição inicial no campo` (ou Shift+clique). O robô deve caber inteiramente no retângulo 3,66 m × 3,66 m. O clique simples continua apontando o alvo do lançador.
 - **Biblioteca:** `Guardar no menu` salva até 12 projetos nomeados no armazenamento local do navegador; o seletor `Exemplo de partida` mostra os exemplos e os projetos. `Salvar projeto` exporta JSON e também adiciona o código à biblioteca, usando o nome da classe Java quando possível. Abrir JSON também tenta adicioná-lo à biblioteca.
 - **Driver Station virtual:** INIT, START e STOP na área de hardware executam as mesmas ações do painel superior. Não se conecta ao Driver Hub.
 - **Editor Java:** texto editável, realce local leve, sugestões via digitação/Ctrl+Espaço, Tab para completar e erros do `javac` com arquivo e linha. Não é um IDE completo nem oferece compreensão semântica das bibliotecas FTC ausentes.
 - **Identidade:** o botão `Inserir logo da equipe` permite escolher o PNG/JPG/WebP oficial, reduzido para armazenamento local e mostrado na marca do cabeçalho. Enquanto o arquivo não for fornecido, aparece uma marca provisória `MT`. A logo **não é enviada ao GitHub ou a servidores**.
+
+- **Replay:** `Linha do tempo` permite carregar a última trajetória registrada (amostras de aproximadamente 0,05 s), selecionar instantes e reproduzir/pausar a visualização. O Java não é pausado nem controlado durante replay; use STOP normalmente.
+- **Diagnóstico automático:** exibe avisos de IMU/encoder congelados, motor comandado sem avanço, polaridade provável invertida e timeout indicado por telemetria. Avisos não substituem diagnóstico do robô físico, nem alteram potência.
+- **Rotas:** `Editor de trajetórias` cria até 16 waypoints em metros e gera Java com giros relativos e deslocamentos por encoders. O sistema alerta quando um trecho atravessa a base esquemática do HIVE; não há cálculo de rota evitando obstáculos nem calibração de PID real.
 
 Os projetos da biblioteca e a logo ficam apenas no **navegador usado**, podendo ser perdidos ao limpar os dados do site; exporte JSON para backup.
 

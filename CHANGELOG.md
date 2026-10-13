@@ -1,5 +1,13 @@
 # Histórico de alterações
 
+## 0.3 — navegação, diagnósticos e campo dimensionado (13/10/2026)
+
+- Replay de trajetória: carregar amostras, selecionar tempo, reproduzir/pausar sem controlar JVM.
+- Diagnóstico observacional: IMU, encoders, motor sem progresso, polaridade de tração, timeout Java/duração da simulação.
+- Planejador de 16 waypoints diferenciais, prévia no campo, alerta esquemático de HIVE e geração de Java testável.
+- Dimensões BIOBUZZ revisadas conforme manual FIRST: quadro, pivô, células, FLOWER, GARDEN, LOADING ZONE, com coordenadas de elementos explicitamente aproximadas.
+- Testes de unidade Node/Python e integração Chromium para nova interface.
+
 ## 0.3 — experiência de laboratório (13/10/2026)
 
 - Alternância entre arena livre e diagrama esquemático BIOBUZZ 2026–2027 nas duas vistas.
