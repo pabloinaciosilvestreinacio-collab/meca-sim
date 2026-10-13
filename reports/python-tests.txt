@@ -1,5 +1,6 @@
 test_final_class_fully_qualified_base_and_url_in_string (test_extended.ExtendedJavaTests.test_final_class_fully_qualified_base_and_url_in_string) ... ok
 test_java_exception_remains_error (test_extended.ExtendedJavaTests.test_java_exception_remains_error) ... ok
+test_utf8_stdout_preserves_portuguese (test_extended.ExtendedJavaTests.test_utf8_stdout_preserves_portuguese) ... ok
 test_bad_wall_start_rejected (test_extended.NumericalTests.test_bad_wall_start_rejected) ... ok
 test_brake_stops_faster_than_float (test_extended.NumericalTests.test_brake_stops_faster_than_float) ... ok
 test_delayed_and_frozen_imu (test_extended.NumericalTests.test_delayed_and_frozen_imu) ... ok
@@ -41,6 +42,6 @@ test_straight_one_meter (test_simulator.PhysicsTests.test_straight_one_meter) ..
 test_yaw_wrap_and_zero (test_simulator.PhysicsTests.test_yaw_wrap_and_zero) ... ok
 
 ----------------------------------------------------------------------
-Ran 41 tests in 17.413s
+Ran 42 tests in 18.112s
 
 OK

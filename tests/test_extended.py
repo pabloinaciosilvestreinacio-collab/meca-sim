@@ -122,3 +122,8 @@ class ExtendedJavaTests(unittest.TestCase):
         s=Session();s.run('public class Failure extends com.qualcomm.robotcore.eventloop.opmode.LinearOpMode {public void runOpMode(){throw new RuntimeException("falha simulada");}}')
         s.worker.join(15);self.assertEqual(s.status,'erro',s.logs);self.assertIn('falha simulada',s.logs)
         self.assertTrue(all(m.power==0 for m in s.world.motors.values()))
+
+    def test_utf8_stdout_preserves_portuguese(self):
+        s=Session();s.run('public class Acentos extends com.qualcomm.robotcore.eventloop.opmode.LinearOpMode {public void runOpMode(){System.out.println("Atenção: execução, posição e direção");}}')
+        s.worker.join(15);self.assertEqual(s.status,'concluído',s.logs)
+        self.assertIn('Atenção: execução, posição e direção',s.logs)

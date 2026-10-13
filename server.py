@@ -219,7 +219,7 @@ class Session:
                 user = Path(directory) / (classname + ".java")
                 user.write_text(source, encoding="utf-8")
                 classes = Path(directory) / "classes"
-                result = subprocess.run([compiler, "-encoding", "UTF-8", "-d", str(classes), *files, str(user)],
+                result = subprocess.run([compiler, "-J-Dfile.encoding=UTF-8", "-encoding", "UTF-8", "-d", str(classes), *files, str(user)],
                                         capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30)
                 self.log(result.stdout + result.stderr)
                 if result.returncode:
@@ -227,7 +227,7 @@ class Session:
                 if self.stop_event.is_set(): return
                 with self.lock:
                     self.status = "inicializando"
-                    self.process = subprocess.Popen([java, "-Xmx128m", "-cp", str(classes), "sim.Bridge", qualified],
+                    self.process = subprocess.Popen([java, "-Dfile.encoding=UTF-8", "-Xmx128m", "-cp", str(classes), "sim.Bridge", qualified],
                                                     stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                                     text=True, encoding="utf-8", errors="replace", bufsize=1)
                 watchdog = threading.Timer(190, self.stop)
