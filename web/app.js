@@ -3,7 +3,7 @@ const $ = id => document.getElementById(id);
 const num = id => Number($(id).value);
 let state = {x:1.83,y:.65,yaw:0,width:.45,length:.45,trail:[],motors:{},time:0,status:'pronto'};
 let focused = document.hasFocus();
-let shot = null, examples = {}, lastPad = 0, polling = false, padBusy = false;
+let shot = null, examples = {}, javaFiles = {}, lastPad = 0, polling = false, padBusy = false;
 const keys = new Set(), top = $('top'), side = $('side');
 const configIds = ['left','right','width','length','track','max_speed','ticks_per_m','duration','x','y','initial-yaw','invert_left','invert_right','acceleration','left_gain','right_gain','left_slip','right_slip','imu_delay','imu_drift','walls','imu_frozen','left_encoder_frozen','right_encoder_frozen'];
 const launchIds = ['offset-x','offset-y','height','speed','elevation','azimuth','target-x','target-y','target-h'];
@@ -14,9 +14,42 @@ function config() {
 }
 function persist() {
   try { const values={}; [...configIds,...launchIds].forEach(id=>values[id]=$(id).type==='checkbox'?$(id).checked:$(id).value);
-    localStorage.setItem('meca-sim-v02',JSON.stringify({source:$('source').value,values})); } catch {}
+    localStorage.setItem('meca-sim-v02',JSON.stringify({source:$('source').value,files:javaFiles,values})); } catch {}
 }
 function notice(text) {$('message').textContent=text;}
+function updateJavaFilesLabel() {
+  const count=Object.keys(javaFiles).length;
+  $('java-file-count').textContent=count ? count+' arquivo(s) auxiliar(es) importado(s).' : 'Nenhum arquivo auxiliar importado.';
+}
+$('import-java').addEventListener('change',async event=>{
+  try {
+    if(['compilando','inicializando','executando'].includes(state.status))throw Error('Pare a simulação antes de importar.');
+    const selected=Array.from(event.target.files);
+    if(!selected.length)return;
+    if(selected.length>30)throw Error('Importe até 30 arquivos Java por vez.');
+    const entries=[];
+    for(const file of selected) {
+      if(!/\.java$/i.test(file.name) || file.size>200000)throw Error('Selecione apenas arquivos .java menores que 200 kB.');
+      const code=await file.text();
+      const pkg=code.match(/^\s*package\s+([\w.]+)\s*;/m);
+      const path=(pkg?pkg[1].replaceAll('.','/')+'/':'')+file.name;
+      if(!/^(?:[A-Za-z_$][A-Za-z0-9_$]*\/)*[A-Za-z_$][A-Za-z0-9_$]*\.java$/.test(path))throw Error('Nome ou pacote Java inválido: '+path);
+      if(entries.some(item=>item.path===path))throw Error('Arquivo Java repetido: '+path);
+      entries.push({path,code});
+    }
+    const main=entries.find(item=>/\bpublic\s+(?:(?:final|strictfp)\s+)*class\s+[A-Za-z_$][\w$]*\s+extends\s+(?:com\.qualcomm\.robotcore\.eventloop\.opmode\.)?LinearOpMode\b/.test(item.code));
+    if(!main && !$('source').value.trim())throw Error('Cole ou importe um LinearOpMode principal.');
+    const helpers=main?{}:{...javaFiles};
+    for(const item of entries)if(item!==main)helpers[item.path]=item.code;
+    const primary=main?main.code:$('source').value;
+    const size=new TextEncoder().encode(primary).length+
+      Object.values(helpers).reduce((sum,code)=>sum+new TextEncoder().encode(code).length,0);
+    if(Object.keys(helpers).length>30||size>220000)throw Error('Projeto excede 30 auxiliares ou 220 kB de Java.');
+    if(main)$('source').value=main.code;
+    javaFiles=helpers;updateJavaFilesLabel();persist();
+    notice('Arquivos Java importados. Clique em Compilar / INIT.');
+  }catch(error){notice(error.message);}finally{event.target.value='';}
+});
 async function api(path, data={}) {
   const response = await fetch('/api/'+path,{method:'POST',headers:{'Content-Type':'application/json','X-Sim-Token':window.SIM_TOKEN},body:JSON.stringify(data)});
   const result = await response.json();
@@ -24,7 +57,7 @@ async function api(path, data={}) {
   return result;
 }
 const action = (id, callback) => $(id).addEventListener('click',async()=>{try{notice('');await callback();}catch(e){notice(e.message);}});
-action('compile',async()=>{persist();shot=null;await api('run',{source:$('source').value,config:config()});});
+action('compile',async()=>{persist();shot=null;await api('run',{source:$('source').value,files:javaFiles,config:config()});});
 action('start',async()=>{await api('heartbeat');await api('start');});
 action('stop',()=>api('stop'));
 action('reset',async()=>{shot=null;await api('reset',{config:config()});});
@@ -35,14 +68,15 @@ action('export',async()=>{
 function download(data, filename, type='application/json') {
   const url=URL.createObjectURL(new Blob([data],{type})),a=document.createElement('a');a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
-action('save-project',()=>download(JSON.stringify({format:'meca-sim-project',version:2,source:$('source').value,config:config(),launcher:Object.fromEntries(launchIds.map(id=>[id,num(id)]))},null,2),'meca-sim-projeto.json'));
+action('save-project',()=>download(JSON.stringify({format:'meca-sim-project',version:2,source:$('source').value,files:javaFiles,config:config(),launcher:Object.fromEntries(launchIds.map(id=>[id,num(id)]))},null,2),'meca-sim-projeto.json'));
 $('load-project').addEventListener('change',async e=>{
   try {const file=e.target.files[0];if(!file)return;if(file.size>250000)throw Error('Projeto excede 250 kB');
     const data=JSON.parse(await file.text());if(data.format!=='meca-sim-project'||data.version!==2||typeof data.source!=='string')throw Error('Arquivo de projeto inválido');
     if(['compilando','inicializando','executando'].includes(state.status))throw Error('Pare a execução antes de carregar o projeto.');
     if(!data.config||typeof data.config!=='object'||!data.launcher||typeof data.launcher!=='object')throw Error('Configuração ausente');
+    if(data.files!==undefined && (typeof data.files!=='object'||data.files===null||Array.isArray(data.files)||Object.keys(data.files).length>30||Object.values(data.files).some(value=>typeof value!=='string')))throw Error('Arquivos Java do projeto inválidos');
     await api('reset',{config:data.config});
-    $('source').value=data.source;
+    $('source').value=data.source;javaFiles={...(data.files||{})};updateJavaFilesLabel();
     for(const id of configIds){const key=id==='initial-yaw'?'yaw':id;if(key in data.config)$(id).type==='checkbox'?$(id).checked=Boolean(data.config[key]):$(id).value=data.config[key];}
     for(const id of launchIds)if(id in data.launcher)$(id).value=data.launcher[id];
     shot=null;persist();notice('Projeto carregado. Clique em Compilar / INIT para executar.');
@@ -61,7 +95,7 @@ document.querySelectorAll('[data-tab]').forEach(button=>button.addEventListener(
 }));
 $('source').addEventListener('input',persist);
 [...configIds,...launchIds].forEach(id=>$(id).addEventListener('change',persist));
-$('example').addEventListener('change',()=>{if(examples[$('example').value]){$('source').value=examples[$('example').value];persist();}});
+$('example').addEventListener('change',()=>{if(examples[$('example').value]){$('source').value=examples[$('example').value];javaFiles={};updateJavaFilesLabel();persist();}});
 $('source').addEventListener('keydown',event=>{if(event.key==='Tab'){event.preventDefault();const input=event.target,start=input.selectionStart,end=input.selectionEnd;input.setRangeText('    ',start,end,'end');persist();}});
 
 function launchValues() {
@@ -141,7 +175,7 @@ async function sendPads(now) {
 function frame(now){if(shot&&(now-shot.start)/1000>flight(shot.height,shot.speed,shot.elevation).time+.8)shot=null;drawTop(now);drawSide(now);if(!document.hidden)sendPads(now);requestAnimationFrame(frame);}
 async function init() {
   try{const response=await fetch('/examples');examples=await response.json();Object.keys(examples).forEach(name=>{const option=document.createElement('option');option.value=name;option.textContent=name;$('example').append(option);});
-    const saved=JSON.parse(localStorage.getItem('meca-sim-v02')||'null');if(saved){$('source').value=saved.source||'';Object.entries(saved.values||{}).forEach(([id,value])=>{if($(id))$(id).type==='checkbox'?$(id).checked=Boolean(value):$(id).value=value;});}else{$('source').value=Object.values(examples)[0];}
+    const saved=JSON.parse(localStorage.getItem('meca-sim-v02')||'null');if(saved){$('source').value=saved.source||'';javaFiles=saved.files&&typeof saved.files==='object'&&!Array.isArray(saved.files)?saved.files:{};updateJavaFilesLabel();Object.entries(saved.values||{}).forEach(([id,value])=>{if($(id))$(id).type==='checkbox'?$(id).checked=Boolean(value):$(id).value=value;});}else{$('source').value=Object.values(examples)[0];}
   }catch(e){notice('Não foi possível carregar exemplos ou configurações: '+e.message);}
   await poll();setInterval(poll,100);setInterval(()=>{if(!document.hidden)api('heartbeat').catch(()=>{});},500);requestAnimationFrame(frame);
 }

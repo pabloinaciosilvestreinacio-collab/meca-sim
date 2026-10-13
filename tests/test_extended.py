@@ -5,10 +5,37 @@ import threading
 import unittest
 import test_simulator as base_tests
 from physics import World, encoder_scale, trajectory
-from server import Session, build_world, executable
+from server import Session, build_world, executable, validate_java_files
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError
 import json
+
+class MultipleFileTests(unittest.TestCase):
+    def test_invalid_paths_are_rejected(self):
+        for name in ('../Ataque.java','/tmp/X.java','pasta\\X.java','pasta/../X.java','Arquivo.txt'):
+            with self.subTest(name=name), self.assertRaises(ValueError):
+                validate_java_files({name:'class X {}'})
+    def test_invalid_collection_is_rejected(self):
+        for value in ([],{'A.java':None},{f'A{i}.java':'class A {}' for i in range(31)}):
+            with self.assertRaises(ValueError):validate_java_files(value)
+    @unittest.skipUnless(executable('javac') and executable('java'),'JDK requerido')
+    def test_helper_in_other_package_compiles_and_runs(self):
+        main='''package org.firstinspires.ftc.teamcode.teleOp;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import org.firstinspires.ftc.teamcode.util.Auxiliar;
+public class MultiArquivo extends LinearOpMode {
+  public void runOpMode() { telemetry.addLine(Auxiliar.mensagem()); telemetry.update(); }
+}'''
+        helper='''package org.firstinspires.ftc.teamcode.util;
+public class Auxiliar { public static String mensagem() { return "Arquivos juntos OK"; } }'''
+        session=Session()
+        session.run(main,{'org/firstinspires/ftc/teamcode/util/Auxiliar.java':helper})
+        session.worker.join(20)
+        self.assertFalse(session.worker.is_alive())
+        self.assertEqual(session.status,'concluído',session.logs)
+        self.assertIn('Arquivos juntos OK',session.telemetry)
+        self.assertTrue(all(m.power==0 for m in session.world.motors.values()))
+
 
 class NumericalTests(unittest.TestCase):
     def test_thousand_random_arcs_against_analytical_solution(self):

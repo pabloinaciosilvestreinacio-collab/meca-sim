@@ -17,6 +17,10 @@ Não confundir término normal da JVM (`concluído`) com sucesso do autônomo: n
 
 O navegador remoto deste ambiente não alcança o servidor local (conexão recusada). A CI foi preparada para executar servidor + JVM + Chromium em Windows e Linux, incluindo INIT/START, lançamento, calculadora, exportar/reabrir projeto, CSV, teclado/STOP, erro de compilação e capturas desktop/celular. **Resultado da CI pendente nesta revisão; consultar Actions e atualização posterior deste relatório.**
 
+## Importação de múltiplos arquivos Java
+
+Testes adicionados para caminhos inválidos e compilação real de OpMode com classe auxiliar de outro pacote. A integração da interface e o Windows precisam ser confirmados no Actions; não representam calibração física.
+
 ## Não validado
 
 Controle USB físico, instalação no Windows do usuário, robô real, câmera, arrasto, flywheel, obstáculos internos e pontuação. O servidor não isola Java malicioso. Ganhos, patinagem e falhas configuradas são aproximações sintéticas, não medição física.

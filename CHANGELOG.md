@@ -2,6 +2,8 @@
 
 ## 0.2 — 2026-10-13
 
+- Importação de arquivos Java auxiliares em diferentes pacotes com compilação conjunta, persistência e testes de segurança de caminhos.
+
 - Repositório exclusivo `meca-sim`; base 0.1 preservada no histórico.
 - Integração numericamente estável, falhas sintéticas de motor/encoder/IMU e paredes opcionais.
 - Calculadoras de encoders e tiro ideal; salvar/reabrir projeto e trajetória CSV.

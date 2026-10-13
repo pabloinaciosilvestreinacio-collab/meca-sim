@@ -20,6 +20,26 @@ from sdk import write_sdk
 ROOT = Path(__file__).resolve().parent
 
 
+def validate_java_files(files):
+    """Caminhos relativos Java: impedir traversal e limites excessivos."""
+    if files is None:
+        return {}
+    if not isinstance(files, dict) or len(files) > 30:
+        raise ValueError("Envie no máximo 30 arquivos auxiliares Java")
+    validated = {}
+    for name, content in files.items():
+        if not isinstance(name, str) or not re.fullmatch(
+            r"(?:[A-Za-z_$][A-Za-z0-9_$]*/)*[A-Za-z_$][A-Za-z0-9_$]*\.java", name
+        ):
+            raise ValueError("Caminho Java inválido: use pacote/Nome.java, sem .. ou barras invertidas")
+        if not isinstance(content, str) or not content.strip() or "\x00" in content:
+            raise ValueError("Conteúdo Java inválido")
+        if len(name) > 220 or len(content.encode("utf-8")) > 200000:
+            raise ValueError("Arquivo Java excede o limite")
+        validated[name] = content
+    return validated
+
+
 def executable(name):
     home = os.environ.get("JAVA_HOME")
     candidate = Path(home) / "bin" / (name + (".exe" if os.name == "nt" else "")) if home else None
@@ -193,12 +213,21 @@ class Session:
                 return ""
             raise ValueError("API não implementada: " + op)
 
-    def run(self, source):
+    def run(self, source, java_files=None):
+        if not isinstance(source, str) or not source.strip():
+            raise ValueError("Código Java principal ausente")
+        total = len(source.encode("utf-8"))
+        if total > 200000:
+            raise ValueError("Código Java principal excede 200 kB")
+        extras = validate_java_files(java_files)
+        total += sum(len(content.encode("utf-8")) for content in extras.values())
+        if total > 220000:
+            raise ValueError("Conjunto Java excede 220 kB")
         self.status = "compilando"
-        self.worker = threading.Thread(target=self._execute, args=(source,), daemon=True)
+        self.worker = threading.Thread(target=self._execute, args=(source, extras), daemon=True)
         self.worker.start()
 
-    def _execute(self, source):
+    def _execute(self, source, java_files):
         ticker = None
         watchdog = None
         try:
@@ -216,10 +245,17 @@ class Session:
             qualified = (package.group(1) + "." if package else "") + classname
             with tempfile.TemporaryDirectory(prefix="meca-sim-") as directory:
                 files = write_sdk(directory)
-                user = Path(directory) / (classname + ".java")
+                user = Path(directory) / "usuario" / "principal" / (classname + ".java")
+                user.parent.mkdir(parents=True, exist_ok=True)
                 user.write_text(source, encoding="utf-8")
+                sources = [str(user)]
+                for name, content in java_files.items():
+                    helper = Path(directory) / "usuario" / "auxiliares" / name
+                    helper.parent.mkdir(parents=True, exist_ok=True)
+                    helper.write_text(content, encoding="utf-8")
+                    sources.append(str(helper))
                 classes = Path(directory) / "classes"
-                result = subprocess.run([compiler, "-J-Dfile.encoding=UTF-8", "-encoding", "UTF-8", "-d", str(classes), *files, str(user)],
+                result = subprocess.run([compiler, "-J-Dfile.encoding=UTF-8", "-encoding", "UTF-8", "-d", str(classes), *files, *sources],
                                         capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30)
                 self.log(result.stdout + result.stderr)
                 if result.returncode:
@@ -333,7 +369,7 @@ def handler_for(app):
                         if not isinstance(source, str): raise ValueError("Código inválido")
                         app.session = Session(data.get("config", {}))
                         app.session.client_required = True
-                        app.session.run(source)
+                        app.session.run(source, data.get("files"))
                     elif self.path == "/api/start":
                         with session.lock:
                             if session.status != "inicializando": raise ValueError("Aguarde a inicialização Java")

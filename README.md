@@ -18,7 +18,7 @@ Deixe o terminal aberto. Não exige bibliotecas Python para utilizar. Para diagn
 
 | Área | Disponível na 0.2 |
 | --- | --- |
-| Java | Uma classe pública `LinearOpMode`, imports, pacote e auxiliares no mesmo arquivo; compilação real com `javac` |
+| Java | Uma classe pública `LinearOpMode` e até 30 arquivos Java auxiliares; compilação real com `javac` |
 | Movimento | Reta, ré, arcos e giro pelo centro; integração exata para velocidade constante |
 | Configuração | Nomes, montagem física, bitola, largura/comprimento, posição e calculadora ticks/redução/roda |
 | Sensores | Encoders lógicos, reset, IMU/yaw, resetYaw, temporizadores |
@@ -28,6 +28,12 @@ Deixe o terminal aberto. Não exige bibliotecas Python para utilizar. Para diagn
 | Proteções | STOP, duração máxima, watchdog JVM, entradas expiradas e perda de conexão do navegador |
 | Lançador | Offset local preso ao chassi, altura, elevação, azimute, alvo e velocidade; solução inversa do tiro ideal |
 | Arquivos | Salvar/reabrir projeto JSON, resultado JSON e trajetória CSV temporal |
+
+### Importar classes Java auxiliares
+
+Na aba **Código Java**, use **Importar arquivos Java (.java)** para selecionar vários arquivos ao mesmo tempo. O simulador identifica um OpMode que estenda `LinearOpMode`, coloca-o no editor e compila as demais classes junto com ele. Também é possível colar o OpMode e importar só os auxiliares. O caminho de cada classe é inferido da declaração `package`.
+
+O projeto JSON salvo preserva os arquivos auxiliares e os JSON anteriores continuam abrindo. Limites: 30 auxiliares, 220 kB de código Java, 250 kB por solicitação HTTP. Ainda não importa ZIP, bibliotecas Gradle/Android, nem todas as APIs FTC. Importar arquivos Java desconhecidos pode executar código arbitrário na sua máquina: utilize somente fontes confiáveis.
 
 O perfil inicial usa ME FORWARD, MD REVERSE e montagem direita invertida. É uma hipótese editável. O TeleOp histórico da equipe tem outra mistura; o teste preservado usa montagem dos dois lados invertida e **não comprova sinais do robô**.
 
