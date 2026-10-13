@@ -71,7 +71,7 @@ class World:
     trail: list = field(default_factory=list)
     acceleration: float = 0
     drivetrain: str = "differential"
-    walls: bool = True
+    walls: bool = False
     field_size: float = 3.66
     collision: bool = False
     imu_frozen: bool = False
