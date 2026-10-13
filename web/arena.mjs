@@ -3,6 +3,22 @@
 export const FIELD_METERS=3.66;
 export const ARENAS=Object.freeze({biobuzz:'BIOBUZZ 2026–2027',livre:'Arena livre'});
 export const DIMS=Object.freeze({frameWidth:1.2565,frameDepth:.9895,pivotHeight:1.1165,cellSpacing:.478,cellOpeningWidth:.508,cellOpeningHeight:.356,cellDepth:.305,flowerHeight:.546,flowerDiameter:.1015,gardenWidth:.584,gardenStrip:.051,loadingWidth:.584,loadingDepth:.2795});
+// Corte ilustrativo calibrado pela figura 9-10: pivô em 1,1165 m;
+// abertura alta 1,665 m, borda inferior alta 1,359 m e baixa 0,777 m.
+// A distância dos braços no corte é aproximação VISUAL, não a medida do CAD.
+export const HIVE_SIDE=Object.freeze({angleDeg:34,arm:.52,openingTop:.256,openingBottom:-.050,
+  sideDepth:.305,ballRadius:.0355});
+export function hiveSideGeometry(cell,angleDeg){
+  if(!cell)throw Error('CELL inválida');
+  const sign=cell.id.endsWith('lower')?-1:1;
+  const rad=angleDeg*Math.PI/180;
+  const cy=DIMS.pivotHeight+sign*HIVE_SIDE.arm*Math.sin(rad);
+  return {sign,angle:rad,cy,
+    openingHeight:cy+HIVE_SIDE.openingTop*Math.cos(rad),
+    bottomOpeningHeight:cy+HIVE_SIDE.openingBottom*Math.cos(rad),
+    floorHeight:cy-.20*Math.cos(rad),
+    halfDepth:HIVE_SIDE.sideDepth/2};
+}
 export const FLOWERS=Object.freeze([[.09,1.82],[1.22,3.57],[3.56,2.43],[2.44,.09]]);
 const HIVE_X=(FIELD_METERS-DIMS.frameWidth)/2,HIVE_Y=(FIELD_METERS-DIMS.frameDepth)/2;
 const HIVE_CELLS=Object.freeze([
@@ -40,55 +56,56 @@ export function drawArenaTop(ctx,project,mode,selectedCellId='',scoredBalls=[],t
 // unidas por uma gangorra com rotação biestável perceptível.
 export function drawArenaSide(ctx,point,mode,targetDistance,targetHeight,cell=null,scoredBalls=[],hiveStatus={}){
   if(mode!=='biobuzz'||!Number.isFinite(targetDistance)||targetDistance<=.25||!cell)return;
-  const team=cell.team,selectedLower=cell.id.endsWith('lower'),angle=(Number.isFinite(hiveStatus.angle)?hiveStatus.angle:-18)*Math.PI/180;
-  const halfSpan=DIMS.cellSpacing/2,spanX=halfSpan*Math.cos(angle),spanZ=halfSpan*Math.sin(angle);
-  const pivotX=targetDistance-(selectedLower?-spanX:spanX),pivotY=DIMS.pivotHeight;
-  const p=(x,y)=>point(x,y);
+  // O corte é do HIVE VERMELHO exclusivamente; vista superior permanece intacta.
+  const angleDeg=Number.isFinite(hiveStatus.angle)?hiveStatus.angle:-HIVE_SIDE.angleDeg;
+  const angle=angleDeg*Math.PI/180,arm=HIVE_SIDE.arm;
+  const sin=Math.sin(angle),cos=Math.cos(angle),pivotY=DIMS.pivotHeight;
+  const selectedSign=cell.id.endsWith('lower')?-1:1;
+  const pivotX=targetDistance-selectedSign*arm*cos;
+  const p=(x,z)=>point(x,z);
   const poly=(pts,fill,stroke,width=1.5)=>{
-    ctx.beginPath();pts.forEach((pt,i)=>i?ctx.lineTo(...pt):ctx.moveTo(...pt));
-    ctx.closePath();ctx.fillStyle=fill;ctx.fill();ctx.strokeStyle=stroke;ctx.lineWidth=width;ctx.stroke();
+    ctx.beginPath();pts.forEach((pt,i)=>i?ctx.lineTo(...pt):ctx.moveTo(...pt));ctx.closePath();
+    if(fill){ctx.fillStyle=fill;ctx.fill();}if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=width;ctx.stroke();}
   };
-  const stroke=team==='blue'?'#79b5ff':'#ef6770',fill=team==='blue'?'#284e77':'#682b35';
   ctx.save();
-  // Base triangular / dois montantes e eixo; nada gira neste suporte.
-  poly([p(pivotX-.47,0),p(pivotX,pivotY),p(pivotX+.47,0)],'#171b22','#b0bac5',2.5);
-  ctx.strokeStyle='#778491';ctx.lineWidth=3;
-  ctx.beginPath();ctx.moveTo(...p(pivotX-.38,.04));ctx.lineTo(...p(pivotX,pivotY));
-  ctx.lineTo(...p(pivotX+.38,.04));ctx.moveTo(...p(pivotX-.46,.025));ctx.lineTo(...p(pivotX+.46,.025));ctx.stroke();
-  // Barra da gangorra: o mesmo pivô articula as duas CELLS.
-  ctx.strokeStyle='#d4dde7';ctx.lineWidth=7;ctx.lineCap='round';
-  ctx.beginPath();ctx.moveTo(...p(pivotX-spanX,pivotY-spanZ));
-  ctx.lineTo(...p(pivotX+spanX,pivotY+spanZ));ctx.stroke();
-  ctx.strokeStyle='#ffb968';ctx.lineWidth=2;
-  ctx.beginPath();ctx.moveTo(...p(pivotX-.09*Math.cos(angle),pivotY-.09*Math.sin(angle)));
-  ctx.lineTo(...p(pivotX+.09*Math.cos(angle),pivotY+.09*Math.sin(angle)));ctx.stroke();
+  // Apoio triangular estacionário conforme as figuras 9-7/9-8 do manual.
+  poly([p(pivotX-.49,0),p(pivotX,pivotY),p(pivotX+.49,0)],'#171b22','#b6bec9',2.5);
+  ctx.strokeStyle='#7f8997';ctx.lineWidth=2.8;ctx.beginPath();
+  ctx.moveTo(...p(pivotX-.40,.035));ctx.lineTo(...p(pivotX,pivotY));
+  ctx.lineTo(...p(pivotX+.40,.035));ctx.moveTo(...p(pivotX-.47,.03));ctx.lineTo(...p(pivotX+.47,.03));ctx.stroke();
+  // Travessa metálica biestável: ambas as CELLs são rigidamente ligadas.
+  ctx.strokeStyle='#d2dae5';ctx.lineWidth=6;ctx.lineCap='round';ctx.beginPath();
+  ctx.moveTo(...p(pivotX-arm*cos,pivotY-arm*sin));
+  ctx.lineTo(...p(pivotX+arm*cos,pivotY+arm*sin));ctx.stroke();
   for(const sign of [-1,1]){
-    const id=team+'-'+(sign===-1?'lower':'upper');
-    const cx=pivotX+sign*spanX,cy=pivotY+sign*spanZ-.38;
-    const baseY=cy-.19;
-    // Rotaciona a casinha com a gangorra, não apenas translada suas coordenadas.
-    const cellPoint=(u,v)=>p(cx+u*Math.cos(angle)-v*Math.sin(angle),
-      cy+u*Math.sin(angle)+v*Math.cos(angle));
-    poly([cellPoint(-.155,-.19),cellPoint(.155,-.19),cellPoint(.155,.075),
-      cellPoint(0,.29),cellPoint(-.155,.075)],'#202731',stroke,2);
-    poly([cellPoint(-.13,-.175),cellPoint(.13,-.175),
-      cellPoint(.13,.053),cellPoint(-.13,.053)],fill+'bb',stroke,1.2);
-    ctx.strokeStyle='#f6d9a3';ctx.lineWidth=3;
-    ctx.beginPath();ctx.moveTo(...cellPoint(-.105,.10));ctx.lineTo(...cellPoint(.105,.10));ctx.stroke();
-    if(id===hiveStatus.activeCellId){
-      ctx.fillStyle='#f2e7b4';ctx.font='bold 10px system-ui';ctx.textAlign='center';
-      const up=p(cx,cy+.35);ctx.fillText('ABERTA ↑',up[0],up[1]);
-    }
-    (Array.isArray(scoredBalls)?scoredBalls:[]).filter(b=>b?.cellId===id).forEach((b,index)=>{
-      const q=cellPoint(-.075+(index%4)*.05,-.125+Math.floor(index/4)*.075);
-      ctx.beginPath();ctx.arc(...q,4.4,0,2*Math.PI);
-      ctx.fillStyle='#ffeb96';ctx.fill();ctx.strokeStyle='#a67d38';ctx.lineWidth=1;ctx.stroke();
+    const id='red-'+(sign===-1?'lower':'upper');
+    const cx=pivotX+sign*arm*cos,cy=pivotY+sign*arm*sin;
+    const local=(u,v)=>p(cx+u*cos-v*sin,cy+u*sin+v*cos);
+    const outline=[[-.175,-.20],[.175,-.20],[.175,.09],[.12,.256],[-.12,.256],[-.175,.09]];
+    // Casinha vermelha: face frontal em formato de frontão, volume interno
+    // rebaixado e abertura SUPERIOR sem uma linha de teto atravessando a boca.
+    poly(outline.map(([u,v])=>local(u,v)),'#43202b',null);
+    ctx.strokeStyle='#ef6770';ctx.lineWidth=2.6;
+    const strokePoints=points=>{ctx.beginPath();points.forEach(([u,v],i)=>i?ctx.lineTo(...local(u,v)):ctx.moveTo(...local(u,v)));ctx.stroke();};
+    strokePoints([[-.12,.256],[-.175,.09],[-.175,-.20],[.175,-.20],[.175,.09],[.12,.256]]);
+    // Revestimento e cantos visíveis atrás da abertura.
+    poly([[-.14,-.17],[.14,-.17],[.14,.055],[-.14,.055]].map(([u,v])=>local(u,v)),
+      '#762d3b77','#ffa1a0',1);
+    ctx.strokeStyle='#ffd293';ctx.lineWidth=3;
+    strokePoints([[-.12,.256],[-.12,.222]]);strokePoints([[.12,.256],[.12,.222]]);
+    ctx.strokeStyle='#ae5660';ctx.lineWidth=1.2;
+    strokePoints([[-.12,.256],[-.12,-.05]]);strokePoints([[.12,.256],[.12,-.05]]);
+    if(id===hiveStatus.activeCellId){ctx.fillStyle='#ffdaa8';ctx.font='bold 10px system-ui';ctx.textAlign='center';
+      const q=local(0,.365);ctx.fillText('ABERTA',q[0],q[1]);}
+    (Array.isArray(scoredBalls)?scoredBalls:[]).filter(b=>b?.cellId===id).forEach((ball,i)=>{
+      const q=local(-.085+(i%4)*.055,-.12+Math.floor(i/4)*.070);
+      ctx.fillStyle='#ffea95';ctx.strokeStyle='#a27930';ctx.lineWidth=1;ctx.beginPath();ctx.arc(...q,4.4,0,2*Math.PI);ctx.fill();ctx.stroke();
     });
   }
-  const hinge=p(pivotX,pivotY);ctx.fillStyle='#ffb564';ctx.beginPath();ctx.arc(...hinge,5,0,Math.PI*2);ctx.fill();
-  const label=p(pivotX,pivotY+.58);ctx.textAlign='center';ctx.font='bold 11px system-ui';ctx.fillStyle=stroke;
-  ctx.fillText('HIVE '+(team==='red'?'VERMELHO':'AZUL')+' · '+(hiveStatus.count||0)+'/8 POLLEN',label[0],label[1]);
-  if(hiveStatus.tips>0){const q=p(pivotX,pivotY+.45);ctx.fillStyle='#ffd18b';ctx.fillText('TOMBAMENTOS: '+hiveStatus.tips,q[0],q[1]);}
+  const hinge=p(pivotX,pivotY);ctx.fillStyle='#ffae58';ctx.beginPath();ctx.arc(...hinge,5,0,2*Math.PI);ctx.fill();
+  const label=p(pivotX,pivotY+.63);ctx.fillStyle='#ff777d';ctx.font='bold 11px system-ui';ctx.textAlign='center';
+  ctx.fillText('HIVE VERMELHO · '+(hiveStatus.count||0)+'/8 POLLEN',label[0],label[1]);
+  if(hiveStatus.tips>0){const q=p(pivotX,pivotY+.51);ctx.fillStyle='#ffd092';ctx.fillText('TOMBAMENTOS: '+hiveStatus.tips,q[0],q[1]);}
   ctx.restore();
 }
 export function hiveCellAt(x,y){return HIVE.cells.find(cell=>x>=cell.x&&x<=cell.x+cell.w&&y>=cell.y&&y<=cell.y+cell.h)||null;}
