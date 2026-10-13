@@ -62,7 +62,7 @@ async function loadProjectData(data){
   $('source').value=data.source;javaFiles={...(data.files||{})};restoreOpModeChoices();updateJavaFilesLabel();
   for(const id of configIds){const key=id==='initial-yaw'?'yaw':id;if(key in (data.config||{}))$(id).type==='checkbox'?$(id).checked=Boolean(data.config[key]):$(id).value=data.config[key];}
   for(const id of launchIds)if(id in (data.launcher||{}))$(id).value=data.launcher[id];
-  shot=null;persist();notice('Projeto restaurado. Compile/INIT para executar.');
+  shot=null;persist();scheduleHighlight();notice('Projeto restaurado. Compile/INIT para executar.');
 }
 
 function pathOfPrimary(code) {
@@ -78,7 +78,7 @@ function chooseOpMode(path) {
   delete javaFiles[path];$('source').value=candidate;
   selectedJavaPath=path;
   $('opmode-choice').value=path;
-  updateJavaFilesLabel();persist();
+  updateJavaFilesLabel();persist();scheduleHighlight();
 }
 $('opmode-choice').addEventListener('change',e=>{try{chooseOpMode(e.target.value);}catch(error){notice(error.message);}});
 function populateOpModes(opmodes) {
@@ -152,7 +152,7 @@ $('import-java').addEventListener('change',async event=>{
       Object.values(helpers).reduce((sum,code)=>sum+new TextEncoder().encode(code).length,0);
     if(Object.keys(helpers).length>30||size>220000)throw Error('Projeto excede 30 auxiliares ou 220 kB de Java.');
     if(main)$('source').value=main.code;
-    selectedJavaPath='';javaFiles=helpers;restoreOpModeChoices();updateJavaFilesLabel();persist();
+    selectedJavaPath='';javaFiles=helpers;restoreOpModeChoices();updateJavaFilesLabel();persist();scheduleHighlight();
     notice('Arquivos Java importados. Clique em Compilar / INIT.');
   }catch(error){notice(error.message);}finally{event.target.value='';}
 });
@@ -182,7 +182,7 @@ action('save-project',()=>{
   try{saveInLibrary(name);notice('JSON exportado e projeto adicionado ao menu: '+name);}
   catch(error){notice('JSON exportado. Biblioteca local: '+error.message);}
 });
-action('save-library',()=>{const name=window.prompt('Nome do projeto na biblioteca:',pathOfPrimary($('source').value)?.split('/').pop().replace(/\\.java$/,'')||'Meu projeto');if(name===null)return;saveInLibrary(name.trim());notice('Projeto guardado no menu deste navegador.');});
+action('save-library',()=>{const name=window.prompt('Nome do projeto na biblioteca:',pathOfPrimary($('source').value)?.split('/').pop().replace(/\.java$/,'')||'Meu projeto');if(name===null)return;saveInLibrary(name.trim());notice('Projeto guardado no menu deste navegador.');});
 action('delete-library',()=>{const current=$('example').value;if(!current.startsWith('saved:'))return;const name=current.slice(6);if(!window.confirm('Excluir da biblioteca local: '+name+'?'))return;localStorage.setItem(LIBRARY_KEY,JSON.stringify(library().filter(item=>item.name!==name)));refreshExamples();notice('Removido do menu local. Arquivos JSON exportados não foram apagados.');});
 $('load-project').addEventListener('change',async e=>{
   try {const file=e.target.files[0];if(!file)return;if(file.size>250000)throw Error('Projeto excede 250 kB');
@@ -191,7 +191,7 @@ $('load-project').addEventListener('change',async e=>{
     if(!data.config||typeof data.config!=='object'||!data.launcher||typeof data.launcher!=='object')throw Error('Configuração ausente');
     if(data.files!==undefined && (typeof data.files!=='object'||data.files===null||Array.isArray(data.files)||Object.keys(data.files).length>30||Object.values(data.files).some(value=>typeof value!=='string')))throw Error('Arquivos Java do projeto inválidos');
     await loadProjectData(data);
-    const name=String(data.name||file.name.replace(/\\.json$/i,'')).slice(0,64);
+    const name=String(data.name||file.name.replace(/\.json$/i,'')).slice(0,64);
     try{saveInLibrary(name);}catch(error){notice('Projeto carregado, mas não salvo no menu: '+error.message);}
   }catch(error){notice(error.message);}finally{e.target.value='';}
 });
@@ -253,7 +253,7 @@ $('source').addEventListener('keyup',()=>showSuggestions());
 $('example').addEventListener('change',async()=>{
   try{const choice=$('example').value;
     if(choice.startsWith('saved:')){const item=library().find(x=>x.name===choice.slice(6));if(item)await loadProjectData(item.project);}
-    else if(examples[choice]){$('source').value=examples[choice];javaFiles={};selectedJavaPath='';populateOpModes([]);updateJavaFilesLabel();persist();}
+    else if(examples[choice]){$('source').value=examples[choice];javaFiles={};selectedJavaPath='';populateOpModes([]);updateJavaFilesLabel();persist();scheduleHighlight();}
     $('delete-library').disabled=!choice.startsWith('saved:');
   }catch(error){notice(error.message);}
 });
