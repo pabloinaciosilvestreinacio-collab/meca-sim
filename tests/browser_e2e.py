@@ -188,6 +188,8 @@ public class ZipOutro extends LinearOpMode {
             page.locator('#opmode-choice').select_option(label='ZipDemo — org/firstinspires/ftc/teamcode/ZipDemo.java')
             assert 'ZipDemo' in page.locator('#source').input_value()
             passed('ZIP TeamCode seleciona OpMode, compila, executa e restaura opções ao reabrir JSON')
+        if page.locator('#files-menu').get_attribute('open') is not None:
+            page.locator('#files-menu summary').click()
         options=page.locator('#example option').all_text_contents()
         tele=next(x for x in options if 'TeleOp' in x)
         page.locator('#example').select_option(label=tele)
