@@ -68,3 +68,25 @@ test('Editor Java: javac aponta arquivo e linha e HTML não é executado',()=>{
   assert.deepEqual(errors,[{file:'Robot.java',line:15,severity:'error',message:'cannot find symbol'}]);
   assert.match(highlightJava('class A { String x="<script>"; // ok }'),/&lt;script&gt;/);
 });
+
+import {routeSteps,routeWarnings,makeRouteJava,normalizeYaw} from '../web/route.mjs';
+test('Rota diferencial: eixo Y, diagonal, giros relativos e limite do campo',()=>{
+  const steps=routeSteps({x:1,y:1,yaw:0},[{x:1,y:2},{x:2,y:3}],{width:.45,length:.45});
+  assert.equal(steps.length,2);
+  assert.ok(Math.abs(steps[0].turnDeg)<1e-10);
+  assert.ok(Math.abs(steps[0].distanceM-1)<1e-10);
+  assert.ok(Math.abs(steps[1].turnDeg+45)<1e-10);
+  assert.ok(Math.abs(steps[1].distanceM-Math.SQRT2)<1e-10);
+  assert.ok(Math.abs(normalizeYaw(-270)-90)<1e-10);
+  assert.throws(()=>routeSteps({x:1,y:1,yaw:0},[{x:0,y:0}],{width:.45,length:.45}));
+});
+test('Editor de rota gera Java LinearOpMode com API FTC parcial',()=>{
+  const steps=routeSteps({x:.65,y:.65,yaw:0},[{x:.65,y:1.2}]);
+  const java=makeRouteJava(steps,{left:'ME',right:'MD',ticksPerM:1980.6});
+  assert.match(java,/class RotaMecaSim extends LinearOpMode/);
+  assert.match(java,/virar\(0\.000000\)/);
+  assert.match(java,/andar\(0\.550000\)/);
+  assert.match(java,/timeout de percurso/);
+  assert.equal(routeWarnings({x:0,y:0},[{x:3.6,y:3.6}]).length,1);
+  assert.equal(routeWarnings({x:0,y:0},[{x:3.6,y:3.6}],'livre').length,0);
+});

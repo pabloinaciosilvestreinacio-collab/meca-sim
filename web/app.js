@@ -1,12 +1,14 @@
 import {rotate, launcher, heightAt, flight, gamepadValues, targetSolution, encoderScale, connectedPlayers} from './model.mjs';
 import {FIELD_METERS, ARENAS, validStart, drawArenaTop, drawArenaSide} from './arena.mjs';
 import {candidates, diagnostics, highlightJava} from './editor.mjs';
+import {routeSteps, routeWarnings, makeRouteJava, MAX_WAYPOINTS} from './route.mjs';
 const $ = id => document.getElementById(id);
 const num = id => Number($(id).value);
 let state = {x:1.83,y:.65,yaw:0,width:.45,length:.45,trail:[],motors:{},time:0,status:'pronto'};
 let focused = document.hasFocus();
 let shot = null, examples = {}, javaFiles = {}, zipOpModes = [], selectedJavaPath = '', lastPad = 0, polling = false, padBusy = false, pickingStart = false;
-let lastDraw=0,lastLog='',lastMotorSignature='',highlightJob=0;
+let lastDraw=0,lastLog='',lastMotorSignature='',highlightJob=0,routePicking=false;
+let routePoints=[],replayRows=[],replayIndex=-1,replayPlaying=false,replayLast=0;
 const LIBRARY_KEY='meca-sim-library-v1',LOGO_KEY='meca-sim-logo-v1';
 const keys = new Set(), top = $('top'), side = $('side');
 const configIds = ['arena','left','right','width','length','track','max_speed','ticks_per_m','duration','x','y','initial-yaw','invert_left','invert_right','acceleration','left_gain','right_gain','left_slip','right_slip','imu_delay','imu_drift','walls','imu_frozen','left_encoder_frozen','right_encoder_frozen'];
@@ -18,7 +20,7 @@ function config() {
 }
 function persist() {
   try { const values={}; [...configIds,...launchIds].forEach(id=>values[id]=$(id).type==='checkbox'?$(id).checked:$(id).value);
-    localStorage.setItem('meca-sim-v02',JSON.stringify({source:$('source').value,files:javaFiles,values})); } catch {}
+    localStorage.setItem('meca-sim-v02',JSON.stringify({source:$('source').value,files:javaFiles,values,route:routePoints})); } catch {}
 }
 function notice(text) {$('message').textContent=text;}
 function setTeamLogo(url){$('team-logo').src=url;$('team-logo').hidden=false;$('logo-fallback').hidden=true;}
@@ -35,7 +37,7 @@ $('logo-file').addEventListener('change',async event=>{
   }catch(error){notice('Logo: '+error.message);}finally{event.target.value='';}
 });
 function library(){try{const items=JSON.parse(localStorage.getItem(LIBRARY_KEY)||'[]');return Array.isArray(items)?items.filter(x=>x&&typeof x.name==='string'&&x.project?.version===2).slice(0,12):[];}catch{return [];}}
-function projectData(){return {format:'meca-sim-project',version:2,source:$('source').value,files:{...javaFiles},config:config(),launcher:Object.fromEntries(launchIds.map(id=>[id,num(id)]))};}
+function projectData(){return {format:'meca-sim-project',version:2,source:$('source').value,files:{...javaFiles},config:config(),launcher:Object.fromEntries(launchIds.map(id=>[id,num(id)])),route:routePoints.slice()};}
 function refreshExamples(selected=''){
   const menu=$('example');menu.replaceChildren();
   const blank=document.createElement('option');blank.value='';blank.textContent='Selecione…';menu.append(blank);
@@ -62,7 +64,8 @@ async function loadProjectData(data){
   $('source').value=data.source;javaFiles={...(data.files||{})};restoreOpModeChoices();updateJavaFilesLabel();
   for(const id of configIds){const key=id==='initial-yaw'?'yaw':id;if(key in (data.config||{}))$(id).type==='checkbox'?$(id).checked=Boolean(data.config[key]):$(id).value=data.config[key];}
   for(const id of launchIds)if(id in (data.launcher||{}))$(id).value=data.launcher[id];
-  shot=null;persist();scheduleHighlight();notice('Projeto restaurado. Compile/INIT para executar.');
+  routePoints=Array.isArray(data.route)?data.route.slice(0,MAX_WAYPOINTS).filter(p=>p&&Number.isFinite(p.x)&&Number.isFinite(p.y)):[];updateRoute();
+  resetReplay();shot=null;persist();scheduleHighlight();notice('Projeto restaurado. Compile/INIT para executar.');
 }
 
 function pathOfPrimary(code) {
@@ -163,11 +166,11 @@ async function api(path, data={}) {
   return result;
 }
 const action = (id, callback) => $(id).addEventListener('click',async()=>{try{notice('');await callback();}catch(e){notice(e.message);}});
-action('compile',async()=>{persist();shot=null;await api('run',{source:$('source').value,files:javaFiles,config:config()});});
+action('compile',async()=>{resetReplay();persist();shot=null;await api('run',{source:$('source').value,files:javaFiles,config:config()});});
 for(const [id,target] of [['ds-init','compile'],['ds-start','start'],['ds-stop','stop']])$(id).addEventListener('click',()=>$(target).click());
 action('start',async()=>{await api('heartbeat');await api('start');});
 action('stop',()=>api('stop'));
-action('reset',async()=>{shot=null;await api('reset',{config:config()});});
+action('reset',async()=>{resetReplay();shot=null;await api('reset',{config:config()});});
 action('export',async()=>{
   const blob=new Blob([JSON.stringify({version:'0.2',config:config(),launcher:Object.fromEntries(launchIds.map(id=>[id,num(id)])),result:state},null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob), a=document.createElement('a');a.href=url;a.download='meca-sim-resultado.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
@@ -289,9 +292,16 @@ function drawTop(now) {
   for(let i=0;i<=6;i++){const p=i*3.66/6,[x,y]=project(p,p);c.strokeStyle='#242c37';c.beginPath();c.moveTo(x,g.oy);c.lineTo(x,g.oy-3.66*g.scale);c.moveTo(g.ox,y);c.lineTo(g.ox+3.66*g.scale,y);c.stroke();c.fillStyle='#627085';c.fillText(p.toFixed(2),x-9,g.oy+15);c.fillText(p.toFixed(2),g.ox-28,y+3);}
   c.strokeStyle='#536277';c.strokeRect(g.ox,g.oy-3.66*g.scale,3.66*g.scale,3.66*g.scale);
   c.strokeStyle='#ff852e80';c.lineWidth=2;c.beginPath();state.trail.forEach((p,i)=>{const q=project(...p);i?c.lineTo(...q):c.moveTo(...q);});c.stroke();
-  const corner=(x,y)=>{const r=rotate(x,y,state.yaw);return project(state.x+r[0],state.y+r[1]);};
+  if(replayIndex>=0){const row=replayRows[replayIndex];if(row){c.strokeStyle='#56e4bd';c.beginPath();replayRows.slice(0,replayIndex+1).forEach((r,i)=>{const q=project(r[1],r[2]);i?c.lineTo(...q):c.moveTo(...q);});c.stroke();}}
+  if(routePoints.length){c.setLineDash([5,4]);c.strokeStyle='#ffcc67';c.lineWidth=2;c.beginPath();
+    const first=project(num('x'),num('y'));c.moveTo(...first);
+    routePoints.forEach((p,i)=>{const q=project(p.x,p.y);c.lineTo(...q);});c.stroke();c.setLineDash([]);
+    routePoints.forEach((p,i)=>{const q=project(p.x,p.y);c.fillStyle='#ffcc67';c.beginPath();c.arc(...q,10,0,Math.PI*2);c.fill();
+      c.textAlign='center';c.fillStyle='#171717';c.font='bold 11px system-ui';c.fillText(String(i+1),q[0],q[1]+4);});}
+  const shown=replayIndex>=0?{...state,x:replayRows[replayIndex][1],y:replayRows[replayIndex][2],yaw:replayRows[replayIndex][3]}:state;
+  const corner=(x,y)=>{const r=rotate(x,y,shown.yaw);return project(shown.x+r[0],shown.y+r[1]);};
   c.beginPath();[[-1,-1],[1,-1],[1,1],[-1,1]].forEach(([x,y],i)=>{const p=corner(x*state.width/2,y*state.length/2);i?c.lineTo(...p):c.moveTo(...p);});c.closePath();c.fillStyle='#ff852e20';c.fill();c.strokeStyle='#ff852e';c.stroke();
-  const center=project(state.x,state.y),front=corner(0,state.length*.6);c.beginPath();c.moveTo(...center);c.lineTo(...front);c.stroke();c.fillStyle='#fff';c.beginPath();c.arc(...center,3,0,Math.PI*2);c.fill();
+  const center=project(shown.x,shown.y),front=corner(0,shown.length*.6);c.beginPath();c.moveTo(...center);c.lineTo(...front);c.stroke();c.fillStyle='#fff';c.beginPath();c.arc(...center,3,0,Math.PI*2);c.fill();
   for(const sign of [-1,1]){const a=corner(sign*state.width/2,-state.length*.24),b=corner(sign*state.width/2,state.length*.24);c.strokeStyle='#d6dfeb';c.lineWidth=5;c.beginPath();c.moveTo(...a);c.lineTo(...b);c.stroke();}
   const v=launchValues();if(!v.valid)return;
   const origin=launcher(state,v.lateral,v.forward),start=project(...origin),target=project(v.tx,v.ty),dir=rotate(0,1,state.yaw+v.azimuth),f=flight(v.height,v.speed,v.elevation),end=project(origin[0]+dir[0]*f.range,origin[1]+dir[1]*f.range);
@@ -303,6 +313,11 @@ function drawTop(now) {
 top.addEventListener('click',async event=>{
   const rect=top.getBoundingClientRect(),g=geometry();
   const x=(event.clientX-rect.left-g.ox)/g.scale,y=(g.oy-event.clientY+rect.top)/g.scale;
+  if(routePicking&&!event.shiftKey&&!pickingStart){
+    if(routePoints.length>=MAX_WAYPOINTS){notice('Limite de '+MAX_WAYPOINTS+' waypoints.');return;}
+    if(!validStart(x,y,num('width'),num('length'),0)){notice('Waypoint fora do campo ou chassi não cabe.');return;}
+    routePoints.push({x:+x.toFixed(3),y:+y.toFixed(3)});updateRoute();persist();return;
+  }
   if(pickingStart||event.shiftKey){
     if(['compilando','inicializando','executando'].includes(state.status)){notice('Use STOP antes de alterar a partida.');return;}
     if(!validStart(x,y,num('width'),num('length'),num('initial-yaw'))){notice('A posição escolhida deixaria parte do robô fora do campo.');return;}
@@ -318,6 +333,68 @@ $('pick-start').addEventListener('click',()=>{
   $('start-hint').textContent=pickingStart?'Clique no campo na nova posição inicial (ou Shift+clique).':'Clique no campo para definir o alvo.';
 });
 $('arena').addEventListener('change',()=>{$('field-description').textContent=$('arena').value==='biobuzz'?'BIOBUZZ · esquema ilustrativo, sem colisões nos elementos':'Campo livre · grade cartesiana';persist();});
+function updateRoute(){
+  const list=$('route-list');list.replaceChildren();
+  let steps=[],warnings=[];
+  try{
+    const start={x:num('x'),y:num('y'),yaw:num('initial-yaw')};
+    steps=routeSteps(start,routePoints,{width:num('width'),length:num('length')});
+    warnings=routeWarnings(start,routePoints,$('arena').value);
+  }catch(error){$('route-summary').textContent='Rota inválida: '+error.message;return;}
+  steps.forEach((step,i)=>{
+    const row=document.createElement('li');row.textContent=(i+1)+'. ('+step.x.toFixed(2)+', '+step.y.toFixed(2)+') m · virar '+step.turnDeg.toFixed(1)+'° → '+step.distanceM.toFixed(2)+' m';
+    const remove=document.createElement('button');remove.type='button';remove.textContent='×';remove.title='Excluir waypoint '+(i+1);
+    remove.addEventListener('click',()=>{routePoints.splice(i,1);updateRoute();persist();});
+    row.append(remove);list.append(row);
+  });
+  const distance=steps.reduce((s,r)=>s+r.distanceM,0);
+  $('route-summary').textContent=steps.length+' ponto(s) · '+distance.toFixed(2)+' m · '+(warnings.length?warnings.join(' '):'Sem passagem pela área central ilustrativa.');
+}
+$('route-add').addEventListener('click',()=>{
+  routePicking=!routePicking;$('route-add').setAttribute('aria-pressed',String(routePicking));
+  notice(routePicking?'Clique na vista de cima para adicionar waypoints; Shift+clique define a partida.':'Edição de rota desativada.');
+});
+$('route-remove').addEventListener('click',()=>{routePoints.pop();updateRoute();persist();});
+$('route-clear').addEventListener('click',()=>{routePoints=[];updateRoute();persist();});
+$('route-code').addEventListener('click',()=>{
+  try{
+    const steps=routeSteps({x:num('x'),y:num('y'),yaw:num('initial-yaw')},routePoints,{width:num('width'),length:num('length')});
+    const java=makeRouteJava(steps,{ticksPerM:num('ticks_per_m'),left:$('left').value,right:$('right').value});
+    if(!window.confirm('Substituir o Java atual pelo roteiro? Salve seu projeto anterior antes de continuar.'))return;
+    $('source').value=java;javaFiles={};restoreOpModeChoices();updateJavaFilesLabel();scheduleHighlight();persist();
+    document.querySelector('[data-tab="code"]').click();
+    notice('Java gerado. Revise sentidos dos motores e timeout antes de compilar.');
+  }catch(e){notice(e.message);}
+});
+function showReplayInfo(){
+  const row=replayRows[replayIndex];
+  $('timeline-info').textContent=row?'t='+row[0].toFixed(2)+' s · X='+row[1].toFixed(2)+' m · Y='+row[2].toFixed(2)+' m · yaw='+row[3].toFixed(1)+'°':'Nenhum registro';
+}
+function resetReplay(){
+  replayPlaying=false;replayRows=[];replayIndex=-1;
+  $('timeline-range').value=0;$('timeline-range').max=0;$('timeline-range').disabled=true;
+  $('timeline-play').disabled=true;$('timeline-play').textContent='Reproduzir';$('timeline-exit').disabled=true;showReplayInfo();
+}
+$('timeline-load').addEventListener('click',async()=>{
+  try{const response=await fetch('/api/recording');if(!response.ok)throw Error('Sem gravação');
+    const data=await response.json();
+    if(!Array.isArray(data.rows)||!data.rows.length)throw Error('Execute um autônomo ou TeleOp primeiro.');
+    replayRows=data.rows.filter(row=>Array.isArray(row)&&row.length>=4&&row.slice(0,4).every(Number.isFinite)).slice(0,4000);
+    if(!replayRows.length)throw Error('Trajetória inválida.');
+    replayPlaying=false;replayIndex=0;$('timeline-range').max=replayRows.length-1;
+    $('timeline-range').disabled=false;$('timeline-play').disabled=false;$('timeline-exit').disabled=false;
+    $('timeline-play').textContent='Reproduzir';showReplayInfo();readouts();
+  }catch(e){notice(e.message);}
+});
+$('timeline-range').addEventListener('input',()=>{if(!replayRows.length)return;replayPlaying=false;replayIndex=Number($('timeline-range').value);
+  $('timeline-play').textContent='Reproduzir';showReplayInfo();readouts();});
+$('timeline-play').addEventListener('click',()=>{
+  if(replayIndex===replayRows.length-1)replayIndex=0;
+  replayPlaying=!replayPlaying;replayLast=0;
+  $('timeline-play').textContent=replayPlaying?'Pausar':'Reproduzir';
+});
+$('timeline-exit').addEventListener('click',()=>{resetReplay();readouts();});
+
 function drawSide(now) {
   const {ctx:c,w,h}=canvasContext(side),v=shot||launchValues();if(!v.valid){$('shot-info').textContent='Confira os parâmetros do lançador.';return;}
   const origin=shot?.origin||launcher(state,v.lateral,v.forward),yaw=shot?.yaw??state.yaw,dir=rotate(0,1,yaw+v.azimuth),dx=v.tx-origin[0],dy=v.ty-origin[1],along=dx*dir[0]+dy*dir[1],cross=Math.abs(dx*dir[1]-dy*dir[0]),f=flight(v.height,v.speed,v.elevation);
@@ -337,7 +414,8 @@ function drawSide(now) {
 }
 function readouts() {
   $('status').textContent=state.status;$('clock').textContent=state.time.toFixed(2).padStart(5,'0')+' s';
-  $('px').textContent=state.x.toFixed(3)+' m';$('py').textContent=state.y.toFixed(3)+' m';$('yaw').textContent=state.yaw.toFixed(1)+'°';
+  const visible=replayIndex>=0&&replayRows[replayIndex]?{x:replayRows[replayIndex][1],y:replayRows[replayIndex][2],yaw:replayRows[replayIndex][3]}:state;
+  $('px').textContent=visible.x.toFixed(3)+' m';$('py').textContent=visible.y.toFixed(3)+' m';$('yaw').textContent=visible.yaw.toFixed(1)+'°';
   $('imu-yaw').textContent=Number.isFinite(state.imu_yaw)?state.imu_yaw.toFixed(1)+'°':'—';
   $('sensor-status').textContent=state.imu_frozen?'Falha simulada ativa: IMU travado. Yaw real e yaw medido podem divergir.':'';
   $('execution-hint').textContent=state.status==='concluído'?'Java encerrado. Confira a telemetria: isso não comprova o sucesso da missão.':'';
@@ -373,6 +451,11 @@ async function sendPads(now) {
 }
 function frame(now){
   if(shot&&(now-shot.start)/1000>flight(shot.height,shot.speed,shot.elevation).time+.8)shot=null;
+  if(replayPlaying&&replayIndex>=0&&replayRows.length>1){
+    if(now-replayLast>=50){replayLast=now;replayIndex=Math.min(replayRows.length-1,replayIndex+1);
+      if(replayIndex===replayRows.length-1){replayPlaying=false;$('timeline-play').textContent='Reproduzir';}
+      $('timeline-range').value=replayIndex;showReplayInfo();readouts();}
+  }
   if(!document.hidden&&now-lastDraw>=33){lastDraw=now;drawTop(now);drawSide(now);sendPads(now);}
   requestAnimationFrame(frame);
 }
@@ -383,6 +466,8 @@ async function init() {
     $('field-description').textContent=$('arena').value==='biobuzz'?'BIOBUZZ · esquema ilustrativo, sem colisões nos elementos':'Campo livre · grade cartesiana';
     try{const logo=localStorage.getItem(LOGO_KEY);if(logo?.startsWith('data:image/'))setTeamLogo(logo);}catch{}
     refreshHighlight();
+    if(saved&&Array.isArray(saved.route))routePoints=saved.route.slice(0,MAX_WAYPOINTS).filter(p=>p&&Number.isFinite(p.x)&&Number.isFinite(p.y));
+    updateRoute();
   }catch(e){notice('Não foi possível carregar exemplos ou configurações: '+e.message);}
   await poll();setInterval(poll,100);setInterval(()=>{if(!document.hidden)api('heartbeat').catch(()=>{});},500);requestAnimationFrame(frame);
 }
