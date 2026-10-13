@@ -175,7 +175,13 @@ action('export',async()=>{
 function download(data, filename, type='application/json') {
   const url=URL.createObjectURL(new Blob([data],{type})),a=document.createElement('a');a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
-action('save-project',()=>download(JSON.stringify(projectData(),null,2),'meca-sim-projeto.json'));
+action('save-project',()=>{
+  const project=projectData();download(JSON.stringify(project,null,2),'meca-sim-projeto.json');
+  const selected=$('example').value;
+  const name=(selected.startsWith('saved:')?selected.slice(6):pathOfPrimary(project.source)?.split('/').pop().replace(/\.java$/,'')||'Meu projeto');
+  try{saveInLibrary(name);notice('JSON exportado e projeto adicionado ao menu: '+name);}
+  catch(error){notice('JSON exportado. Biblioteca local: '+error.message);}
+});
 action('save-library',()=>{const name=window.prompt('Nome do projeto na biblioteca:',pathOfPrimary($('source').value)?.split('/').pop().replace(/\\.java$/,'')||'Meu projeto');if(name===null)return;saveInLibrary(name.trim());notice('Projeto guardado no menu deste navegador.');});
 action('delete-library',()=>{const current=$('example').value;if(!current.startsWith('saved:'))return;const name=current.slice(6);if(!window.confirm('Excluir da biblioteca local: '+name+'?'))return;localStorage.setItem(LIBRARY_KEY,JSON.stringify(library().filter(item=>item.name!==name)));refreshExamples();notice('Removido do menu local. Arquivos JSON exportados não foram apagados.');});
 $('load-project').addEventListener('change',async e=>{
