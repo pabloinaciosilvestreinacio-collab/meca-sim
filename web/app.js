@@ -5,7 +5,7 @@ const num = id => Number($(id).value);
 let state = {x:1.83,y:.65,yaw:0,width:.45,length:.45,trail:[],motors:{},time:0,status:'pronto'};
 let focused = document.hasFocus();
 let shot = null, examples = {}, javaFiles = {}, zipOpModes = [], selectedJavaPath = '', lastPad = 0, polling = false, padBusy = false, pickingStart = false;
-const LIBRARY_KEY='meca-sim-library-v1';
+const LIBRARY_KEY='meca-sim-library-v1',LOGO_KEY='meca-sim-logo-v1';
 const keys = new Set(), top = $('top'), side = $('side');
 const configIds = ['arena','left','right','width','length','track','max_speed','ticks_per_m','duration','x','y','initial-yaw','invert_left','invert_right','acceleration','left_gain','right_gain','left_slip','right_slip','imu_delay','imu_drift','walls','imu_frozen','left_encoder_frozen','right_encoder_frozen'];
 const launchIds = ['offset-x','offset-y','height','speed','elevation','azimuth','target-x','target-y','target-h'];
@@ -19,6 +19,19 @@ function persist() {
     localStorage.setItem('meca-sim-v02',JSON.stringify({source:$('source').value,files:javaFiles,values})); } catch {}
 }
 function notice(text) {$('message').textContent=text;}
+function setTeamLogo(url){$('team-logo').src=url;$('team-logo').hidden=false;$('logo-fallback').hidden=true;}
+$('logo-file').addEventListener('change',async event=>{
+  try{
+    const file=event.target.files?.[0];if(!file)return;
+    if(!['image/png','image/jpeg','image/webp'].includes(file.type))throw Error('Use PNG, JPG ou WebP da logo oficial.');
+    if(file.size>2_000_000)throw Error('Imagem maior que 2 MB; reduza o tamanho.');
+    const image=await createImageBitmap(file),canvas=document.createElement('canvas');canvas.width=160;canvas.height=160;
+    const ctx=canvas.getContext('2d'),scale=Math.min(160/image.width,160/image.height),w=image.width*scale,h=image.height*scale;
+    ctx.drawImage(image,(160-w)/2,(160-h)/2,w,h);image.close();
+    const url=canvas.toDataURL('image/png');
+    localStorage.setItem(LOGO_KEY,url);setTeamLogo(url);notice('Logo salva neste navegador.');
+  }catch(error){notice('Logo: '+error.message);}finally{event.target.value='';}
+});
 function library(){try{const items=JSON.parse(localStorage.getItem(LIBRARY_KEY)||'[]');return Array.isArray(items)?items.filter(x=>x&&typeof x.name==='string'&&x.project?.version===2).slice(0,12):[];}catch{return [];}}
 function projectData(){return {format:'meca-sim-project',version:2,source:$('source').value,files:{...javaFiles},config:config(),launcher:Object.fromEntries(launchIds.map(id=>[id,num(id)]))};}
 function refreshExamples(selected=''){
@@ -149,6 +162,7 @@ async function api(path, data={}) {
 }
 const action = (id, callback) => $(id).addEventListener('click',async()=>{try{notice('');await callback();}catch(e){notice(e.message);}});
 action('compile',async()=>{persist();shot=null;await api('run',{source:$('source').value,files:javaFiles,config:config()});});
+for(const [id,target] of [['ds-init','compile'],['ds-start','start'],['ds-stop','stop']])$(id).addEventListener('click',()=>$(target).click());
 action('start',async()=>{await api('heartbeat');await api('start');});
 action('stop',()=>api('stop'));
 action('reset',async()=>{shot=null;await api('reset',{config:config()});});
@@ -268,6 +282,9 @@ function readouts() {
   $('sensor-status').textContent=state.imu_frozen?'Falha simulada ativa: IMU travado. Yaw real e yaw medido podem divergir.':'';
   $('execution-hint').textContent=state.status==='concluído'?'Java encerrado. Confira a telemetria: isso não comprova o sucesso da missão.':'';
   $('start').disabled=state.status!=='inicializando';$('compile').disabled=['compilando','inicializando','executando'].includes(state.status);
+  $('ds-start').disabled=$('start').disabled;$('ds-init').disabled=$('compile').disabled;
+  $('ds-state').textContent=state.status.toUpperCase();$('ds-time').textContent=state.time.toFixed(2)+' s';
+  $('ds-mode').textContent=/@Autonomous\b/.test($('source').value)?'AUTÔNOMO · LinearOpMode':/@TeleOp\b/.test($('source').value)?'TELEOPERADO · LinearOpMode':'JAVA · LinearOpMode';
   $('telemetry').textContent=state.telemetry||'Aguardando telemetry.update()';$('logs').textContent=state.logs||'Nenhum erro de compilação registrado.';
   $('motors').replaceChildren();Object.entries(state.motors).forEach(([name,m])=>{const node=document.createElement('div');node.className='motor';const label=document.createElement('strong');label.textContent=name;const value=document.createElement('span');value.textContent=`P ${m.power.toFixed(2)} · ${m.encoder} ticks`;const bar=document.createElement('div');bar.className='bar';const fill=document.createElement('i');fill.style.width=Math.abs(m.power)*100+'%';bar.append(fill);node.append(label,value,bar);$('motors').append(node);});
 }
@@ -297,6 +314,7 @@ async function init() {
     refreshExamples();
     const saved=JSON.parse(localStorage.getItem('meca-sim-v02')||'null');if(saved){$('source').value=saved.source||'';javaFiles=saved.files&&typeof saved.files==='object'&&!Array.isArray(saved.files)?saved.files:{};restoreOpModeChoices();updateJavaFilesLabel();Object.entries(saved.values||{}).forEach(([id,value])=>{if($(id))$(id).type==='checkbox'?$(id).checked=Boolean(value):$(id).value=value;});}else{$('source').value=Object.values(examples)[0];}
     $('field-description').textContent=$('arena').value==='biobuzz'?'BIOBUZZ · esquema ilustrativo, sem colisões nos elementos':'Campo livre · grade cartesiana';
+    try{const logo=localStorage.getItem(LOGO_KEY);if(logo?.startsWith('data:image/'))setTeamLogo(logo);}catch{}
   }catch(e){notice('Não foi possível carregar exemplos ou configurações: '+e.message);}
   await poll();setInterval(poll,100);setInterval(()=>{if(!document.hidden)api('heartbeat').catch(()=>{});},500);requestAnimationFrame(frame);
 }
