@@ -110,7 +110,7 @@ class HTTPTests(unittest.TestCase):
         self.app.session.stop();self.http.shutdown();self.http.server_close();self.thread.join()
 
     def test_static_and_state(self):
-        for path in ['/', '/app.js','/model.mjs','/style.css','/examples','/api/state']:
+        for path in ['/', '/app.js','/model.mjs','/editor.mjs','/arena.mjs','/route.mjs','/style.css','/examples','/api/state']:
             with urlopen(self.url+path) as r:self.assertEqual(r.status,200)
 
     def test_mutation_requires_token(self):
