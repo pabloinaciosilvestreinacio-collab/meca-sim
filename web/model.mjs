@@ -1,3 +1,4 @@
+import {hiveSideGeometry,HIVE_SIDE} from './arena.mjs';
 export function rotate(x, y, degrees) {
   const a = degrees * Math.PI / 180;
   return [x * Math.cos(a) - y * Math.sin(a), x * Math.sin(a) + y * Math.cos(a)];
@@ -87,33 +88,45 @@ export function gamepadValues(pad) {
  * decidido ao cruzar o plano do alvo, não quando a bola toca o chão.
  * Largura/altura da abertura são medidas do manual; alinhamento e
  * transferência para dentro não substituem colisão tridimensional. */
-export function hiveShotImpact(shot,cell) {
-  if(!cell) return {hit:false,reason:'CELL inexistente'};
-  const numbers=[shot.origin?.[0],shot.origin?.[1],shot.yaw,shot.azimuth,
-    shot.speed,shot.elevation,shot.height,shot.tx,shot.ty,
-    cell.x,cell.y,cell.w,cell.h,cell.openingHeight];
-  if(!numbers.every(Number.isFinite))return {hit:false,reason:'dados do lançamento inválidos'};
-  const direction=rotate(0,1,shot.yaw+shot.azimuth);
-  const cx=cell.x+cell.w/2,cy=cell.y+cell.h/2;
-  const dx=cx-shot.origin[0],dy=cy-shot.origin[1];
-  const along=dx*direction[0]+dy*direction[1];
-  const across=Math.abs(dx*direction[1]-dy*direction[0]);
-  const speedX=shot.speed*Math.cos(shot.elevation*Math.PI/180);
-  if(along<=0||speedX<=0)return {hit:false,reason:'CELL atrás do lançamento'};
-  const trajectory=flight(shot.height,shot.speed,shot.elevation);
-  if(along>trajectory.range)return {hit:false,reason:'pólen cai antes da CELL'};
-  const z=heightAt(along,shot.height,shot.speed,shot.elevation);
-  const ballRadius=.071/2; // POLLEN aprox. 7,1 cm (manual §9.8)
-  const apertureW=Math.min(cell.w,.508),apertureH=.356;
-  const lateralLimit=Math.max(0,Math.min(apertureW/2-ballRadius,shot.radius??apertureW/2));
-  const heightLimit=Math.max(0,Math.min(apertureH/2-ballRadius,shot.heightTolerance??apertureH/2));
-  if(across>lateralLimit)return {hit:false,reason:'pólen passou ao lado da abertura'};
-  if(Math.abs(z-cell.openingHeight)>heightLimit)return {hit:false,reason:'altura fora da abertura'};
-  const time=along/speedX;
-  return {hit:true,time,distance:along,height:z,
-    x:shot.origin[0]+direction[0]*along,y:shot.origin[1]+direction[1]*along,
-    cellId:cell.id,team:cell.team};
+/** Interseção do POLLEN com a boca superior (plano inclinado) do HIVE.
+ * Exige cruzamento na DESCIDA, não altura parecida na subida.
+ * Entrada é centrada na profundidade 30,5 cm com raio real de 3,55 cm.
+ * Aproximação 2D balística sem rebote/atrito; não é colisão 3D do CAD. */
+export function hiveShotImpact(shot,cell){
+  if(!cell||cell.team!=='red')return {hit:false,reason:'o corte lateral simula somente o HIVE vermelho'};
+  const all=[...(shot.origin||[]),shot.yaw,shot.azimuth,shot.speed,shot.elevation,
+    shot.height,shot.hiveAngle,cell.x,cell.y,cell.w,cell.h];
+  if(all.length!==12||!all.every(Number.isFinite))return {hit:false,reason:'dados balísticos inválidos'};
+  if(!(shot.speed>0)||shot.elevation<0||shot.elevation>=90)return {hit:false,reason:'rampa inválida'};
+  const gate=hiveSideGeometry(cell,shot.hiveAngle);
+  const center=[cell.x+cell.w/2,cell.y+cell.h/2],dir=rotate(0,1,shot.yaw+shot.azimuth);
+  const dx=center[0]-shot.origin[0],dy=center[1]-shot.origin[1];
+  const distance=dx*dir[0]+dy*dir[1],cross=Math.abs(dx*dir[1]-dy*dir[0]);
+  const r=HIVE_SIDE.ballRadius;
+  if(distance<=0)return {hit:false,reason:'alvo atrás do lançador'};
+  if(cross>DIMS_FREE_WIDTH()/2-r)return {hit:false,reason:'pólen desviou lateralmente da abertura'};
+  const vy=shot.speed*Math.sin(shot.elevation*Math.PI/180);
+  const vx=shot.speed*Math.cos(shot.elevation*Math.PI/180);
+  const slope=Math.tan(gate.angle);
+  const relativeVy=vy-vx*slope,delta=gate.openingHeight-slope*distance-shot.height;
+  const discriminant=relativeVy*relativeVy-2*9.81*delta;
+  if(discriminant<0)return {hit:false,reason:'trajetória não alcança a abertura superior'};
+  const t=(relativeVy+Math.sqrt(discriminant))/9.81;
+  if(!(t>0)||t>flight(shot.height,shot.speed,shot.elevation).time)
+    return {hit:false,reason:'bola cai antes de entrar'};
+  const forward=vx*t,depthError=forward-distance;
+  if(Math.abs(depthError)>gate.halfDepth-r)
+    return {hit:false,reason:'bola não cruzou a abertura (erro de profundidade)'};
+  if(vy-9.81*t>=0)
+    return {hit:false,reason:'bola atingiu a altura da abertura na subida; aumente o ângulo da rampa'};
+  if(relativeVy-9.81*t>=0)
+    return {hit:false,reason:'bola cruzou a abertura pelo lado inferior do plano inclinado'};
+  const x=shot.origin[0]+dir[0]*forward,y=shot.origin[1]+dir[1]*forward;
+  return {hit:true,time:t,distance:forward,height:shot.height+vy*t-4.905*t*t,
+    x,y,cellId:cell.id,team:cell.team,
+    openingHeight:gate.openingHeight,lateralError:cross,depthError};
 }
+function DIMS_FREE_WIDTH(){return .508;}
 /** TIPS idealizados: 8 POLLEN por ciclo, regra configurada da simulação.
  * No campo real o tombamento depende do peso, da posição e do pivô. */
 export const SIM_TIP_POLLS=8;
