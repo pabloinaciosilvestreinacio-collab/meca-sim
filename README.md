@@ -4,6 +4,8 @@ Simulador **local e independente** da Meca Tiger: cole uma classe Java `LinearOp
 
 **Candidato de lançamento técnico, ainda sujeito a validação física e testes de uso no computador da equipe.** SDK parcial; não substitui o robô. Modelos de falha são sintéticos e não são calibração. Repositório privado, ainda sem licença de distribuição definida.
 
+**Interpretação dos resultados:** o estado `concluído` indica apenas que o programa Java terminou normalmente; uma sequência autônoma também pode terminar por timeout ou falha controlada. Confira sempre a telemetria. A interface mostra separadamente o **yaw real** da pose simulada e o **yaw IMU** que o Java recebe (relativo ao último `resetYaw()`), além de indicar quando a opção de IMU travado está ativa.
+
 ## Para o teste de 14/10/2026
 
 Use o pacote Windows da última execução **aprovada** no GitHub Actions. Ele contém `MecaSim.exe`, `INICIAR_TESTE.bat`, `TESTE_AMANHA.md` e `RESULTADO_TESTE.md`. Extraia todos na mesma pasta, execute **INICIAR_TESTE.bat** e siga a tabela A1–A6 do roteiro. O diagnóstico é salvo em `mecasim-diagnostico.txt`. Consulte [roteiro de amanhã](TESTE_AMANHA.md) e [registro de resultados](RESULTADO_TESTE.md).

@@ -113,6 +113,28 @@ class NumericalTests(unittest.TestCase):
             expected=0 if frozen else math.degrees((.4/.45)*.3)
             self.assertAlmostEqual(float(s.rpc('yaw')),expected,delta=1e-7)
             s.rpc('resetYaw');self.assertAlmostEqual(float(s.rpc('yaw')),0)
+    def test_snapshot_distinguishes_true_yaw_from_frozen_imu(self):
+        s=Session({'imu_frozen':True})
+        s.rpc('motor','MD','direction','REVERSE')
+        s.rpc('motor','ME','power','-.3')
+        s.rpc('motor','MD','power','.3')
+        s.world.step(.5)
+        state=s.snapshot()
+        self.assertTrue(state['imu_frozen'])
+        self.assertAlmostEqual(state['imu_yaw'],0)
+        self.assertGreater(abs(state['yaw']),5)
+        self.assertAlmostEqual(float(s.rpc('yaw')),state['imu_yaw'])
+
+    def test_snapshot_imu_yaw_respects_reset(self):
+        s=Session()
+        s.world.yaw=math.radians(30)
+        s.rpc('resetYaw')
+        s.world.yaw=math.radians(50)
+        state=s.snapshot()
+        self.assertFalse(state['imu_frozen'])
+        self.assertAlmostEqual(state['imu_yaw'],20)
+        self.assertAlmostEqual(state['yaw'],50)
+
     def test_stop_blocks_future_power(self):
         s=Session();s.stop();s.rpc('motor','ME','power','1')
         self.assertEqual(s.world.motors['ME'].power,0)
@@ -150,6 +172,31 @@ class RequestValidationTests(unittest.TestCase):
 
 @unittest.skipUnless(executable('javac') and executable('java'),'JDK requerido')
 class ExtendedJavaTests(unittest.TestCase):
+    def test_autonomo31_frozen_imu_times_out_without_false_success(self):
+        from pathlib import Path
+        source=(Path(__file__).resolve().parent/'fixtures/TeamCode/src/main/java/org/firstinspires/ftc/teamcode/Autonomo/autonomo.java').read_text(encoding='utf-8')
+        s=Session({'imu_frozen':True,'duration':15})
+        try:
+            s.run(source)
+            deadline=time.monotonic()+18
+            while s.status not in ('inicializando','erro') and time.monotonic()<deadline:
+                time.sleep(.01)
+            self.assertEqual(s.status,'inicializando',s.logs)
+            s.started=True
+            s.status='executando'
+            s.worker.join(max(0,deadline-time.monotonic()))
+            self.assertFalse(s.worker.is_alive(),'Autonomo 3.1 não encerrou no prazo')
+            self.assertEqual(s.status,'concluído',s.logs)
+            self.assertIn('Tempo limite da virada',s.telemetry)
+            self.assertIn('interrompido',s.telemetry.lower())
+            self.assertGreaterEqual(s.world.elapsed,6.5)
+            self.assertAlmostEqual(s.snapshot()['imu_yaw'],0)
+            self.assertTrue(all(m.power==0 for m in s.world.motors.values()))
+        finally:
+            s.stop()
+            if s.worker:
+                s.worker.join(2)
+
     def test_final_class_fully_qualified_base_and_url_in_string(self):
         s=Session();s.run('public final class Qualified extends com.qualcomm.robotcore.eventloop.opmode.LinearOpMode {public void runOpMode(){String s="http://localhost/*a*/"; telemetry.addLine(s); telemetry.update();}}')
         s.worker.join(15);self.assertFalse(s.worker.is_alive());self.assertEqual(s.status,'concluído',s.logs)

@@ -1,5 +1,11 @@
 # Histórico de alterações
 
+## Diagnóstico de sensores e conclusão Java — 13/10/2026
+
+- Vista superior distingue yaw real da pose e yaw informado pelo IMU, com indicação de IMU congelado.
+- O término do Java passa a mostrar um aviso explícito: `concluído` não garante sucesso da missão.
+- Testes de regressão do yaw congelado, do `resetYaw()` e do Autônomo 3.1 com timeout de virada e motores desligados.
+
 ## 0.3-rc1 — preparação para lançamento
 
 - Kit de teste 14/10/2026: BAT de inicialização com diagnóstico, checklist e modelo de relato de falhas no artefato Windows.

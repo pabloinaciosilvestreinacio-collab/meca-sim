@@ -206,6 +206,9 @@ function drawSide(now) {
 function readouts() {
   $('status').textContent=state.status;$('clock').textContent=state.time.toFixed(2).padStart(5,'0')+' s';
   $('px').textContent=state.x.toFixed(3)+' m';$('py').textContent=state.y.toFixed(3)+' m';$('yaw').textContent=state.yaw.toFixed(1)+'°';
+  $('imu-yaw').textContent=Number.isFinite(state.imu_yaw)?state.imu_yaw.toFixed(1)+'°':'—';
+  $('sensor-status').textContent=state.imu_frozen?'Falha simulada ativa: IMU travado. Yaw real e yaw medido podem divergir.':'';
+  $('execution-hint').textContent=state.status==='concluído'?'Java encerrado. Confira a telemetria: isso não comprova o sucesso da missão.':'';
   $('start').disabled=state.status!=='inicializando';$('compile').disabled=['compilando','inicializando','executando'].includes(state.status);
   $('telemetry').textContent=state.telemetry||'Aguardando telemetry.update()';$('logs').textContent=state.logs||'Nenhum erro de compilação registrado.';
   $('motors').replaceChildren();Object.entries(state.motors).forEach(([name,m])=>{const node=document.createElement('div');node.className='motor';const label=document.createElement('strong');label.textContent=name;const value=document.createElement('span');value.textContent=`P ${m.power.toFixed(2)} · ${m.encoder} ticks`;const bar=document.createElement('div');bar.className='bar';const fill=document.createElement('i');fill.style.width=Math.abs(m.power)*100+'%';bar.append(fill);node.append(label,value,bar);$('motors').append(node);});

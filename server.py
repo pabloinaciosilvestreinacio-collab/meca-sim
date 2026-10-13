@@ -125,7 +125,10 @@ class Session:
     def snapshot(self):
         with self.lock:
             result = self.world.snapshot()
-            result.update(status=self.status, logs=self.logs, telemetry=self.telemetry, servos=self.servos.copy())
+            result.update(status=self.status, logs=self.logs, telemetry=self.telemetry, servos=self.servos.copy(),
+                          imu_yaw=math.degrees((self.world.sensor_yaw() - self.world.yaw_zero + math.pi)
+                                               % (2 * math.pi) - math.pi),
+                          imu_frozen=self.world.imu_frozen)
             return result
 
     def tick(self):
