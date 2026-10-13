@@ -64,7 +64,7 @@ export function drawArenaSide(ctx,point,mode,targetDistance,targetHeight,cell=nu
   ctx.lineTo(...p(pivotX+.09*Math.cos(angle),pivotY+.09*Math.sin(angle)));ctx.stroke();
   for(const sign of [-1,1]){
     const id=team+'-'+(sign===-1?'lower':'upper');
-    const cx=pivotX+sign*spanX,cy=pivotY+sign*spanZ-.18;
+    const cx=pivotX+sign*spanX,cy=pivotY+sign*spanZ-.38;
     const mouthY=cy+.10,baseY=cy-.19;
     // Contorno de casinha: trapézio lateral com telhado, câmara interna e boca.
     poly([p(cx-.155,baseY),p(cx+.155,baseY),p(cx+.155,cy+.075),
