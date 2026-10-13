@@ -70,12 +70,15 @@ jobs:
         run: dist/MecaSim.exe --diagnostico
       - name: Smoke test de servidor e recursos empacotados
         run: python tests/packaged_smoke.py dist/MecaSim.exe
+      - name: Montar kit pronto para extrair
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist/kit | Out-Null
+          Copy-Item dist/MecaSim.exe dist/kit/
+          Copy-Item INICIAR_TESTE.bat,TESTE_AMANHA.md,RESULTADO_TESTE.md dist/kit/
+          if ((Get-ChildItem dist/kit -File).Count -ne 4) { throw "Kit incompleto" }
       - uses: actions/upload-artifact@v4
         with:
           name: MecaSim-Windows-portatil
-          path: |
-            dist/MecaSim.exe
-            INICIAR_TESTE.bat
-            TESTE_AMANHA.md
-            RESULTADO_TESTE.md
+          path: dist/kit/
           if-no-files-found: error
