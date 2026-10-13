@@ -7,7 +7,7 @@ const num = id => Number($(id).value);
 let state = {x:1.83,y:.65,yaw:0,width:.45,length:.45,trail:[],motors:{},time:0,status:'pronto'};
 let focused = document.hasFocus();
 let shot = null, examples = {}, javaFiles = {}, zipOpModes = [], selectedJavaPath = '', lastPad = 0, polling = false, padBusy = false, pickingStart = false;
-let lastDraw=0,lastLog='',lastMotorSignature='',highlightJob=0,routePicking=false;
+let lastDraw=0,lastLog='',lastMotorSignature='',lastDiagnosticSignature='',highlightJob=0,routePicking=false;
 let routePoints=[],replayRows=[],replayIndex=-1,replayPlaying=false,replayLast=0;
 const LIBRARY_KEY='meca-sim-library-v1',LOGO_KEY='meca-sim-logo-v1';
 const keys = new Set(), top = $('top'), side = $('side');
@@ -418,6 +418,12 @@ function readouts() {
   $('px').textContent=visible.x.toFixed(3)+' m';$('py').textContent=visible.y.toFixed(3)+' m';$('yaw').textContent=visible.yaw.toFixed(1)+'°';
   $('imu-yaw').textContent=Number.isFinite(state.imu_yaw)?state.imu_yaw.toFixed(1)+'°':'—';
   $('sensor-status').textContent=state.imu_frozen?'Falha simulada ativa: IMU travado. Yaw real e yaw medido podem divergir.':'';
+  const warnings=Array.isArray(state.diagnostics)?state.diagnostics:[];
+  $('diagnostic-count').textContent=warnings.length+' aviso(s)';
+  const diagKey=JSON.stringify(warnings);
+  if(lastDiagnosticSignature!==diagKey){lastDiagnosticSignature=diagKey;const list=$('diagnostic-list');list.replaceChildren();
+    if(!warnings.length){const li=document.createElement('li');li.textContent='Nenhum alerta automático identificado.';list.append(li);}
+    warnings.forEach(w=>{const li=document.createElement('li');li.textContent='['+w.severity+'] '+w.message+' · t='+w.time+' s';list.append(li);});}
   $('execution-hint').textContent=state.status==='concluído'?'Java encerrado. Confira a telemetria: isso não comprova o sucesso da missão.':'';
   $('start').disabled=state.status!=='inicializando';$('compile').disabled=['compilando','inicializando','executando'].includes(state.status);
   $('ds-start').disabled=$('start').disabled;$('ds-init').disabled=$('compile').disabled;

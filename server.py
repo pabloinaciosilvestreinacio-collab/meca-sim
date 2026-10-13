@@ -17,6 +17,7 @@ from urllib.parse import urlparse
 from physics import World, Motor
 from sdk import write_sdk
 from project_import import import_ftc_zip
+from diagnostics import Inspector
 
 ROOT = Path(__file__).resolve().parent
 
@@ -102,6 +103,7 @@ class Session:
         self.client_seen = time.monotonic()
         self.input_seen = time.monotonic()
         self.history = []
+        self.inspector = Inspector()
 
     def log(self, message):
         with self.lock:
@@ -126,6 +128,7 @@ class Session:
         with self.lock:
             result = self.world.snapshot()
             result.update(status=self.status, logs=self.logs, telemetry=self.telemetry, servos=self.servos.copy(),
+                          diagnostics=[entry.copy() for entry in self.inspector.warnings],
                           imu_yaw=math.degrees((self.world.sensor_yaw() - self.world.yaw_zero + math.pi)
                                                % (2 * math.pi) - math.pi),
                           imu_frozen=self.world.imu_frozen)
@@ -145,11 +148,13 @@ class Session:
                     self.stop()
                 if self.started and self.status == "executando":
                     self.world.step(.01)
+                    self.inspector.inspect(self.world,True)
                     if not self.history or self.world.elapsed-self.history[-1][0] >= .049:
                         self.history.append([self.world.elapsed, self.world.x, self.world.y, math.degrees(self.world.yaw)] +
                                             [self.world.motors[n].position() for n in self.world.motors])
                     if self.world.elapsed >= self.limit:
                         self.log("\nLimite de tempo atingido.\n")
+                        self.inspector.warn('DURACAO','Duração máxima da simulação atingida. STOP automático.','atenção',self.world.elapsed)
                         self.stop()
             self.stop_event.wait(max(0, next_tick-time.monotonic()))
             # Evita acumular passos depois de suspensão do computador.
@@ -184,6 +189,7 @@ class Session:
                 return ",".join(str(x) for x in self.gamepads[int(args[0])-1])
             if op == "telemetry":
                 self.telemetry = args[0][-12000:]
+                self.inspector.inspect_telemetry(self.telemetry,self.world.elapsed)
                 return ""
             if op == "yaw": return str(math.degrees((w.sensor_yaw()-w.yaw_zero+math.pi) % (2*math.pi)-math.pi))
             if op == "resetYaw":

@@ -37,6 +37,31 @@ public class Auxiliar { public static String mensagem() { return "Arquivos junto
         self.assertTrue(all(m.power==0 for m in session.world.motors.values()))
 
 
+class DiagnosticTests(unittest.TestCase):
+    def test_frozen_imu_and_encoder_are_reported_without_stopping_java(self):
+        session=Session({'imu_frozen':True,'left_encoder_frozen':True})
+        session.inspector.inspect(session.world,False)
+        codes={d['code'] for d in session.snapshot()['diagnostics']}
+        self.assertIn('IMU_CONGELADO',codes)
+        self.assertIn('ENCODER_ME',codes)
+        self.assertFalse(session.stop_event.is_set())
+    def test_timeout_diagnostic_does_not_mean_java_crash(self):
+        session=Session()
+        session.rpc('telemetry','Autonomo interrompido: Tempo limite da virada')
+        self.assertIn('TIMEOUT_JAVA',{x['code'] for x in session.snapshot()['diagnostics']})
+        self.assertEqual(session.status,'pronto')
+    def test_motor_stalled_detection(self):
+        session=Session({'left_gain':0})
+        session.world.motors['ME'].power=.4
+        session.world.motors['MD'].direction=-1
+        session.world.motors['MD'].power=.4
+        for i in range(90):
+            session.world.step(.01)
+            session.inspector.inspect(session.world,True)
+        codes={x['code'] for x in session.snapshot()['diagnostics']}
+        self.assertIn('MOTOR_SEM_PROGRESSO_ME',codes)
+        self.assertNotIn('MOTOR_SEM_PROGRESSO_MD',codes)
+
 class StopRaceTests(unittest.TestCase):
     def test_delayed_java_finish_does_not_override_stop(self):
         session=Session()
