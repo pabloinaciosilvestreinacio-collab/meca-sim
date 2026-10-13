@@ -2,6 +2,8 @@
 
 ## 0.3-rc1 — preparação para lançamento
 
+- Kit de teste 14/10/2026: BAT de inicialização com diagnóstico, checklist e modelo de relato de falhas no artefato Windows.
+
 - Build Windows portátil com PyInstaller, verificação de dependências e smoke test da interface empacotada.
 
 - Importação local de ZIP de projetos FTC com identificação e escolha do OpMode, validação de arquivos, sem extração persistente.

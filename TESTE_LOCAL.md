@@ -1,5 +1,8 @@
 # Teste no computador da equipe
 
+**Para 14/10/2026, use primeiro [TESTE_AMANHA.md](TESTE_AMANHA.md) e preencha [RESULTADO_TESTE.md](RESULTADO_TESTE.md).** O pacote Windows inclui `INICIAR_TESTE.bat` e mantém o diagnóstico salvo em arquivo.
+
+
 1. Baixar ZIP da fonte e abrir `iniciar.bat`, ou baixar artefato `MecaSim-Windows-portatil` de um Actions aprovado e executar `MecaSim.exe`. Guardar mensagem completa se o JDK falhar.
 2. Exemplo autônomo: INIT, esperar inicialização, START. Esperado: avançar 1 m, girar para cerca de +50°, avançar 0,6 m e zerar motores. Anotar pose e tempo; não exigir tempo idêntico entre computadores.
 3. Exemplo TeleOp: compilar, START, clicar fora do editor, usar W/S e A/D. Conferir reta, ré e giro; STOP deve encerrar e zerar potências.

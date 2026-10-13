@@ -4,6 +4,10 @@ Simulador **local e independente** da Meca Tiger: cole uma classe Java `LinearOp
 
 **Candidato de lançamento técnico, ainda sujeito a validação física e testes de uso no computador da equipe.** SDK parcial; não substitui o robô. Modelos de falha são sintéticos e não são calibração. Repositório privado, ainda sem licença de distribuição definida.
 
+## Para o teste de 14/10/2026
+
+Use o pacote Windows da última execução **aprovada** no GitHub Actions. Ele contém `MecaSim.exe`, `INICIAR_TESTE.bat`, `TESTE_AMANHA.md` e `RESULTADO_TESTE.md`. Extraia todos na mesma pasta, execute **INICIAR_TESTE.bat** e siga a tabela A1–A6 do roteiro. O diagnóstico é salvo em `mecasim-diagnostico.txt`. Consulte [roteiro de amanhã](TESTE_AMANHA.md) e [registro de resultados](RESULTADO_TESTE.md).
+
 ## Windows sem instalar Python
 
 O pipeline de CI prepara um executável portátil **MecaSim.exe**, disponível em **Actions → Validar Meca Sim → execução aprovada → Artifacts → MecaSim-Windows-portatil**. Extraia o artefato antes de executar. O executável inclui Python, servidor e interface e é verificado por um teste de inicialização no Windows. **Ele ainda exige JDK 17+ com java e javac**: pode reutilizar um JDK instalado ou o `jbr` do Android Studio. O arquivo não é assinado e o Windows pode emitir um aviso SmartScreen. Ainda não é uma distribuição pública com instalador.
