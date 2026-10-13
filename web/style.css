@@ -56,3 +56,16 @@ main.mode-code .code-frame{height:max(580px,72vh)}
 .auto35-controls select{width:100%;margin-bottom:8px}
 .auto35-controls button{width:100%;background:#593b26;border-color:#a26b39}
 .auto35-controls p{font-size:11px;margin:8px 0 0}
+
+/* Navigation organization: one primary toolbar; technical tools in their own mode. */
+main:not(.mode-paths) #route-panel,main:not(.mode-paths) #timeline-panel{display:none}
+main.mode-code .arena-tools,main.mode-code .arena-source{display:none}
+.file-menu{position:relative;border:0;display:inline-flex;padding:0;margin:0;align-items:center;z-index:3}
+.file-menu summary{list-style:none;cursor:pointer;border:1px solid var(--line);border-radius:6px;padding:9px 11px;background:#202630;color:var(--text);font:inherit}
+.file-menu summary::-webkit-details-marker{display:none}
+.file-menu summary>span{color:var(--orange);margin-left:4px}
+.file-menu[open] summary{background:#312a26;border-color:#a56835}
+.file-menu-actions{position:absolute;top:calc(100% + 5px);right:0;min-width:245px;display:flex;flex-direction:column;gap:6px;background:#1b212a;border:1px solid #47505e;box-shadow:0 8px 30px #0008;padding:10px;border-radius:8px}
+.file-menu-actions button,.file-menu-actions label{width:100%;justify-content:center;text-align:center}
+.hive-progress{margin:8px 16px;padding:9px 12px;border:1px solid #79542f;border-radius:6px;background:#231d18;color:#ffd1a1;font:700 11px/1.6 ui-monospace,Consolas,monospace}
+@media(max-width:760px){.file-menu{width:100%}.file-menu summary{width:100%;text-align:center}.file-menu-actions{left:0;right:0;min-width:0}}
