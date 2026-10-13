@@ -304,7 +304,7 @@ function drawTop(now) {
   const center=project(shown.x,shown.y),front=corner(0,shown.length*.6);c.beginPath();c.moveTo(...center);c.lineTo(...front);c.stroke();c.fillStyle='#fff';c.beginPath();c.arc(...center,3,0,Math.PI*2);c.fill();
   for(const sign of [-1,1]){const a=corner(sign*state.width/2,-state.length*.24),b=corner(sign*state.width/2,state.length*.24);c.strokeStyle='#d6dfeb';c.lineWidth=5;c.beginPath();c.moveTo(...a);c.lineTo(...b);c.stroke();}
   const v=launchValues();if(!v.valid)return;
-  const origin=launcher(state,v.lateral,v.forward),start=project(...origin),target=project(v.tx,v.ty),dir=rotate(0,1,state.yaw+v.azimuth),f=flight(v.height,v.speed,v.elevation),end=project(origin[0]+dir[0]*f.range,origin[1]+dir[1]*f.range);
+  const origin=launcher(shown,v.lateral,v.forward),start=project(...origin),target=project(v.tx,v.ty),dir=rotate(0,1,shown.yaw+v.azimuth),f=flight(v.height,v.speed,v.elevation),end=project(origin[0]+dir[0]*f.range,origin[1]+dir[1]*f.range);
   c.lineWidth=1;c.setLineDash([5,5]);c.strokeStyle='#6b7584';c.beginPath();c.moveTo(...start);c.lineTo(...target);c.stroke();c.strokeStyle='#51d1bb';c.beginPath();c.moveTo(...start);c.lineTo(...end);c.stroke();c.setLineDash([]);
   c.fillStyle='#51d1bb';c.beginPath();c.arc(...start,4,0,Math.PI*2);c.fill();c.strokeStyle='#91a8ff';c.lineWidth=2;c.beginPath();c.arc(...target,9,0,Math.PI*2);c.moveTo(target[0]-14,target[1]);c.lineTo(target[0]+14,target[1]);c.moveTo(target[0],target[1]-14);c.lineTo(target[0],target[1]+14);c.stroke();
   if(shot){const elapsed=(now-shot.start)/1000,d=rotate(0,1,shot.yaw+shot.azimuth),ff=flight(shot.height,shot.speed,shot.elevation);if(elapsed<=ff.time){const distance=shot.speed*Math.cos(shot.elevation*Math.PI/180)*elapsed,q=project(shot.origin[0]+d[0]*distance,shot.origin[1]+d[1]*distance);c.fillStyle='#fff4a9';c.beginPath();c.arc(...q,5,0,Math.PI*2);c.fill();}}
@@ -397,7 +397,8 @@ $('timeline-exit').addEventListener('click',()=>{resetReplay();readouts();});
 
 function drawSide(now) {
   const {ctx:c,w,h}=canvasContext(side),v=shot||launchValues();if(!v.valid){$('shot-info').textContent='Confira os parâmetros do lançador.';return;}
-  const origin=shot?.origin||launcher(state,v.lateral,v.forward),yaw=shot?.yaw??state.yaw,dir=rotate(0,1,yaw+v.azimuth),dx=v.tx-origin[0],dy=v.ty-origin[1],along=dx*dir[0]+dy*dir[1],cross=Math.abs(dx*dir[1]-dy*dir[0]),f=flight(v.height,v.speed,v.elevation);
+  const viewed=replayIndex>=0&&replayRows[replayIndex]?{...state,x:replayRows[replayIndex][1],y:replayRows[replayIndex][2],yaw:replayRows[replayIndex][3]}:state;
+  const origin=shot?.origin||launcher(viewed,v.lateral,v.forward),yaw=shot?.yaw??viewed.yaw,dir=rotate(0,1,yaw+v.azimuth),dx=v.tx-origin[0],dy=v.ty-origin[1],along=dx*dir[0]+dy*dir[1],cross=Math.abs(dx*dir[1]-dy*dir[0]),f=flight(v.height,v.speed,v.elevation);
   const a=v.azimuth*Math.PI/180,half=(Math.abs(Math.sin(a))*state.width+Math.abs(Math.cos(a))*state.length)/2,offset=v.lateral*(-Math.sin(a))+v.forward*Math.cos(a),left=-offset-half,right=-offset+half;
   const minX=Math.min(-.6,left-.1,along-.1),maxX=Math.max(3.66,f.range+.3,along+.3,right+.1),peak=v.height+(v.speed*Math.sin(v.elevation*Math.PI/180))**2/(2*9.81),maxH=Math.max(1.5,peak+.3,v.th+.3),sx=(w-55)/(maxX-minX),sy=(h-35)/maxH;
   const point=(x,y)=>[40+(x-minX)*sx,h-25-y*sy];c.font='10px system-ui';c.lineWidth=1;
