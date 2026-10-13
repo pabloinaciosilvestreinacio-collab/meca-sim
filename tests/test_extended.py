@@ -222,6 +222,34 @@ class ExtendedJavaTests(unittest.TestCase):
             if s.worker:
                 s.worker.join(2)
 
+    @unittest.skipUnless(__import__('shutil').which('node'), 'Node requerido para gerador Java')
+    def test_generated_differential_route_compiles_and_runs(self):
+        import subprocess
+        import shutil
+        js="""import {routeSteps,makeRouteJava} from './web/route.mjs';
+const route=routeSteps({x:1.83,y:.65,yaw:0},[{x:1.83,y:1.15}]);
+process.stdout.write(makeRouteJava(route,{left:'ME',right:'MD',ticksPerM:1980.6}));"""
+        result=subprocess.run([shutil.which('node'),'--input-type=module','-e',js],
+                              cwd=str(__import__('pathlib').Path(__file__).resolve().parents[1]),
+                              capture_output=True,text=True,timeout=10,check=True)
+        s=Session({'duration':12})
+        try:
+            s.run(result.stdout)
+            deadline=time.monotonic()+20
+            while s.status not in ('inicializando','erro') and time.monotonic()<deadline:time.sleep(.01)
+            self.assertEqual(s.status,'inicializando',s.logs)
+            s.started=True
+            s.status='executando'
+            s.worker.join(12)
+            self.assertFalse(s.worker.is_alive(),s.logs)
+            self.assertEqual(s.status,'concluído',s.logs)
+            self.assertIn('Roteiro executado',s.telemetry)
+            self.assertAlmostEqual(s.world.y,1.15,delta=.05)
+            self.assertTrue(all(m.power==0 for m in s.world.motors.values()))
+        finally:
+            s.stop()
+            if s.worker:s.worker.join(2)
+
     def test_final_class_fully_qualified_base_and_url_in_string(self):
         s=Session();s.run('public final class Qualified extends com.qualcomm.robotcore.eventloop.opmode.LinearOpMode {public void runOpMode(){String s="http://localhost/*a*/"; telemetry.addLine(s); telemetry.update();}}')
         s.worker.join(15);self.assertFalse(s.worker.is_alive());self.assertEqual(s.status,'concluído',s.logs)
