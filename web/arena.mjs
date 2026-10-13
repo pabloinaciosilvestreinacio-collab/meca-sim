@@ -65,20 +65,22 @@ export function drawArenaSide(ctx,point,mode,targetDistance,targetHeight,cell=nu
   for(const sign of [-1,1]){
     const id=team+'-'+(sign===-1?'lower':'upper');
     const cx=pivotX+sign*spanX,cy=pivotY+sign*spanZ-.38;
-    const mouthY=cy+.10,baseY=cy-.19;
-    // Contorno de casinha: trapézio lateral com telhado, câmara interna e boca.
-    poly([p(cx-.155,baseY),p(cx+.155,baseY),p(cx+.155,cy+.075),
-      p(cx,cy+.29),p(cx-.155,cy+.075)],'#202731',stroke,2);
-    poly([p(cx-.13,baseY+.015),p(cx+.13,baseY+.015),
-      p(cx+.13,cy+.053),p(cx-.13,cy+.053)],fill+'bb',stroke,1.2);
+    const baseY=cy-.19;
+    // Rotaciona a casinha com a gangorra, não apenas translada suas coordenadas.
+    const cellPoint=(u,v)=>p(cx+u*Math.cos(angle)-v*Math.sin(angle),
+      cy+u*Math.sin(angle)+v*Math.cos(angle));
+    poly([cellPoint(-.155,-.19),cellPoint(.155,-.19),cellPoint(.155,.075),
+      cellPoint(0,.29),cellPoint(-.155,.075)],'#202731',stroke,2);
+    poly([cellPoint(-.13,-.175),cellPoint(.13,-.175),
+      cellPoint(.13,.053),cellPoint(-.13,.053)],fill+'bb',stroke,1.2);
     ctx.strokeStyle='#f6d9a3';ctx.lineWidth=3;
-    ctx.beginPath();ctx.moveTo(...p(cx-.105,mouthY));ctx.lineTo(...p(cx+.105,mouthY));ctx.stroke();
+    ctx.beginPath();ctx.moveTo(...cellPoint(-.105,.10));ctx.lineTo(...cellPoint(.105,.10));ctx.stroke();
     if(id===hiveStatus.activeCellId){
       ctx.fillStyle='#f2e7b4';ctx.font='bold 10px system-ui';ctx.textAlign='center';
       const up=p(cx,cy+.35);ctx.fillText('ABERTA ↑',up[0],up[1]);
     }
     (Array.isArray(scoredBalls)?scoredBalls:[]).filter(b=>b?.cellId===id).forEach((b,index)=>{
-      const q=p(cx-.075+(index%4)*.05,baseY+.065+Math.floor(index/4)*.075);
+      const q=cellPoint(-.075+(index%4)*.05,-.125+Math.floor(index/4)*.075);
       ctx.beginPath();ctx.arc(...q,4.4,0,2*Math.PI);
       ctx.fillStyle='#ffeb96';ctx.fill();ctx.strokeStyle='#a67d38';ctx.lineWidth=1;ctx.stroke();
     });
