@@ -22,3 +22,31 @@
 .shot-result[data-kind=running]{border-color:#7bd9ed;color:#bceff7}
 .shot-result[data-kind=hit]{border-color:#51c994;background:#132820;color:#bdf5d8}
 .shot-result[data-kind=error]{border-color:#e56e72;background:#2b1a20;color:#ffc0c3}
+
+/* MecaSim 0.3: canvas lateral legível e editor Java nativo, sem camada transparente. */
+#side{height:390px;min-height:390px}
+.workspace-switch{display:flex;gap:7px;flex-wrap:wrap;margin:15px 0 13px;padding:6px;border:1px solid var(--line);border-radius:10px;background:#181c23}
+.workspace-switch button{flex:1;min-width:150px;background:transparent;border:1px solid transparent;font-weight:650;font-size:12px}
+.workspace-switch button.active{background:#2f261f;color:#ffad71;border-color:#745035}
+main.mode-code .workspace{display:grid;grid-template-columns:minmax(0,1fr)}
+main.mode-code .workspace .views{display:none}
+main.mode-code #route-panel,main.mode-code #timeline-panel{display:none}
+main.mode-paths .workspace{grid-template-columns:minmax(0,1fr)}
+main.mode-paths .workspace .editor,main.mode-paths .views>.panel:not(:first-child){display:none}
+main.mode-paths #route-panel,main.mode-paths #timeline-panel{border-color:#80532c}
+.editor-heading{display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin:12px 0}
+.editor-heading label{font-size:12px;color:#cdd5df;flex:1;min-width:200px}
+.editor-heading #code-stats{color:#f4bb81;font:11px ui-monospace,Consolas,monospace}
+.editor-heading button{padding:6px 9px;font-size:11px}
+.code-frame{height:min(70vh,880px);min-height:460px;overflow:hidden}
+.code-frame #source{display:block;position:absolute;inset:0;z-index:1;box-sizing:border-box;
+ width:100%;height:100%;min-height:100%;max-height:none;margin:0;padding:16px;
+ background:#11151b;color:#e3edf7;-webkit-text-fill-color:#e3edf7;
+ caret-color:#ffb06a;resize:none;white-space:pre;overflow-wrap:normal;overflow:auto;
+ tab-size:4;font:13px/1.65 ui-monospace,SFMono-Regular,Consolas,monospace}
+.code-frame #source-highlight{display:none!important;max-height:none}
+.code-frame #source::selection{color:#fff;background:#526986}
+main.mode-code .code-frame{height:max(580px,72vh)}
+#code-stats{white-space:nowrap}
+@media(max-width:1000px){main.mode-code .workspace .editor{order:0}}
+@media(max-width:760px){#side{height:320px;min-height:320px}.code-frame{height:65vh;min-height:420px}main.mode-code .code-frame{height:73vh}}
