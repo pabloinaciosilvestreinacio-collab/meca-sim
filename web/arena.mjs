@@ -40,7 +40,7 @@ export function drawArenaTop(ctx,project,mode,selectedCellId='',scoredBalls=[],t
 // unidas por uma gangorra com rotação biestável perceptível.
 export function drawArenaSide(ctx,point,mode,targetDistance,targetHeight,cell=null,scoredBalls=[],hiveStatus={}){
   if(mode!=='biobuzz'||!Number.isFinite(targetDistance)||targetDistance<=.25||!cell)return;
-  const team=cell.team,selectedLower=cell.id.endsWith('lower'),angle=(Number(hiveStatus.angle) || -18)*Math.PI/180;
+  const team=cell.team,selectedLower=cell.id.endsWith('lower'),angle=(Number.isFinite(hiveStatus.angle)?hiveStatus.angle:-18)*Math.PI/180;
   const halfSpan=DIMS.cellSpacing/2,spanX=halfSpan*Math.cos(angle),spanZ=halfSpan*Math.sin(angle);
   const pivotX=targetDistance-(selectedLower?-spanX:spanX),pivotY=DIMS.pivotHeight;
   const p=(x,y)=>point(x,y);
