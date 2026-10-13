@@ -271,6 +271,8 @@ public class ZipOutro extends LinearOpMode {
         assert page.locator('#top').is_visible()
         page.locator('[data-workspace="overview"]').click()
         passed('Abas Simulador, Código e Trajetórias funcionais')
+        if page.locator('#files-menu').get_attribute('open') is not None:
+            page.locator('#files-menu summary').click()
         (ROOT/'reports').mkdir(exist_ok=True)
         page.screenshot(path=str(ROOT/'reports/interface-desktop.png'),full_page=True)
         page.set_viewport_size({'width':390,'height':844})
