@@ -5,6 +5,7 @@
 - Corte lateral com suporte triangular, face inclinada, parábola/bolinha em movimento e bolinhas registradas na abertura.
 - Resultado explícito de lançamento: erro, acerto e evento visual de tombamento; botão para remover todas as bolinhas.
 - Autônomo limitado a 30 s e TeleOp a 120 s, com opção de desativar o cronômetro de partida.
+- Diagnóstico do executável aguarda até 45 s pela inicialização do JDK em Windows CI.
 
 ## 0.3-rc2 — física e controle visual
 

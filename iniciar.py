@@ -29,7 +29,7 @@ def main():
     for name in ('java','javac'):
         command=executable(name)
         if not command:raise RuntimeError('JDK não encontrado. Instale JDK 17+ ou configure JAVA_HOME para a pasta jbr do Android Studio.')
-        result=subprocess.run([command,'-version'],capture_output=True,text=True,timeout=10)
+        result=subprocess.run([command,'-version'],capture_output=True,text=True,timeout=45)
         text=result.stdout+result.stderr
         version=re.search(r'(?:version\s+")?(\d+)\.',text)
         if result.returncode or not version or int(version.group(1))<17:raise RuntimeError(f'{name}: JDK 17+ funcional é necessário.\n{text}')

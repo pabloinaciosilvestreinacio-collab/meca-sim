@@ -8,6 +8,8 @@ O HIVE é modelado como quatro CELLs centrais selecionáveis a partir da vista s
 
 Autônomo limita a 30 s e TeleOp a 120 s quando o cronômetro está habilitado; pode ser desligado para ensaio manual. A execução ainda depende de STOP, desconexão ou finalização do Java.
 
+O diagnóstico do executável Windows tolera até 45 s para o primeiro processo Java, evitando falso negativo por inicialização lenta do runner.
+
 CI deste commit deve ser consultada antes de qualificar esta versão como validada.
 
 ## Desmos: correção da arena e física do shooter

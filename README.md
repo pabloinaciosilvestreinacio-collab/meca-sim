@@ -120,3 +120,5 @@ Os commits são registrados diretamente neste repositório conforme solicitado. 
 - A parede externa está forçada no servidor e na interface; configurações antigas salvas no navegador não conseguem mais desligá-la. HIVE, FLOWERS e pintura do campo não recebem colisão.
 - Ao terminar a parábola, o modelo verifica alcance, desvio lateral, raio do projétil e altura da abertura. Acerto deixa a bolinha dentro da CELL nas vistas superior/lateral; erro é informado. O estado de “tombamento” exibido no HIVE é visual de missão, não simulação de massa/impacto.
 - “Remover bolinhas” limpa os registros de tiros e o estado visual do HIVE. Autônomo usa no máximo 30 s, TeleOp 2 min; o cronômetro pode ser desligado para ensaio manual.
+
+- O diagnóstico do executável portátil tolera a primeira inicialização lenta do JDK no Windows; ele ainda exige `java` e `javac` funcionais.
