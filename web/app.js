@@ -562,7 +562,7 @@ function drawSide(now) {
   // Projeção do chassi no eixo do tiro; o lançador está em x=0.
   c.fillStyle='#ff852e20';c.strokeStyle='#ff852e';const p=point(left,.30);c.fillRect(p[0],p[1],(right-left)*sx,.30*sy);c.strokeRect(p[0],p[1],(right-left)*sx,.30*sy);
   c.strokeStyle='#f07a7b';c.lineWidth=2;c.setLineDash([7,4]);c.beginPath();
-  const arcEnd=shot?.impact?.hit?shot.impact.distance:(along>0?Math.min(along,f.range):f.range);
+  const arcEnd=shot?.impact?.hit?shot.impact.distance:f.range;
   for(let i=0;i<=120;i++){const x=arcEnd*i/120,q=point(x,Math.max(0,heightAt(x,v.height,v.speed,v.elevation)));i?c.lineTo(...q):c.moveTo(...q);}
   c.stroke();c.setLineDash([]);
   const check=shotFeasibility(viewed,v);
