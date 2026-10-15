@@ -535,6 +535,8 @@ def handler_for(app):
                             event = session.introduce_nectar()
                         else:
                             raise ValueError("Ação de regra desconhecida")
+                        self.send({"ok": True, "event": event})
+                        return
                     elif self.path == "/api/stop": session.stop()
                     elif self.path == "/api/reset":
                         if session.worker and session.worker.is_alive():
