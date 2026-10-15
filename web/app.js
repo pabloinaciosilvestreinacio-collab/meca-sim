@@ -746,6 +746,14 @@ function readouts() {
     ? `Intake MI ativo · captura frontal até ${intake.capacity||num('intake_capacity')} peça(s)`
     : `MI parado · ${stock.POLLEN||0}/${intake.capacity||num('intake_capacity')} no estoque`;
   $('sensor-status').textContent=state.imu_frozen?'Falha simulada ativa: IMU travado. Yaw real e yaw medido podem divergir.':'';
+  const buttonNames=['LT','RT','A','B','X','Y','LB','RB','Back','Start','LS click','RS click','D-pad ↑','D-pad ↓','D-pad ←','D-pad →'];
+  const gamepads=state.gamepads||[];
+  $('input-status').textContent=gamepads.map((pad,index)=>{
+    const active=buttonNames.filter((name,i)=>(pad[i+4]||0)>.5);
+    const axes=(pad.slice(0,4).some(value=>Math.abs(value)>.05)
+      ?' · eixos '+pad.slice(0,4).map(value=>Number(value).toFixed(1)).join('/'):'');
+    return 'G'+(index+1)+': '+(active.join(', ')||'neutro')+axes;
+  }).join(' · ');
   const warnings=Array.isArray(state.diagnostics)?state.diagnostics:[];
   $('diagnostic-count').textContent=warnings.length+' aviso(s)';
   const diagKey=JSON.stringify(warnings);
