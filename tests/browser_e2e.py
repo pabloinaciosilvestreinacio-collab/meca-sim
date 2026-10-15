@@ -348,8 +348,16 @@ public class ZipOutro extends LinearOpMode {
         source.press('Control+End')
         source.press('Control+v')
         assert source.input_value()==original+original, 'Ctrl+C/V não copiaram e colaram'
+        editor.get_by_role('button',name='Tecla para A').click()
+        editor.keyboard.press('g')
+        assert editor.get_by_role('button',name='Tecla para A').text_content()=='g'
+        editor.get_by_role('button',name='Tecla para B').click()
+        editor.keyboard.press('g')
+        assert 'já está atribuída' in editor.locator('#message').text_content()
+        editor.locator('#reset-keymap').click()
+        assert editor.get_by_role('button',name='Tecla para A').text_content()=='Space'
         assert not editor_errors, editor_errors
-        passed('Editor: Ctrl+S JSON, desfazer/refazer, selecionar tudo e copiar/colar')
+        passed('Editor: atalhos nativos e remapeamento sem conflitos; restauração do padrão')
         editor.close()
         browser.close()
 finally:
