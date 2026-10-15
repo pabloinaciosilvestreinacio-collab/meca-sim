@@ -53,7 +53,9 @@ def build_world(config):
     if not isinstance(config, dict): raise ValueError("Configuração deve ser um objeto")
     world = World()
     alliance = str(config.get('alliance', 'red'))
-    world.elements = starting_elements(alliance)
+    arena = str(config.get('arena', 'biobuzz'))
+    if arena not in ('biobuzz', 'livre'): raise ValueError("Arena inválida")
+    world.elements = starting_elements(alliance) if arena == 'biobuzz' else []
     world.inventory = starting_inventory(world.elements)
     bounds = {"track": (.05, 2), "width": (.05, 2), "length": (.05, 2),
               "max_speed": (.05, 10), "ticks_per_m": (1, 100000), "x": (-10, 10), "y": (-10, 10),
