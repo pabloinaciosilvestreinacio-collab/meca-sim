@@ -4,7 +4,7 @@ Bloco implementado na branch experimental: emulação dos 20 slots FTC usando so
 
 Mapeamento aprovado: Q/E LS-X; W/S LS-Y; A/D RS-X; R/F RS-Y; Espaço/B/X/Y A/B/X/Y; Z/C LB/RB; 1/2 LT/RT; setas D-pad; Enter/Backspace Start/Back; [/] cliques. A interface agora documenta o mapa.
 
-Limitação: teclas ainda não podem ser remapeadas pela interface; a customização visual continua pendente. Eixos digitais não reproduzem posições analógicas intermediárias. Controles físicos padrão permanecem prioritários.
+Limitação: as teclas são digitais e não reproduzem eixos analógicos intermediários; remapeamento e restauração agora são locais ao navegador. Teclas repetidas são rejeitadas. Eixos digitais não reproduzem posições analógicas intermediárias. Controles físicos padrão permanecem prioritários.
 
 
 ## Correções solicitadas: parede, HIVE e tempo
