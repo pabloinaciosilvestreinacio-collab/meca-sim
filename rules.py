@@ -39,7 +39,7 @@ class BioBuzzRules:
         remaining = max(0, MAX_ALLIANCE_NECTAR - self.nectar_entered[team])
         if remaining_seconds <= ENDGAME_REMAINING_SECONDS:
             return remaining
-        return min(remaining, self.hive_tips[team])
+        return min(remaining, max(0, self.hive_tips[team] - self.nectar_entered[team]))
 
     def enter_nectar(self, team, remaining_seconds, elapsed, world):
         if team != self.alliance:
@@ -84,7 +84,8 @@ class BioBuzzRules:
     def snapshot(self, remaining_seconds, match_mode, timer_enabled):
         remaining = max(0.0, float(remaining_seconds))
         team = self.alliance
-        available_by_tip = min(MAX_ALLIANCE_NECTAR - self.nectar_entered[team], self.hive_tips[team])
+        available_by_tip = min(max(0, MAX_ALLIANCE_NECTAR - self.nectar_entered[team]),
+                               max(0, self.hive_tips[team] - self.nectar_entered[team]))
         endgame_unlock = remaining <= ENDGAME_REMAINING_SECONDS
         return {
             "alliance": team,
