@@ -1,20 +1,23 @@
 # Plano do Meca Sim
 
-## Etapa atual — candidato 0.3-rc1
+## Etapa atual — Fase 1 experimental
 
-Projeto independente, duas vistas, execução Java local, chassi diferencial, gamepads, cenários de falha, cálculos de lançamento, persistência e relatórios. Testes de unidade, regressão Java e integração da interface executados ou registrados na validação.
+Branch `feature/fase1-editor-20261015`. O simulador existente foi preservado e segue baseado em Python (física/servidor), Java (LinearOpMode com SDK parcial) e JavaScript (interface/canvas).
+
+Concluído nesta branch: correções do editor; gamepad de teclado completo e remapeável; campo e tiro visual existentes; modelo inicial de 40 POLLEN/16 NECTAR, estados de estoque, colisões leves e captura pelo MI (15 cm/4 peças como parâmetros didáticos).
+
+Em andamento: ligação do MS e consumo de inventário; regras configuráveis oficiais/personalizadas, FLOWERS e desbloqueio de NECTAR; relatório encerrável/exportável. Ainda não considerar a Fase 1 concluída nem a branch estável.
 
 ## Aceite local
 
-Executar TESTE_LOCAL.md no computador da equipe. Resolver incompatibilidades de controle/driver e diferenças do ambiente antes de declarar uma versão estável.
+Rodar unitários, compatibilidade dos OpModes, fault scenarios e E2E Chromium; consultar CI no branch. Validar controles reais e medidas de campo somente depois, sem afirmar fidelidade física a partir da simulação.
 
 ## Limites que exigem desenvolvimento futuro
 
-1. Ampliar APIs FTC a partir de casos reais; a importação de ZIP e múltiplos `.java` não executa tarefas Gradle nem suporta bibliotecas externas.
-2. Modelo de lançador ligado ao motor MS e ao alimentador MI, baseado em medições de RPM, perdas e velocidade da bola.
-3. Obstáculos internos e modelo de contato mais completo. A 0.2 tem apenas bloqueio geométrico nas paredes.
-4. Câmera/AprilTag sintética com extrínsecos, IDs e poses oficiais verificadas; visão real requer ensaio próprio.
-5. O EXE portátil automatizado elimina a instalação manual do Python, mas exige JDK 17+. Avaliar bundle legalmente distribuível de JDK para remover a dependência.
-6. Distribuição pública e escolha de licença pelo proprietário. Não hospedar a JVM atual como executor público.
+1. Acerto de posições completas do campo via CAD STEP oficial; as atuais seguem aproximadas.
+2. Shooter MS/MI com perfil configurável e evidência clara entre comando, disparo estimado e peça lançada.
+3. Regras BIOBUZZ TU05 com modo oficial/personalizado, estados Flower/Hive, penalidades e pontuação verificáveis.
+4. Relatório final persistente, JSON/CSV, telemetria opcional e distinguir Java encerrado de missão concluída.
+5. Câmera/AprilTag sintética e execução Java em navegador são etapas posteriores à validação da Fase 1.
 
-Nenhuma destas etapas é apresentada como pronta. O objetivo imediato é testar trajetórias e lógica de controle em desktop.
+A publicação e integração ao Hub permanecem fora desta etapa.
