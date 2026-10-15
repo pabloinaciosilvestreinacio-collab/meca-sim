@@ -127,9 +127,9 @@ def _robot_collision(world, piece, robot_velocity):
     ox, oy = _world(lx, ly, world.yaw)
     piece.x, piece.y = world.x+ox, world.y+oy
     rvx, rvy = robot_velocity
-    normal_speed = rvx*nx + rvy*ny
-    piece.vx = rvx if normal_speed > 0 else 0
-    piece.vy = rvy if normal_speed > 0 else 0
+    # Velocidade transferida no referencial do campo; o impulso físico detalhado
+    # não é calibrado, mas a peça não some nem atravessa o chassi.
+    piece.vx, piece.vy = rvx, rvy
 
 
 def update_elements(world, dt, robot_velocity=(0.0, 0.0)):
