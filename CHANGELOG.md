@@ -113,3 +113,11 @@
 
 - Telemetria pode ser recolhida e agora mostra Gamepad 1/2 (botões e eixos) junto com os sensores, motores, estoque, tempo e diagnósticos.
 - Orientação inicial das CELLs foi alinhada à configuração de partida: red-lower e blue-upper.
+
+
+## Fase 1 — depósito em FLOWER pelo servo virtual (15/10/2026)
+
+- O OpMode deposita uma peça do inventário ao mover o servo configurado de abaixo para a posição de acionamento; precisa estar iniciado/executando e o robô a até 0,65 m do FLOWER mais próximo (alcance e posição são configuráveis).
+- Cada borda de acionamento consome uma peça, registra tipo, FLOWER e ordem, e aparece no painel Driver Station; precisa retrair o servo antes de um novo ciclo.
+- Sem peça, fora de alcance ou com OpMode parado, não há depósito. A interação respeita o comando Java, sem botão paralelo que ignore o OpMode.
+- Alcance por distância ao centro é aproximação didática; ordem/estado são registrados, mas pontuação oficial, propriedade, condições de Nectar e regras G410 continuam pendentes.
