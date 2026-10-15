@@ -15,6 +15,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 
 from physics import World, Motor
+from elements import starting_elements, starting_inventory
 from sdk import write_sdk
 from project_import import import_ftc_zip
 from diagnostics import Inspector
@@ -51,14 +52,21 @@ def executable(name):
 def build_world(config):
     if not isinstance(config, dict): raise ValueError("Configuração deve ser um objeto")
     world = World()
+    alliance = str(config.get('alliance', 'red'))
+    world.elements = starting_elements(alliance)
+    world.inventory = starting_inventory(world.elements)
     bounds = {"track": (.05, 2), "width": (.05, 2), "length": (.05, 2),
               "max_speed": (.05, 10), "ticks_per_m": (1, 100000), "x": (-10, 10), "y": (-10, 10),
-              "acceleration": (0, 20), "imu_delay": (0, 2), "imu_drift": (-10, 10)}
+              "acceleration": (0, 20), "imu_delay": (0, 2), "imu_drift": (-10, 10),\n              "intake_reach": (.05, .40)}
     for key, (low, high) in bounds.items():
         value = float(config.get(key, getattr(world, key)))
         if not math.isfinite(value) or not low <= value <= high:
             raise ValueError(f"{key}: valor deve estar entre {low} e {high}")
         setattr(world, key, value)
+    capacity = config.get("intake_capacity", 4)
+    if isinstance(capacity, bool) or not isinstance(capacity, int) or not 1 <= capacity <= 20:
+        raise ValueError("Capacidade do intake deve ser um inteiro entre 1 e 20")
+    world.intake_capacity = capacity
     drivetrain = str(config.get("drivetrain", "differential"))
     if drivetrain not in ("differential", "mecanum"):
         raise ValueError("Drivetrain deve ser diferencial ou mecanum")
