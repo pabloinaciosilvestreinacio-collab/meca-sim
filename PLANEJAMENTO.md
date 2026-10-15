@@ -6,7 +6,7 @@ Branch `feature/fase1-editor-20261015`. O simulador existente foi preservado e s
 
 Concluído nesta branch: correções do editor; gamepad de teclado completo e remapeável; modelo inicial de 40 POLLEN/16 NECTAR, estados e colisões leves, captura pelo MI, tiro MS+MI com consumo de inventário e relatório final persistente/exportável.
 
-Em andamento: regras BIOBUZZ completas e personalizáveis, FLOWERS/GARDEN, desbloqueio de NECTAR, pontuação por categoria e telemetria opcional. HIVE segue com limiar de 8 peças explicitamente didático, não oficial. Ainda não considerar a Fase 1 concluída nem a branch estável.
+FLOWER: interação didática pelo servo virtual do OpMode aprovada e implementada nesta branch, com inventário, proximidade configurável e sequência visível; sem pontuação oficial. Em andamento: regras BIOBUZZ completas e personalizáveis, GARDEN, desbloqueio de NECTAR, pontuação por categoria e telemetria opcional. HIVE segue com limiar de 8 peças explicitamente didático, não oficial. Ainda não considerar a Fase 1 concluída nem a branch estável.
 
 ## Aceite local
 
