@@ -98,6 +98,9 @@ def build_world(config):
         world.launcher["speed"] = math.sqrt(2*eta*f*stroke/m)
         if world.launcher["speed"] > 30:
             raise ValueError("Velocidade calculada acima de 30 m/s")
+    world.launcher["interval"] = world.launcher.pop("feed-interval")
+    world.launcher["lateral"] = world.launcher.pop("offset-x")
+    world.launcher["forward"] = world.launcher.pop("offset-y")
     world.launcher["hive"] = str(launcher.get("hive", "red-lower"))
     if world.launcher["hive"] not in ("red-lower", "red-upper", "blue-lower", "blue-upper"):
         raise ValueError("CELL do lançador inválida")
