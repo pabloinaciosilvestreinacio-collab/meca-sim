@@ -1,7 +1,7 @@
 import test from 'node:test';
 import {validStart,FIELD_METERS,FLOWERS,hiveCellAt,hiveCellById,HIVE} from '../web/arena.mjs';
 import assert from 'node:assert/strict';
-import {rotate, launcher, heightAt, flight, gamepadValues, keyboardGamepadValues, shotElapsed} from '../web/model.mjs';
+import {rotate, launcher, heightAt, flight, gamepadValues, keyboardGamepadValues, DEFAULT_KEYMAP, shotElapsed} from '../web/model.mjs';
 test('Ponto do Desmos permanece preso ao centro ao girar',()=>{
   for(const yaw of [0,45,90,180,-135]){
     const p={x:2,y:1,yaw},l=launcher(p,.1125,.225);
@@ -22,12 +22,18 @@ test('Mapeamento padrão: eixos, gatilhos, back/start e D-pad',()=>{
 });
 test('Teclado emula todos os 20 slots FTC e gatilhos digitais',()=>{
   const pressed=new Set(['q','s','a','f','1','2',' ','b','x','y','z','c','Backspace','Enter','[',']','ArrowUp','ArrowDown','ArrowLeft','ArrowRight']);
-  assert.deepEqual(keyboardGamepadValues(pressed),[
+  assert.deepEqual(keyboardGamepadValues(pressed,DEFAULT_KEYMAP),[
     -1,1,-1,1,1,1,
     1,1,1,1,1,1,1,1,1,1,1,1,1,1
   ]);
   assert.deepEqual(keyboardGamepadValues(new Set()),Array(20).fill(0));
   assert.notEqual(keyboardGamepadValues(new Set()),keyboardGamepadValues(new Set()));
+});
+test('Mapa do gamepad aceita teclas personalizadas',()=>{
+  const custom={...DEFAULT_KEYMAP,a:'g',lt:'t',dpadUp:'i'};
+  const values=keyboardGamepadValues(new Set(['g','t','i']),custom);
+  assert.equal(values[6],1);assert.equal(values[4],1);assert.equal(values[16],1);
+  assert.equal(values[7],0);
 });
 test('Desconectar ou mapeamento desconhecido zera comando',()=>{assert.deepEqual(gamepadValues(null),Array(20).fill(0));assert.deepEqual(gamepadValues({mapping:''}),Array(20).fill(0));});
 
