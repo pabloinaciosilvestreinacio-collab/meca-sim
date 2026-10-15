@@ -57,7 +57,8 @@ export function drawArenaTop(ctx,project,mode,selectedCellId='',scoredBalls=[],t
 export function drawArenaSide(ctx,point,mode,targetDistance,targetHeight,cell=null,scoredBalls=[],hiveStatus={}){
   if(mode!=='biobuzz'||!Number.isFinite(targetDistance)||targetDistance<=.25||!cell)return;
   // O corte é do HIVE VERMELHO exclusivamente; vista superior permanece intacta.
-  const angleDeg=Number.isFinite(hiveStatus.angle)?hiveStatus.angle:-HIVE_SIDE.angleDeg;
+  const angleDeg=Number.isFinite(hiveStatus.angle)?hiveStatus.angle:(cell.team==='blue'?1:-1)*HIVE_SIDE.angleDeg;
+  const teamColor=cell.team==='blue'?'#6daaff':teamColor,teamDark=cell.team==='blue'?'#254e7a':'#762d3b',teamLight=cell.team==='blue'?'#a7d0ff':teamLight;
   const angle=angleDeg*Math.PI/180,arm=HIVE_SIDE.arm;
   const sin=Math.sin(angle),cos=Math.cos(angle),pivotY=DIMS.pivotHeight;
   const selectedSign=cell.id.endsWith('lower')?-1:1;
@@ -78,22 +79,22 @@ export function drawArenaSide(ctx,point,mode,targetDistance,targetHeight,cell=nu
   ctx.moveTo(...p(pivotX-arm*cos,pivotY-arm*sin));
   ctx.lineTo(...p(pivotX+arm*cos,pivotY+arm*sin));ctx.stroke();
   for(const sign of [-1,1]){
-    const id='red-'+(sign===-1?'lower':'upper');
+    const id=cell.team+'-'+(sign===-1?'lower':'upper');
     const cx=pivotX+sign*arm*cos,cy=pivotY+sign*arm*sin;
     const local=(u,v)=>p(cx+u*cos-v*sin,cy+u*sin+v*cos);
     const outline=[[-.175,-.20],[.175,-.20],[.175,.09],[.12,.312],[-.12,.312],[-.175,.09]];
     // Casinha vermelha: face frontal em formato de frontão, volume interno
     // rebaixado e abertura SUPERIOR sem uma linha de teto atravessando a boca.
-    poly(outline.map(([u,v])=>local(u,v)),'#43202b',null);
-    ctx.strokeStyle='#ef6770';ctx.lineWidth=2.6;
+    poly(outline.map(([u,v])=>local(u,v)),teamDark,null);
+    ctx.strokeStyle=teamColor;ctx.lineWidth=2.6;
     const strokePoints=points=>{ctx.beginPath();points.forEach(([u,v],i)=>i?ctx.lineTo(...local(u,v)):ctx.moveTo(...local(u,v)));ctx.stroke();};
     strokePoints([[-.12,.312],[-.175,.09],[-.175,-.20],[.175,-.20],[.175,.09],[.12,.312]]);
     // Revestimento e cantos visíveis atrás da abertura.
     poly([[-.14,-.17],[.14,-.17],[.14,.055],[-.14,.055]].map(([u,v])=>local(u,v)),
-      '#762d3b77','#ffa1a0',1);
+      teamDark+'77',teamLight,1);
     ctx.strokeStyle='#ffd293';ctx.lineWidth=3;
     strokePoints([[-.12,.312],[-.12,.222]]);strokePoints([[.12,.312],[.12,.222]]);
-    ctx.strokeStyle='#ae5660';ctx.lineWidth=1.2;
+    ctx.strokeStyle=teamColor;ctx.lineWidth=1.2;
     strokePoints([[-.12,.312],[-.12,-.05]]);strokePoints([[.12,.312],[.12,-.05]]);
     if(id===hiveStatus.activeCellId){ctx.fillStyle='#ffdaa8';ctx.font='bold 10px system-ui';ctx.textAlign='center';
       const q=local(0,.420);ctx.fillText('ABERTA',q[0],q[1]);}
@@ -103,8 +104,8 @@ export function drawArenaSide(ctx,point,mode,targetDistance,targetHeight,cell=nu
     });
   }
   const hinge=p(pivotX,pivotY);ctx.fillStyle='#ffae58';ctx.beginPath();ctx.arc(...hinge,5,0,2*Math.PI);ctx.fill();
-  const label=p(pivotX,pivotY+.63);ctx.fillStyle='#ff777d';ctx.font='bold 11px system-ui';ctx.textAlign='center';
-  ctx.fillText('HIVE VERMELHO · '+(hiveStatus.count||0)+'/8 POLLEN',label[0],label[1]);
+  const label=p(pivotX,pivotY+.63);ctx.fillStyle=teamColor;ctx.font='bold 11px system-ui';ctx.textAlign='center';
+  ctx.fillText('HIVE '+(cell.team==='blue'?'AZUL':'VERMELHO')+' · '+(hiveStatus.count||0)+'/8 peças (didático)',label[0],label[1]);
   if(hiveStatus.tips>0){const q=p(pivotX,pivotY+.51);ctx.fillStyle='#ffd092';ctx.fillText('TOMBAMENTOS: '+hiveStatus.tips,q[0],q[1]);}
   ctx.restore();
 }
