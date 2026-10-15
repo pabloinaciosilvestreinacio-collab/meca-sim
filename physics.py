@@ -85,6 +85,15 @@ class World:
     intake_reach: float = .15
     intake_capacity: int = 4
     collection_events: int = 0
+    launcher: dict = field(default_factory=lambda: {
+        "interval": .8, "lateral": .1125, "forward": .225, "height": .30,
+        "speed": 5.0, "elevation": 78.0, "azimuth": 0.0, "hive": "red-lower"
+    })
+    last_feed_time: float = 0.0
+    launch_sequence: int = 0
+    launch_count: int = 0
+    empty_feed_attempts: int = 0
+    launches: list = field(default_factory=list)
 
     def inside(self, x=None, y=None, yaw=None):
         x, y, yaw = (self.x if x is None else x, self.y if y is None else y, self.yaw if yaw is None else yaw)
@@ -177,6 +186,9 @@ class World:
                                   "mount": m.mount, "side": m.side, "mode": m.mode} for name, m in self.motors.items()},
                 "elements": [piece.snapshot() for piece in self.elements],
                 "inventory": inventory_counts(self.elements, self.inventory),
+                "launches": [event.copy() for event in self.launches],
+                "launcher_status": {"launch_count": self.launch_count,
+                                    "empty_feed_attempts": self.empty_feed_attempts},
                 "intake": {"active": bool(self.motors.get("MI") and self.motors["MI"].power*self.motors["MI"].direction > .25),
                            "capacity": self.intake_capacity, "reach": self.intake_reach,
                            "collected": self.collection_events}}
