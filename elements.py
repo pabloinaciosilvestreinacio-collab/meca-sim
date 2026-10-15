@@ -166,6 +166,36 @@ def _try_launch(world):
     world.launches = world.launches[-32:]
 
 
+def deposit_to_flower(world):
+    """Move uma peça do inventário ao FLOWER mais próximo, se houver alcance.
+
+    A ação é didática: regras de sequência e pontuação oficial são arbitradas
+    separadamente e ainda não fazem parte deste bloco.
+    """
+    if not world.inventory:
+        return None
+    candidates = [(math.hypot(world.x-x, world.y-y), index)
+                  for index, (x, y) in enumerate(FLOWERS)]
+    distance, index = min(candidates)
+    if distance > world.flower_range:
+        return None
+    piece_id = world.inventory[0]
+    piece = next((item for item in world.elements if item.id == piece_id), None)
+    if piece is None:
+        return None
+    world.inventory.pop(0)
+    x, y = FLOWERS[index]
+    piece.status = "flower"
+    piece.location = f"flower-{index}"
+    piece.x, piece.y = x, y
+    piece.vx = piece.vy = 0.0
+    world.flower_sequence += 1
+    event = {"sequence": world.flower_sequence, "element_id": piece.id,
+             "kind": piece.kind, "flower": index + 1, "time": world.elapsed}
+    world.flower_events.append(event)
+    return event
+
+
 def update_elements(world, dt, robot_velocity=(0.0, 0.0)):
     """Integra peças soltas, colisões e captura enquanto MI gira para intake."""
     active = [p for p in world.elements if p.status == "field"]
