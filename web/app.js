@@ -676,7 +676,9 @@ function readouts() {
     ' tombamento(s) · abertura ativa: '+hiveCellById(activeCellId(hive.team)).name;
   const stock=state.inventory||{POLLEN:0,NECTAR:0},intake=state.intake||{};
   $('inventory').textContent=`POLLEN ${stock.POLLEN||0} · NECTAR ${stock.NECTAR||0} · ${(intake.collected||0)} coletada(s)`;
-  $('intake-status').textContent=intake.active?'Intake MI ativo · captura frontal até ${intake.capacity||num('intake_capacity')} peça(s)':`MI parado · ${stock.POLLEN||0}/${intake.capacity||num('intake_capacity')} no estoque`;
+  $('intake-status').textContent=intake.active
+    ? `Intake MI ativo · captura frontal até ${intake.capacity||num('intake_capacity')} peça(s)`
+    : `MI parado · ${stock.POLLEN||0}/${intake.capacity||num('intake_capacity')} no estoque`;
   $('sensor-status').textContent=state.imu_frozen?'Falha simulada ativa: IMU travado. Yaw real e yaw medido podem divergir.':'';
   const warnings=Array.isArray(state.diagnostics)?state.diagnostics:[];
   $('diagnostic-count').textContent=warnings.length+' aviso(s)';
