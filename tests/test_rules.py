@@ -1,8 +1,9 @@
 import unittest
 from types import SimpleNamespace
 
-from elements import starting_elements
+from elements import FLOWERS, starting_elements
 from rules import BioBuzzRules
+from server import Session
 
 
 class BioBuzzRulesTests(unittest.TestCase):
@@ -37,6 +38,7 @@ class BioBuzzRulesTests(unittest.TestCase):
         self.assertEqual(self.rules.available_nectar("red", 90), 0)
 
     def test_last_sixty_seconds_unlock_all_remaining_nectar(self):
+        self.rules.enter_nectar("red", 100, 1, self.world) if False else None
         self.assertEqual(self.rules.available_nectar("red", 60), 5)
         for i in range(5):
             self.rules.enter_nectar("red", 60, i, self.world)
@@ -57,6 +59,45 @@ class BioBuzzRulesTests(unittest.TestCase):
         self.assertIsNone(self.rules.record_flower_deposit({"kind": "POLLEN"}, 100))
         self.assertIsNone(self.rules.record_flower_deposit(early, 60))
         self.assertEqual(len(self.rules.penalties), 1)
+
+    def test_session_uses_hive_tips_then_endgame_to_control_entries(self):
+        session = Session({"alliance": "red", "match-mode": "teleop"})
+        session.started, session.status = True, "executando"
+        with self.assertRaisesRegex(ValueError, "Nenhum NECTAR disponível"):
+            session.introduce_nectar()
+        session.register_hive_tip("red")
+        first = session.introduce_nectar()
+        first_piece = next(piece for piece in session.world.elements if piece.id == first["element_id"])
+        self.assertEqual(first_piece.status, "field")
+        self.assertEqual(first_piece.location, "loading-zone-red")
+        with self.assertRaisesRegex(ValueError, "Nenhum NECTAR disponível"):
+            session.introduce_nectar()
+        session.world.elapsed = 61
+        self.assertEqual(session.match_remaining_seconds(), 59)
+        for _ in range(4):
+            session.introduce_nectar()
+        self.assertEqual(session.rules.nectar_entered["red"], 5)
+
+    def test_session_records_g410_for_java_servo_deposit_outside_endgame(self):
+        session = Session({"alliance": "red", "match-mode": "teleop"})
+        session.started, session.status = True, "executando"
+        nectar = next(piece for piece in session.world.elements
+                      if piece.id == "nectar-alliance-red-0")
+        nectar.status = "robot"
+        session.world.inventory = [nectar.id]
+        session.world.x, session.world.y = FLOWERS[0]
+        session.rpc("servo", "flower", "set", .8)
+        self.assertEqual(session.world.flower_events[-1]["kind"], "NECTAR")
+        self.assertEqual(session.rules.penalties[-1]["code"], "G410")
+        self.assertIsNone(session.rules.penalties[-1]["points_awarded"])
+        session.rpc("servo", "flower", "set", .5)
+        second = next(piece for piece in session.world.elements
+                      if piece.id == "nectar-alliance-red-1")
+        second.status = "robot"
+        session.world.inventory = [second.id]
+        session.world.elapsed = 60
+        session.rpc("servo", "flower", "set", .8)
+        self.assertEqual(len(session.rules.penalties), 1)
 
 
 if __name__ == "__main__":
