@@ -59,7 +59,8 @@ def build_world(config):
     world.inventory = starting_inventory(world.elements)
     bounds = {"track": (.05, 2), "width": (.05, 2), "length": (.05, 2),
               "max_speed": (.05, 10), "ticks_per_m": (1, 100000), "x": (-10, 10), "y": (-10, 10),
-              "acceleration": (0, 20), "imu_delay": (0, 2), "imu_drift": (-10, 10),\n              "intake_reach": (.05, .40)}
+              "acceleration": (0, 20), "imu_delay": (0, 2), "imu_drift": (-10, 10),
+              "intake_reach": (.05, .40)}
     for key, (low, high) in bounds.items():
         value = float(config.get(key, getattr(world, key)))
         if not math.isfinite(value) or not low <= value <= high:
