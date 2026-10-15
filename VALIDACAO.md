@@ -17,7 +17,7 @@ Critérios cobertos: distinção por tipo/tamanho e estado, inventário com capa
 
 Testes executados contra os fontes desta branch: 6 testes Python passaram (contagens de início, captura, limite de capacidade, colisão lateral, parede/amortecimento e contato peça-peça); integração `build_world`/`snapshot` passou (contagem, preload, arena livre e rejeição de capacidade inválida); sintaxe Python de `elements.py`, `physics.py`, `server.py` e E2E passou; `web/app.js` passou checagem de sintaxe e o modelo de teclado passou asserções de vetor e remapeamento. O teste de interação Chromium está adicionado, mas ainda não executado; workflow remoto após estes commits não foi confirmado. Nenhum ensaio físico.
 
-Limites: partículas em FLOWER/HIVE e itens reservados são estados discretos, não corpos 3D; não há massas calibradas, solver rígido, coleta de NECTAR por regra ou lançamento por MS ainda.
+Limites: partículas em FLOWER/HIVE e itens reservados são estados discretos, não corpos 3D; não há massas calibradas nem solver rígido. MS+MI agora consome POLLEN e emite evento balístico didático; coleta de NECTAR e arbitragem de FLOWER/GARDEN ainda não estão implementadas.
 
 ## Correções solicitadas: parede, HIVE e tempo
 
@@ -195,3 +195,12 @@ Comandos no README. Para repetir a versão, usar o commit exato de Actions. Para
 ## Fase 1 — editor e atalhos (15/10/2026)
 
 Escopo deste bloco: Ctrl+S no foco do editor chama o salvamento JSON existente; Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z, Ctrl+C, Ctrl+V, Ctrl+X e Ctrl+A permanecem no comportamento nativo do textarea. A regressão Chromium verifica o projeto exportado, o histórico, seleção e cópia/colagem, e que Ctrl+S não inicia o OpMode. Ctrl+X permanece no comportamento nativo do textarea, mas o recorte não é aferido automaticamente porque o Chromium headless não o reproduziu de forma consistente; requer conferência manual. A validação da branch deve ser consultada antes de considerar o bloco aprovado.
+
+
+## Shooter e relatório final (15/10/2026)
+
+MS acima de 0,5 e MI acima de 0,5 alimentam o shooter virtual; cada intervalo (0,8 s inicial, configurável) consome uma peça do inventário. Estoque vazio não produz disparo e incrementa `empty_feed_attempts`. A velocidade ainda vem do perfil balístico configurado, sem leitura de RPM.
+
+`Terminar simulação` encerra o OpMode e preserva um relatório no navegador até descarte. O relatório inclui estado final do Java, duração, elementos coletados/lançados, tentativas vazias, logs, telemetria e diagnósticos; JSON/CSV podem ser exportados. O valor de pontuação é parcial e didático: não inclui FLOWER/GARDEN, penalidades ou ranking points. Java `concluído` significa apenas término normal do programa, não êxito da missão.
+
+Testes unitários executados neste bloco: `tests/test_elements.py` (8/8 aprovados, incluindo MS/MI e inventário vazio). E2E Chromium e CI remoto após estes commits ainda não foram executados/confirmados.
