@@ -1,0 +1,63 @@
+import unittest
+from types import SimpleNamespace
+
+from elements import starting_elements
+from rules import BioBuzzRules
+
+
+class BioBuzzRulesTests(unittest.TestCase):
+    def setUp(self):
+        self.rules = BioBuzzRules("red")
+        self.world = SimpleNamespace(elements=starting_elements("red"))
+
+    def reserved_red(self):
+        return [piece for piece in self.world.elements
+                if piece.id.startswith("nectar-alliance-red-") and piece.status == "reserved"]
+
+    def test_one_nectar_per_simulated_tip(self):
+        self.rules.register_hive_tip("red", 12.0)
+        self.assertEqual(self.rules.available_nectar("red", 100), 1)
+        event = self.rules.enter_nectar("red", 100, 13.0, self.world)
+        self.assertEqual(event["location"], "loading-zone-red")
+        self.assertEqual(self.rules.nectar_entered["red"], 1)
+        self.assertEqual(len(self.reserved_red()), 4)
+
+    def test_entry_without_tip_is_blocked_before_endgame(self):
+        with self.assertRaisesRegex(ValueError, "Nenhum NECTAR disponível"):
+            self.rules.enter_nectar("red", 100, 10.0, self.world)
+        self.assertEqual(len(self.reserved_red()), 5)
+        self.assertEqual(self.rules.events, [])
+
+    def test_tips_cannot_unlock_more_than_five_staged_pieces(self):
+        for i in range(8):
+            self.rules.register_hive_tip("red", i)
+        self.assertEqual(self.rules.available_nectar("red", 90), 5)
+        for i in range(5):
+            self.rules.enter_nectar("red", 90, i, self.world)
+        self.assertEqual(self.rules.available_nectar("red", 90), 0)
+
+    def test_last_sixty_seconds_unlock_all_remaining_nectar(self):
+        self.assertEqual(self.rules.available_nectar("red", 60), 5)
+        for i in range(5):
+            self.rules.enter_nectar("red", 60, i, self.world)
+        self.assertEqual(self.rules.available_nectar("red", 0), 0)
+        self.assertTrue(self.rules.snapshot(60, "teleop", True)["endgame_unlocked"])
+
+    def test_only_selected_alliance_can_enter_its_reserved_nectar(self):
+        with self.assertRaisesRegex(ValueError, "aliança selecionada"):
+            self.rules.enter_nectar("blue", 0, 1, self.world)
+        self.assertEqual(len(self.reserved_red()), 5)
+
+    def test_g410_records_early_nectar_but_not_pollen_or_endgame(self):
+        early = {"kind": "NECTAR", "element_id": "nectar-red", "time": 20}
+        penalty = self.rules.record_flower_deposit(early, 100)
+        self.assertEqual(penalty["code"], "G410")
+        self.assertEqual(penalty["severity"], "major_foul")
+        self.assertIsNone(penalty["points_awarded"])
+        self.assertIsNone(self.rules.record_flower_deposit({"kind": "POLLEN"}, 100))
+        self.assertIsNone(self.rules.record_flower_deposit(early, 60))
+        self.assertEqual(len(self.rules.penalties), 1)
+
+
+if __name__ == "__main__":
+    unittest.main()
