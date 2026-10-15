@@ -93,7 +93,7 @@ try:
         for expected in range(2,9):
             page.locator('#shoot').click()
             if expected<8:
-                page.wait_for_function("(n)=>document.querySelector('#hive-progress').textContent.includes(n+'/8 POLLEN')",arg=str(expected),timeout=10000)
+                page.wait_for_function("(n)=>document.querySelector('#hive-progress').textContent.includes(n+'/8 peças')",arg=str(expected),timeout=10000)
             else:
                 page.wait_for_function("document.querySelector('#hive-progress').textContent.includes('0/8 peças') && document.querySelector('#hive-progress').textContent.includes('1 tombamento')",timeout=10000)
                 assert 'TOMBOU' in page.locator('#shot-result').text_content()
