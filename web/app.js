@@ -74,11 +74,13 @@ function hiveStatus(team,now){
 }
 function recordImpact(shot,now){
   const cell=hiveCellById(shot.cellId);
-  if(!cell||!shot.impact?.hit)return;
+  if(!cell||!shot.impact?.hit||shot.registered)return;
   const result=registerPollen(hiveCounts[cell.team],SIM_TIP_POLLS);
   hiveCounts[cell.team]=result.count;
   shot.registered=true;shot.tipped=result.tipped;
   if(result.tipped){
+    if(matchStarted&&state.status==='executando')
+      api('rules',{action:'hive_tip',team:cell.team}).catch(error=>notice(error.message));
     const previous=hiveOrientation(cell.team)*HIVE_SIDE.angleDeg;
     hiveFlips[cell.team]++;
     hiveMotion[cell.team]={start:now,from:previous,to:-previous};
@@ -254,6 +256,10 @@ async function api(path, data={}) {
   return result;
 }
 const action = (id, callback) => $(id).addEventListener('click',async()=>{try{notice('');await callback();}catch(e){notice(e.message);}});
+action('introduce-nectar',async()=>{
+  const result=await api('rules',{action:'nectar_entry'});
+  notice('Human Player introduziu '+result.event.element_id+' pela Loading Zone. Confira a entrada no campo.');
+});
 action('compile',async()=>{resetReplay();persist();shot=null;javaShots=[];lastJavaLaunchId=0;matchStarted=false;await api('run',{source:$('source').value,files:javaFiles,config:config()});});
 // O Autônomo 3.5 espera seleção (B/X/Y/↑) e confirmação A ANTES de START.
 // Envia pulsos no mesmo canal gamepad do Java, sem alterar o código original.
@@ -303,6 +309,7 @@ function reportData(){
       successfulHiveElements:retained,emptyFeedAttempts:(state.launcher_status||{}).empty_feed_attempts||0,
       hiveTipsDidactic:tips,diagnostics:(state.diagnostics||[]).length},
     diagnostics:state.diagnostics||[],javaLogs:state.logs||'',telemetry:state.telemetry||'',
+    ruleStatus:state.rules||null,
     limitations:['FLOWER/GARDEN scoring and ranking points are not calculated.',
       'Hive tipping still uses the didactic element-count approximation; it is not official rule adjudication.',
       'Physical robot validation is not included.']};
@@ -320,7 +327,8 @@ function renderFinalReport(){
     ['POLLEN/NECTAR coletados',r.activity.collected],
     ['Elementos lançados',r.activity.launched],
     ['Lançamentos vazios',r.activity.emptyFeedAttempts],
-    ['Avisos de diagnóstico',r.activity.diagnostics]
+    ['Avisos de diagnóstico',r.activity.diagnostics],
+    ['Penalidades registradas',r.ruleStatus?.penalties?.length||0]
   ];
   for(const [label,value] of fields){const p=document.createElement('p');p.textContent=label+': '+value;summary.append(p);}
 }
@@ -745,6 +753,12 @@ function readouts() {
   $('intake-status').textContent=intake.active
     ? `Intake MI ativo · captura frontal até ${intake.capacity||num('intake_capacity')} peça(s)`
     : `MI parado · ${stock.POLLEN||0}/${intake.capacity||num('intake_capacity')} no estoque`;
+  const rules=state.rules||{};
+  const entryButton=$('introduce-nectar');
+  entryButton.disabled=state.status!=='executando'||(rules.nectar_available||0)<1;
+  $('rules-status').textContent='Human Player · NECTAR '+(rules.nectar_available||0)+' disponível(is) / '+(rules.nectar_total||5)+
+    ' · TIPs simulados: '+((rules.hive_tips_didactic||{})[rules.alliance]||0)+
+    ' · G410: '+(rules.penalties||[]).length+' registro(s)';
   const flowerEvents=state.flower_events||[];
   $('flower-status').textContent=flowerEvents.length
     ? 'FLOWER · '+flowerEvents.slice(-8).map(event=>`#${event.sequence} ${event.kind} → F${event.flower}`).join(' · ')
