@@ -70,6 +70,37 @@ def build_world(config):
     if isinstance(capacity, bool) or not isinstance(capacity, int) or not 1 <= capacity <= 20:
         raise ValueError("Capacidade do intake deve ser um inteiro entre 1 e 20")
     world.intake_capacity = capacity
+    launcher = config.get("launcher", {})
+    if not isinstance(launcher, dict):
+        raise ValueError("Configuração do lançador inválida")
+    launcher_defaults = {"shot-mode": "force", "force": 8.0, "speed": 5.0,
+                         "projectile-mass": .05, "acceleration-stroke": .15,
+                         "shot-efficiency": .65, "offset-x": .1125,
+                         "offset-y": .225, "height": .30, "elevation": 78.0,
+                         "azimuth": 0.0, "feed-interval": .8}
+    launcher_ranges = {"force": (.01, 150), "speed": (.1, 30),
+                       "projectile-mass": (.001, 2), "acceleration-stroke": (.01, 2),
+                       "shot-efficiency": (.01, 1), "offset-x": (-.6, .6),
+                       "offset-y": (-.6, .6), "height": (.05, 1.5),
+                       "elevation": (0, 89), "azimuth": (-180, 180),
+                       "feed-interval": (.1, 5)}
+    if launcher.get("shot-mode", "force") not in ("force", "speed"):
+        raise ValueError("Modo do lançador inválido")
+    world.launcher = {"shot-mode": launcher.get("shot-mode", "force")}
+    for key, (low, high) in launcher_ranges.items():
+        value = float(launcher.get(key, launcher_defaults[key]))
+        if not math.isfinite(value) or not low <= value <= high:
+            raise ValueError(f"Parâmetro do lançador {key} fora do limite")
+        world.launcher[key] = value
+    if world.launcher["shot-mode"] == "force":
+        f, m, stroke, eta = (world.launcher[k] for k in
+                             ("force", "projectile-mass", "acceleration-stroke", "shot-efficiency"))
+        world.launcher["speed"] = math.sqrt(2*eta*f*stroke/m)
+        if world.launcher["speed"] > 30:
+            raise ValueError("Velocidade calculada acima de 30 m/s")
+    world.launcher["hive"] = str(launcher.get("hive", "red-lower"))
+    if world.launcher["hive"] not in ("red-lower", "red-upper", "blue-lower", "blue-upper"):
+        raise ValueError("CELL do lançador inválida")
     drivetrain = str(config.get("drivetrain", "differential"))
     if drivetrain not in ("differential", "mecanum"):
         raise ValueError("Drivetrain deve ser diferencial ou mecanum")
