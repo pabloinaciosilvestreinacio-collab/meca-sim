@@ -43,7 +43,7 @@ function renderKeymap(){
 }
 $('reset-keymap').addEventListener('click',()=>{keyMap={...DEFAULT_KEYMAP};capturingKey=null;keys.clear();localStorage.removeItem(KEYMAP_KEY);renderKeymap();notice('Mapa padrão restaurado.');});
 
-const configIds = ['arena','drivetrain','robot-color','left','right','front_left','front_right','back_left','back_right','width','length','track','max_speed','ticks_per_m','duration','match-mode','timer-enabled','x','y','initial-yaw','invert_left','invert_right','acceleration','left_gain','right_gain','left_slip','right_slip','imu_delay','imu_drift','walls','alliance','intake_reach','intake_capacity','imu_frozen','left_encoder_frozen','right_encoder_frozen'];
+const configIds = ['arena','drivetrain','robot-color','left','right','front_left','front_right','back_left','back_right','width','length','track','max_speed','ticks_per_m','duration','match-mode','timer-enabled','x','y','initial-yaw','invert_left','invert_right','acceleration','left_gain','right_gain','left_slip','right_slip','imu_delay','imu_drift','walls','alliance','intake_reach','intake_capacity','imu_frozen','left_encoder_frozen','right_encoder_frozen','flower-servo-name','flower-deploy-position','flower-range'];
 const launchIds = ['offset-x','offset-y','height','shot-mode','force','speed','projectile-mass','acceleration-stroke','shot-efficiency','target-radius','target-tolerance','elevation','azimuth','target-x','target-y','target-h','feed-interval'];
 function config() {
   const data = {};
@@ -745,6 +745,10 @@ function readouts() {
   $('intake-status').textContent=intake.active
     ? `Intake MI ativo · captura frontal até ${intake.capacity||num('intake_capacity')} peça(s)`
     : `MI parado · ${stock.POLLEN||0}/${intake.capacity||num('intake_capacity')} no estoque`;
+  const flowerEvents=state.flower_events||[];
+  $('flower-status').textContent=flowerEvents.length
+    ? 'FLOWER · '+flowerEvents.slice(-8).map(event=>`#${event.sequence} ${event.kind} → F${event.flower}`).join(' · ')
+    : `FLOWER · aguardando servo “${$('flower-servo-name').value}” e proximidade`;
   $('sensor-status').textContent=state.imu_frozen?'Falha simulada ativa: IMU travado. Yaw real e yaw medido podem divergir.':'';
   const buttonNames=['LT','RT','A','B','X','Y','LB','RB','Back','Start','LS click','RS click','D-pad ↑','D-pad ↓','D-pad ←','D-pad →'];
   const gamepads=state.gamepads||[];
