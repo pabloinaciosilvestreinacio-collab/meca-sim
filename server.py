@@ -16,6 +16,7 @@ from urllib.parse import urlparse
 
 from physics import World, Motor
 from elements import starting_elements, starting_inventory, deposit_to_flower
+from rules import BioBuzzRules
 from sdk import write_sdk
 from project_import import import_ftc_zip
 from diagnostics import Inspector
@@ -175,6 +176,8 @@ class Session:
         if self.match_mode not in ("auto", "teleop"):
             raise ValueError("Modo de partida deve ser auto ou teleop")
         self.timer_enabled = bool(settings.get("timer-enabled", True))
+        self.alliance = str(settings.get("alliance", "red"))
+        self.rules = BioBuzzRules(self.alliance)
         # A interface envia match-mode e aplica as regras FTC. A duração livre é
         # preservada somente para a API legada e para cenários automatizados.
         if "match-mode" in settings:
@@ -217,8 +220,31 @@ class Session:
                           diagnostics=[entry.copy() for entry in self.inspector.warnings],
                           imu_yaw=math.degrees((self.world.sensor_yaw() - self.world.yaw_zero + math.pi)
                                                % (2 * math.pi) - math.pi),
-                          imu_frozen=self.world.imu_frozen)
+                          imu_frozen=self.world.imu_frozen,
+                          rules=self.rules.snapshot(self.match_remaining_seconds(), self.match_mode,
+                                                    self.timer_enabled))
             return result
+
+    def match_remaining_seconds(self):
+        # Auto ocupa os primeiros 30 s de um match de 158 s; a simulação
+        # TeleOp começa após Auto + transição e usa seu próprio relógio de 120 s.
+        duration = 158.0 if self.match_mode == "auto" else 120.0
+        return max(0.0, duration - self.world.elapsed)
+
+    def register_hive_tip(self, team):
+        with self.lock:
+            if not self.started or self.status != "executando" or self.stop_event.is_set():
+                raise ValueError("O TIP só pode ser registrado durante uma simulação em execução")
+            return self.rules.register_hive_tip(team, self.world.elapsed)
+
+    def introduce_nectar(self):
+        with self.lock:
+            if not self.started or self.status != "executando" or self.stop_event.is_set():
+                raise ValueError("O Human Player só pode introduzir NECTAR durante a partida")
+            event = self.rules.enter_nectar(self.alliance, self.match_remaining_seconds(),
+                                            self.world.elapsed, self.world)
+            self.log(f"\nHuman Player: {event['element_id']} entrou pela Loading Zone {self.alliance}.\n")
+            return event
 
     def tick(self):
         next_tick = time.monotonic()
@@ -300,7 +326,10 @@ class Session:
                         and previous < threshold <= self.servos[name]):
                     event = deposit_to_flower(self.world)
                     if event:
+                        penalty = self.rules.record_flower_deposit(event, self.match_remaining_seconds())
                         self.log(f"\nFLOWER {event['flower']}: {event['kind']} depositado (#{event['sequence']}).\n")
+                        if penalty:
+                            self.log("G410 registrado: NECTAR depositado antes dos últimos 60 segundos; falta não arbitrada pelo simulador.\n")
                 return ""
             if op == "motor":
                 name, action, *values = args
@@ -497,6 +526,15 @@ def handler_for(app):
                             if session.status != "inicializando": raise ValueError("Aguarde a inicialização Java")
                             session.started = True
                             session.status = "executando"
+                    elif self.path == "/api/rules":
+                        action = data.get("action")
+                        if action == "hive_tip":
+                            event = session.register_hive_tip(data.get("team"))
+                            session.log(f"\nTIP de HIVE simulado para {event['team']} (contagem didática).\n")
+                        elif action == "nectar_entry":
+                            event = session.introduce_nectar()
+                        else:
+                            raise ValueError("Ação de regra desconhecida")
                     elif self.path == "/api/stop": session.stop()
                     elif self.path == "/api/reset":
                         if session.worker and session.worker.is_alive():
