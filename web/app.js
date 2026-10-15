@@ -5,6 +5,8 @@ import {routeSteps, routeWarnings, makeRouteJava, MAX_WAYPOINTS} from './route.m
 const $ = id => document.getElementById(id);
 const num = id => Number($(id).value);
 let state = {x:1.83,y:.65,yaw:0,width:.45,length:.45,trail:[],motors:{},time:0,status:'pronto'};
+let matchStarted=false,finalReport=null;
+const REPORT_KEY='meca-sim-final-report-v1';
 let focused = document.hasFocus();
 let shot = null, javaShots = [], lastJavaLaunchId = 0, examples = {}, javaFiles = {}, zipOpModes = [], selectedJavaPath = '', lastPad = 0, polling = false, padBusy = false, pickingStart = false;
 let lastDraw=0,lastLog='',lastMotorSignature='',lastDiagnosticSignature='',lastShotPoseKey='',highlightJob=0,routePicking=false;
@@ -251,7 +253,7 @@ async function api(path, data={}) {
   return result;
 }
 const action = (id, callback) => $(id).addEventListener('click',async()=>{try{notice('');await callback();}catch(e){notice(e.message);}});
-action('compile',async()=>{resetReplay();persist();shot=null;javaShots=[];lastJavaLaunchId=0;await api('run',{source:$('source').value,files:javaFiles,config:config()});});
+action('compile',async()=>{resetReplay();persist();shot=null;javaShots=[];lastJavaLaunchId=0;matchStarted=false;await api('run',{source:$('source').value,files:javaFiles,config:config()});});
 // O Autônomo 3.5 espera seleção (B/X/Y/↑) e confirmação A ANTES de START.
 // Envia pulsos no mesmo canal gamepad do Java, sem alterar o código original.
 $('auto35-confirm').addEventListener('click',async()=>{
@@ -278,9 +280,66 @@ for(const [id,target] of [['ds-init','compile'],['ds-start','start'],['ds-stop',
 action('start',async()=>{
   auto35StartPose=/class\s+Autonomo35\b/.test($('source').value)?{x:state.x,y:state.y,yaw:state.yaw}:null;
   auto35Moved=false;
-  await api('heartbeat');await api('start');
+  await api('heartbeat');await api('start');matchStarted=true;
 });
 action('stop',()=>api('stop'));
+$('finish-match').addEventListener('click',async()=>{
+  try{await api('stop');await poll();if(!finalReport)buildFinalReport('manual_finish');}
+  catch(error){notice(error.message);}
+});
+function reportData(){
+  const tips=(hiveFlips.red||0)+(hiveFlips.blue||0);
+  const retained=scoredShots.filter(item=>item.kind==='POLLEN'||item.kind==='NECTAR').length;
+  const result=state.status==='concluído'?'Java terminou normalmente (isso não comprova sucesso da missão).':
+    state.status==='erro'?'Execução Java terminou com erro.':'Simulação encerrada antes do fim normal do Java.';
+  return {format:'meca-sim-match-report',version:1,endedAt:new Date().toISOString(),
+    javaResult:result,missionSuccess:'não avaliada',durationSeconds:Number(state.time||0),
+    alliance:$('alliance').value,estimatedPoints:{hiveTipsDidactic:tips*20,
+      elementsRetainedInHive:retained,retainedElementPoints:retained*2,
+      partialTotal:tips*20+retained*2,scope:'estimativa parcial; não é placar oficial'},
+    activity:{collected:(state.intake||{}).collected||0,launched:(state.launcher_status||{}).launch_count||0,
+      successfulHiveElements:retained,emptyFeedAttempts:(state.launcher_status||{}).empty_feed_attempts||0,
+      hiveTipsDidactic:tips,diagnostics:(state.diagnostics||[]).length},
+    diagnostics:state.diagnostics||[],javaLogs:state.logs||'',telemetry:state.telemetry||'',
+    limitations:['FLOWER/GARDEN scoring and ranking points are not calculated.',
+      'Hive tipping still uses the didactic element-count approximation; it is not official rule adjudication.',
+      'Physical robot validation is not included.']};
+}
+function renderFinalReport(){
+  const root=$('final-report');if(!root)return;
+  root.hidden=!finalReport;
+  if(!finalReport)return;
+  const r=finalReport,summary=$('report-summary');
+  summary.replaceChildren();
+  const fields=[
+    ['Resultado Java',r.javaResult],['Missão','Não avaliada pelo simulador'],
+    ['Duração',Number(r.durationSeconds).toFixed(2)+' s'],
+    ['Estimativa parcial',r.estimatedPoints.partialTotal+' pts (não oficial)'],
+    ['POLLEN/NECTAR coletados',r.activity.collected],
+    ['Elementos lançados',r.activity.launched],
+    ['Lançamentos vazios',r.activity.emptyFeedAttempts],
+    ['Avisos de diagnóstico',r.activity.diagnostics]
+  ];
+  for(const [label,value] of fields){const p=document.createElement('p');p.textContent=label+': '+value;summary.append(p);}
+}
+function buildFinalReport(reason){
+  finalReport=reportData();finalReport.endReason=reason;
+  try{localStorage.setItem(REPORT_KEY,JSON.stringify(finalReport));}catch{}
+  renderFinalReport();notice('Relatório final disponível. Término do Java não equivale à conclusão da missão.');
+}
+$('report-json').addEventListener('click',()=>{if(finalReport)download(JSON.stringify(finalReport,null,2),'meca-sim-relatorio.json');});
+$('report-csv').addEventListener('click',()=>{
+  if(!finalReport)return;
+  const r=finalReport,rows=[['campo','valor'],['resultado_java',r.javaResult],['missao','nao avaliada'],
+    ['duracao_s',r.durationSeconds],['estimativa_parcial_nao_oficial',r.estimatedPoints.partialTotal],
+    ['coletados',r.activity.collected],['lancados',r.activity.launched],
+    ['lancamentos_vazios',r.activity.emptyFeedAttempts],['diagnosticos',r.activity.diagnostics]];
+  download(rows.map(row=>row.map(value=>'"'+String(value).replaceAll('"','""')+'"').join(',')).join('\r\n'),
+    'meca-sim-relatorio.csv','text/csv;charset=utf-8');
+});
+$('dismiss-report').addEventListener('click',()=>{
+  finalReport=null;try{localStorage.removeItem(REPORT_KEY);}catch{}renderFinalReport();notice('Relatório descartado.');
+});
 action('reset',async()=>{resetReplay();shot=null;javaShots=[];lastJavaLaunchId=0;await api('reset',{config:config()});});
 action('clear-shots',()=>{scoredShots=[];shot=null;javaShots=[];lastJavaLaunchId=Math.max(lastJavaLaunchId,...(state.launches||[]).map(e=>e.id));tippedHives.clear();hiveCounts={red:0,blue:0};hiveFlips={red:0,blue:0};hiveMotion={};setShotResult('POLLEN, contadores e gangorras reiniciados.','info');});
 action('export',async()=>{
@@ -668,6 +727,8 @@ function drawSide(now) {
 }
 function readouts() {
   $('status').textContent=state.status;$('clock').textContent=state.time.toFixed(2).padStart(5,'0')+' s';
+  $('finish-match').disabled=state.status!=='executando';
+  if(matchStarted&&!finalReport&&['parado','concluído','erro'].includes(state.status))buildFinalReport(state.status==='concluído'?'java_finished':state.status==='erro'?'java_error':'stopped');
   const visible=replayIndex>=0&&replayRows[replayIndex]?{x:replayRows[replayIndex][1],y:replayRows[replayIndex][2],yaw:replayRows[replayIndex][3]}:state;
   const shotPoseKey=visible.x+','+visible.y+','+visible.yaw;
   if(lastShotPoseKey!==shotPoseKey){lastShotPoseKey=shotPoseKey;refreshShot();}
@@ -811,7 +872,8 @@ function frame(now){
   requestAnimationFrame(frame);
 }
 async function init() {
-  try{renderKeymap();const response=await fetch('/examples');examples=await response.json();Object.keys(examples).forEach(name=>{const option=document.createElement('option');option.value=name;option.textContent=name;$('example').append(option);});
+  try{finalReport=JSON.parse(localStorage.getItem(REPORT_KEY)||'null');}catch{finalReport=null;}
+  try{renderFinalReport();renderKeymap();const response=await fetch('/examples');examples=await response.json();Object.keys(examples).forEach(name=>{const option=document.createElement('option');option.value=name;option.textContent=name;$('example').append(option);});
     refreshExamples();
     const saved=JSON.parse(localStorage.getItem('meca-sim-v02')||'null');if(saved){$('source').value=saved.source||'';javaFiles=saved.files&&typeof saved.files==='object'&&!Array.isArray(saved.files)?saved.files:{};restoreOpModeChoices();updateJavaFilesLabel();Object.entries(saved.values||{}).forEach(([id,value])=>{if($(id))$(id).type==='checkbox'?$(id).checked=Boolean(value):$(id).value=value;});
     if(!Object.prototype.hasOwnProperty.call(saved.values||{},'shot-mode'))$('shot-mode').value='speed';
