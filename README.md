@@ -19,6 +19,7 @@ Simulador **local e independente** da Meca Tiger: cole uma classe Java `LinearOp
 ### Nova interface: campos, projetos e editor
 
 - **Arena:** seletor entre `BIOBUZZ 2026–2027` e `Arena livre`. As dimensões principais agora refletem o manual oficial: quadro HIVE de 1,2565 × 0,9895 m, pivô a 1,1165 m, espaçamento das CELLS 0,478 m, abertura dos FLOWERS a 0,546 m, GARDENS 0,584 × 0,051 m e LOADING ZONES 0,584 × 0,2795 m. Posições individuais e orientação das CELLS/FLOWERS continuam **esquemáticas**, não reproduzidas do STEP oficial; não existem colisões internas, articulações ou pontuação.
+- **POLLEN/NECTAR e intake (experimental):** 40 POLLEN e 16 NECTAR têm tipo, tamanho e estado separados (em campo, FLOWER/HIVE, preload/inventário ou reservado). O modelo posiciona peças em FLORES, GARDENS, CELLS e zonas por aproximação 2D. Quatro POLLEN começam no inventário do robô. A região frontal do intake acompanha a largura e o alcance editáveis (padrão 0,15 m); MI positivo coleta somente dentro da região e até a capacidade configurada (padrão 4). Peças livres têm amortecimento e colisões leves com outras peças, chassi e paredes. Massas, contatos 3D, posições finas, chute via MS e pontuação oficial ainda não estão completos.
 - **Posição inicial:** `Definir posição inicial no campo` (ou Shift+clique). O robô deve caber inteiramente no retângulo 3,66 m × 3,66 m. O clique simples continua apontando o alvo do lançador.
 - **Biblioteca:** `Guardar no menu` salva até 12 projetos nomeados no armazenamento local do navegador; o seletor `Exemplo de partida` mostra os exemplos e os projetos. `Salvar projeto` exporta JSON e também adiciona o código à biblioteca, usando o nome da classe Java quando possível. Abrir JSON também tenta adicioná-lo à biblioteca.
 - **Driver Station virtual:** INIT, START e STOP na área de hardware executam as mesmas ações do painel superior. Não se conecta ao Driver Hub.
@@ -88,7 +89,7 @@ Teclado: W/S alimenta `left_stick_y`, A/D alimenta `right_stick_x`, espaço é A
 - Física padrão ideal. Aceleração/ganhos/patinagem e falhas de sensor são parâmetros artificiais para testar lógica.
 - Paredes rejeitam passos que colocariam parte do chassi fora do campo. Não simulam forças, rebote, obstáculos internos ou contato 3D.
 - A parábola usa g=9,81 m/s², bola pontual sem arrasto. O cálculo inverso resolve velocidade e azimute com elevação fixa; não determina potência/RPM de MS nem confirma pontuação.
-- MS/MI guardam comandos e ticks idealizados; não possuem peças, flywheel ou mecanismos simulados. Servo guarda posição lógica. Câmera/AprilTag, Android, Road Runner e SDK completo não estão implementados; projetos Java com múltiplos arquivos são aceitos com limites e APIs parciais.
+- MI agora aciona a captura didática de peças no servidor; MS ainda guarda comandos/ticks idealizados, sem flywheel ou disparo de peça. Servo guarda posição lógica. Câmera/AprilTag, Android, Road Runner e SDK completo não estão implementados; projetos Java com múltiplos arquivos são aceitos com limites e APIs parciais.
 - Java e Python comunicam em tempo real; escalonamento do sistema introduz variações. Não há replay determinístico nem validação de ajuste PID físico.
 - `RUN_TO_POSITION` é ideal e para até 2 ticks do alvo; com aceleração configurada, esse modo continua instantâneo. `RUN_USING_ENCODER` não simula o controlador interno REV.
 
