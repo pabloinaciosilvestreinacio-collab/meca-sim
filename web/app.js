@@ -59,9 +59,10 @@ function persist() {
 function notice(text) {$('message').textContent=text;}
 function setShotResult(text,kind='info'){const item=$('shot-result');if(item){item.textContent=text;item.dataset.kind=kind;}notice(text);}
 function selectedHive(){return hiveCellById(selectedHiveId);}
-function activeCellId(team){return team+'-'+(hiveFlips[team]%2?'upper':'lower');}
+function hiveOrientation(team){const initial=team==='blue'?1:-1;return initial*(hiveFlips[team]%2?-1:1);}
+function activeCellId(team){return team+'-'+(hiveOrientation(team)>0?'upper':'lower');}
 function hiveStatus(team,now){
-  const motion=hiveMotion[team],end=hiveFlips[team]%2?HIVE_SIDE.angleDeg:-HIVE_SIDE.angleDeg;
+  const motion=hiveMotion[team],end=hiveOrientation(team)*HIVE_SIDE.angleDeg;
   let angle=end;
   if(motion){
     const t=Math.min(1,Math.max(0,(now-motion.start)/650));
@@ -78,7 +79,7 @@ function recordImpact(shot,now){
   hiveCounts[cell.team]=result.count;
   shot.registered=true;shot.tipped=result.tipped;
   if(result.tipped){
-    const previous=hiveFlips[cell.team]%2?HIVE_SIDE.angleDeg:-HIVE_SIDE.angleDeg;
+    const previous=hiveOrientation(cell.team)*HIVE_SIDE.angleDeg;
     hiveFlips[cell.team]++;
     hiveMotion[cell.team]={start:now,from:previous,to:-previous};
     tippedHives.add(cell.id);
@@ -112,7 +113,7 @@ function selectHive(cell,announce=true){
   $('target-x').value=(cell.x+cell.w/2).toFixed(3);
   $('target-y').value=(cell.y+cell.h/2).toFixed(3);
   // A boca muda de altura quando a gangorra troca de lado.
-  const angle=(hiveFlips[cell.team]%2?1:-1)*HIVE_SIDE.angleDeg;
+  const angle=(hiveOrientation(cell.team)*HIVE_SIDE.angleDeg;
   $('target-h').value=hiveSideGeometry(cell,angle).openingHeight.toFixed(4);
   refreshShot();if(announce)setShotResult('MIRA SELECIONADA · '+cell.name+'. A linha pontilhada termina nesta CELL.','selected');
 }
@@ -384,7 +385,7 @@ action('shoot',async()=>{
   const values=launchValues(),cell=$('arena').value==='biobuzz'?selectedHive():null;
   if(!values.valid)throw new Error('Confira altura, velocidade, elevação e coordenadas do lançador.');
   if($('arena').value==='biobuzz'&&!cell)throw new Error('Clique em uma CELL vermelha ou azul do HIVE para selecionar a mira.');
-  const candidate={...values,cellId:cell?.id||'',origin:launcher(state,values.lateral,values.forward),yaw:state.yaw,start:performance.now(),hiveAngle:(hiveFlips[cell?.team||'red']%2?1:-1)*HIVE_SIDE.angleDeg};
+  const candidate={...values,cellId:cell?.id||'',origin:launcher(state,values.lateral,values.forward),yaw:state.yaw,start:performance.now(),hiveAngle:(hiveOrientation(cell?.team||'red')*HIVE_SIDE.angleDeg};
   candidate.impact=cell?hiveShotImpact(candidate,cell):{hit:false,reason:'arena livre'};
   if(cell&&activeCellId(cell.team)!==cell.id)candidate.impact={hit:false,reason:'a CELL escolhida está virada para baixo'};
   candidate.restIndex=cell?scoredShots.filter(ball=>ball.cellId===cell.id).length:0;
@@ -535,7 +536,7 @@ function refreshShot(){
     const test=shotFeasibility(pose,v);
     const cell=$('arena').value==='biobuzz'?selectedHive():null;
     const simulated=cell?hiveShotImpact({...v,origin:launcher(pose,v.lateral,v.forward),
-      yaw:pose.yaw,hiveAngle:(hiveFlips[cell.team]%2?1:-1)*HIVE_SIDE.angleDeg},cell):null;
+      yaw:pose.yaw,hiveAngle:(hiveOrientation(cell.team)*HIVE_SIDE.angleDeg},cell):null;
     const valid=simulated?simulated.hit&&activeCellId(cell.team)===cell.id:test.possible;
     verdict.dataset.possible=valid?'yes':'no';
     verdict.textContent=(simulated
@@ -588,7 +589,7 @@ function drawTop(now) {
   const check=shotFeasibility(shown,v);
   const gateCell=$('arena').value==='biobuzz'?selectedHive():null;
   const gateHit=gateCell?hiveShotImpact({...v,origin:launcher(shown,v.lateral,v.forward),
-    yaw:shown.yaw,hiveAngle:(hiveFlips[gateCell.team]%2?1:-1)*HIVE_SIDE.angleDeg},gateCell):null;
+    yaw:shown.yaw,hiveAngle:(hiveOrientation(gateCell.team)*HIVE_SIDE.angleDeg},gateCell):null;
   const origin=launcher(shown,v.lateral,v.forward),start=project(...origin),target=project(v.tx,v.ty),dir=rotate(0,1,shown.yaw+v.azimuth),f=flight(v.height,v.speed,v.elevation),impactPoint=gateHit?.impactPoint||gateHit,endDistance=Number.isFinite(impactPoint?.distance)?impactPoint.distance:(check.along>0?Math.min(f.range,check.along):f.range),end=project(origin[0]+dir[0]*endDistance,origin[1]+dir[1]*endDistance);
   c.lineWidth=1;c.setLineDash([5,5]);c.strokeStyle='#6b7584';c.beginPath();c.moveTo(...start);c.lineTo(...target);c.stroke();c.strokeStyle='#51d1bb';c.beginPath();c.moveTo(...start);c.lineTo(...end);c.stroke();c.setLineDash([]);
   c.fillStyle='#51d1bb';c.beginPath();c.arc(...start,4,0,Math.PI*2);c.fill();c.strokeStyle=(gateHit?gateHit.hit:check.possible)?'#55d9ab':'#ef727c';c.lineWidth=2;c.beginPath();c.arc(...target,9,0,Math.PI*2);c.moveTo(target[0]-14,target[1]);c.lineTo(target[0]+14,target[1]);c.moveTo(target[0],target[1]-14);c.lineTo(target[0],target[1]+14);c.stroke();
@@ -710,7 +711,7 @@ function drawSide(now) {
   const check=shotFeasibility(viewed,v);
   const viewedCell=$('arena').value==='biobuzz'?selectedHive():null;
   const checkHive=viewedCell?hiveShotImpact({...v,origin:launcher(viewed,v.lateral,v.forward),
-    yaw:viewed.yaw,hiveAngle:(hiveFlips[viewedCell.team]%2?1:-1)*HIVE_SIDE.angleDeg},viewedCell):null;
+    yaw:viewed.yaw,hiveAngle:(hiveOrientation(viewedCell.team)*HIVE_SIDE.angleDeg},viewedCell):null;
   const target=point(along,v.th);c.fillStyle=(checkHive?checkHive.hit:check.possible)?'#5bd8a8':'#ef727c';c.fillRect(target[0]-6,target[1]-6,12,12);
   const sideImpact=checkHive?.impactPoint||checkHive;if(sideImpact&&Number.isFinite(sideImpact.distance)&&Number.isFinite(sideImpact.height)){const impact=point(sideImpact.distance,sideImpact.height);c.fillStyle='#ffe66d';c.strokeStyle=checkHive?.hit?'#fff7bd':'#ef727c';c.lineWidth=2;c.beginPath();c.arc(...impact,6,0,Math.PI*2);c.fill();c.stroke();c.fillStyle='#fff4cf';c.font='bold 9px system-ui';c.textAlign='center';c.fillText(checkHive?.hit?'ENTRADA':'IMPACTO',impact[0],impact[1]-10);}
   c.strokeStyle=c.fillStyle;c.setLineDash([3,5]);c.beginPath();c.moveTo(...point(along,0));c.lineTo(...target);c.stroke();c.setLineDash([]);
@@ -796,7 +797,7 @@ function receiveJavaLaunches(){
     lastJavaLaunchId=event.id;
     const cell=hiveCellById(event.hive)||selectedHive();
     if(!cell)continue;
-    const hiveAngle=(hiveFlips[cell.team]%2?1:-1)*HIVE_SIDE.angleDeg;
+    const hiveAngle=(hiveOrientation(cell.team)*HIVE_SIDE.angleDeg;
     const target=hiveSideGeometry(cell,hiveAngle);
     const v={...launchValues(),lateral:event.lateral,forward:event.forward,height:event.height,
       speed:event.speed,elevation:event.elevation,azimuth:event.azimuth,
