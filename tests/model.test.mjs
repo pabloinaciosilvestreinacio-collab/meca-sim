@@ -1,7 +1,7 @@
 import test from 'node:test';
 import {validStart,FIELD_METERS,FLOWERS,hiveCellAt,hiveCellById,HIVE} from '../web/arena.mjs';
 import assert from 'node:assert/strict';
-import {rotate, launcher, heightAt, flight, gamepadValues, shotElapsed} from '../web/model.mjs';
+import {rotate, launcher, heightAt, flight, gamepadValues, keyboardGamepadValues, shotElapsed} from '../web/model.mjs';
 test('Ponto do Desmos permanece preso ao centro ao girar',()=>{
   for(const yaw of [0,45,90,180,-135]){
     const p={x:2,y:1,yaw},l=launcher(p,.1125,.225);
@@ -19,6 +19,15 @@ test('Alvo vertical usa projeção vetorial, sem dividir por delta X',()=>{const
 test('Mapeamento padrão: eixos, gatilhos, back/start e D-pad',()=>{
   const buttons=Array.from({length:16},()=>({pressed:false,value:0}));buttons[0]={pressed:true,value:1};buttons[6]={pressed:true,value:.7};buttons[8]={pressed:true,value:1};buttons[12]={pressed:true,value:1};
   const v=gamepadValues({mapping:'standard',axes:[.1,-.2,.3,-.4],buttons});assert.equal(v.length,20);assert.equal(v[1],-.2);assert.equal(v[4],.7);assert.equal(v[6],1);assert.equal(v[12],1);assert.equal(v[16],1);
+});
+test('Teclado emula todos os 20 slots FTC e gatilhos digitais',()=>{
+  const pressed=new Set(['q','s','a','f','1','2',' ','b','x','y','z','c','Backspace','Enter','[',']','ArrowUp','ArrowDown','ArrowLeft','ArrowRight']);
+  assert.deepEqual(keyboardGamepadValues(pressed),[
+    -1,1,-1,1,1,1,
+    1,1,1,1,1,1,1,1,1,1,1,1,1,1
+  ]);
+  assert.deepEqual(keyboardGamepadValues(new Set()),Array(20).fill(0));
+  assert.notEqual(keyboardGamepadValues(new Set()),keyboardGamepadValues(new Set()));
 });
 test('Desconectar ou mapeamento desconhecido zera comando',()=>{assert.deepEqual(gamepadValues(null),Array(20).fill(0));assert.deepEqual(gamepadValues({mapping:''}),Array(20).fill(0));});
 
