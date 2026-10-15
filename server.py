@@ -15,7 +15,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 
 from physics import World, Motor
-from elements import starting_elements, starting_inventory
+from elements import starting_elements, starting_inventory, deposit_to_flower
 from sdk import write_sdk
 from project_import import import_ftc_zip
 from diagnostics import Inspector
@@ -70,6 +70,18 @@ def build_world(config):
     if isinstance(capacity, bool) or not isinstance(capacity, int) or not 1 <= capacity <= 20:
         raise ValueError("Capacidade do intake deve ser um inteiro entre 1 e 20")
     world.intake_capacity = capacity
+    flower_servo_name = config.get("flower-servo-name", "flower")
+    if not isinstance(flower_servo_name, str) or not re.fullmatch(r"[A-Za-z_$][A-Za-z0-9_$-]{0,39}", flower_servo_name):
+        raise ValueError("Nome do servo de FLOWER inválido")
+    world.flower_servo_name = flower_servo_name
+    flower_deploy = float(config.get("flower-deploy-position", .8))
+    if not math.isfinite(flower_deploy) or not .1 <= flower_deploy <= 1:
+        raise ValueError("Posição de acionamento do FLOWER deve estar entre 0,1 e 1")
+    world.flower_deploy_position = flower_deploy
+    flower_range = float(config.get("flower-range", .65))
+    if not math.isfinite(flower_range) or not .15 <= flower_range <= 1.5:
+        raise ValueError("Alcance do FLOWER deve estar entre 0,15 e 1,5 m")
+    world.flower_range = flower_range
     launcher = config.get("launcher", {})
     if not isinstance(launcher, dict):
         raise ValueError("Configuração do lançador inválida")
@@ -157,7 +169,7 @@ class Session:
         self.logs = ""
         self.telemetry = ""
         self.gamepads = [[0] * 20, [0] * 20]
-        self.servos = {"servo": .5}
+        self.servos = {"servo": .5, self.world.flower_servo_name: .5}
         settings = config or {}
         self.match_mode = str(settings.get("match-mode", "auto"))
         if self.match_mode not in ("auto", "teleop"):
@@ -280,7 +292,15 @@ class Session:
                 if action == "get": return str(self.servos[name])
                 position = float(values[0])
                 if not math.isfinite(position): raise ValueError("Posição de servo inválida")
+                previous = self.servos.get(name, .5)
                 self.servos[name] = max(0, min(1, position))
+                threshold = self.world.flower_deploy_position
+                if (name == self.world.flower_servo_name and self.started
+                        and self.status == "executando" and not self.stop_event.is_set()
+                        and previous < threshold <= self.servos[name]):
+                    event = deposit_to_flower(self.world)
+                    if event:
+                        self.log(f"\\nFLOWER {event['flower']}: {event['kind']} depositado (#{event['sequence']}).\\n")
                 return ""
             if op == "motor":
                 name, action, *values = args
