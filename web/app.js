@@ -41,7 +41,7 @@ function renderKeymap(){
 }
 $('reset-keymap').addEventListener('click',()=>{keyMap={...DEFAULT_KEYMAP};capturingKey=null;keys.clear();localStorage.removeItem(KEYMAP_KEY);renderKeymap();notice('Mapa padrão restaurado.');});
 
-const configIds = ['arena','drivetrain','robot-color','left','right','front_left','front_right','back_left','back_right','width','length','track','max_speed','ticks_per_m','duration','match-mode','timer-enabled','x','y','initial-yaw','invert_left','invert_right','acceleration','left_gain','right_gain','left_slip','right_slip','imu_delay','imu_drift','walls','imu_frozen','left_encoder_frozen','right_encoder_frozen'];
+const configIds = ['arena','drivetrain','robot-color','left','right','front_left','front_right','back_left','back_right','width','length','track','max_speed','ticks_per_m','duration','match-mode','timer-enabled','x','y','initial-yaw','invert_left','invert_right','acceleration','left_gain','right_gain','left_slip','right_slip','imu_delay','imu_drift','walls','alliance','intake_reach','intake_capacity','imu_frozen','left_encoder_frozen','right_encoder_frozen'];
 const launchIds = ['offset-x','offset-y','height','shot-mode','force','speed','projectile-mass','acceleration-stroke','shot-efficiency','target-radius','target-tolerance','elevation','azimuth','target-x','target-y','target-h'];
 function config() {
   const data = {};
@@ -499,6 +499,14 @@ function drawTop(now) {
   c.lineWidth=1;c.font='10px system-ui';
   for(let i=0;i<=6;i++){const p=i*3.66/6,[x,y]=project(p,p);c.strokeStyle='#242c37';c.beginPath();c.moveTo(x,g.oy);c.lineTo(x,g.oy-3.66*g.scale);c.moveTo(g.ox,y);c.lineTo(g.ox+3.66*g.scale,y);c.stroke();c.fillStyle='#627085';c.fillText(p.toFixed(2),x-9,g.oy+15);c.fillText(p.toFixed(2),g.ox-28,y+3);}
   c.strokeStyle='#536277';c.strokeRect(g.ox,g.oy-3.66*g.scale,3.66*g.scale,3.66*g.scale);
+  (state.elements||[]).filter(item=>['field','flower','hive'].includes(item.status)).forEach(item=>{
+    const q=project(item.x,item.y),radius=Math.max(3,item.radius*g.scale);
+    const nectar=item.kind==='NECTAR',fill=nectar?(item.team==='red'?'#e34f5a':'#4c91e8'):'#f1ce54';
+    c.fillStyle=fill;c.strokeStyle=nectar?'#f7f8ff':'#80621f';c.lineWidth=1.3;
+    c.beginPath();c.arc(q[0],q[1],radius,0,Math.PI*2);c.fill();c.stroke();
+    c.strokeStyle=nectar?'#ffffffaa':'#fff2ad';c.lineWidth=1;
+    c.beginPath();c.moveTo(q[0]-radius*.55,q[1]);c.lineTo(q[0]+radius*.55,q[1]);c.stroke();
+  });
   c.strokeStyle='#ff852e80';c.lineWidth=2;c.beginPath();state.trail.forEach((p,i)=>{const q=project(...p);i?c.lineTo(...q):c.moveTo(...q);});c.stroke();
   if(replayIndex>=0){const row=replayRows[replayIndex];if(row){c.strokeStyle='#56e4bd';c.beginPath();replayRows.slice(0,replayIndex+1).forEach((r,i)=>{const q=project(r[1],r[2]);i?c.lineTo(...q):c.moveTo(...q);});c.stroke();}}
   if(routePoints.length){c.setLineDash([5,4]);c.strokeStyle='#ffcc67';c.lineWidth=2;c.beginPath();
@@ -509,6 +517,9 @@ function drawTop(now) {
   const shown=replayIndex>=0?{...state,x:replayRows[replayIndex][1],y:replayRows[replayIndex][2],yaw:replayRows[replayIndex][3]}:state;
   const corner=(x,y)=>{const r=rotate(x,y,shown.yaw);return project(shown.x+r[0],shown.y+r[1]);};
   c.beginPath();[[-1,-1],[1,-1],[1,1],[-1,1]].forEach(([x,y],i)=>{const p=corner(x*state.width/2,y*state.length/2);i?c.lineTo(...p):c.moveTo(...p);});c.closePath();const robotColor=$('robot-color').value||'#ff7a1a';c.fillStyle=robotColor+'33';c.fill();c.strokeStyle=robotColor;c.stroke();
+  const intakeReach=Number.isFinite(state.intake?.reach)?state.intake.reach:num('intake_reach');
+  const intakeCorners=[[-shown.width/2,shown.length/2],[shown.width/2,shown.length/2],[shown.width/2,shown.length/2+intakeReach],[-shown.width/2,shown.length/2+intakeReach]].map(([x,y])=>{const r=rotate(x,y,shown.yaw);return project(shown.x+r[0],shown.y+r[1]);});
+  c.beginPath();intakeCorners.forEach((p,i)=>i?c.lineTo(...p):c.moveTo(...p));c.closePath();c.fillStyle=state.intake?.active?'#51d1bb55':'#51d1bb12';c.fill();c.strokeStyle=state.intake?.active?'#51d1bb':'#51d1bb66';c.setLineDash([4,3]);c.stroke();c.setLineDash([]);
   const center=project(shown.x,shown.y),front=corner(0,shown.length*.6);c.beginPath();c.moveTo(...center);c.lineTo(...front);c.stroke();c.fillStyle='#fff';c.beginPath();c.arc(...center,3,0,Math.PI*2);c.fill();
   for(const sign of [-1,1]){const a=corner(sign*state.width/2,-state.length*.24),b=corner(sign*state.width/2,state.length*.24);c.strokeStyle='#d6dfeb';c.lineWidth=5;c.beginPath();c.moveTo(...a);c.lineTo(...b);c.stroke();}
   const v=launchValues();if(!v.valid)return;
@@ -663,6 +674,9 @@ function readouts() {
   if(hive&&progress)progress.textContent='HIVE '+(hive.team==='red'?'vermelho':'azul')+
     ' · '+hiveCounts[hive.team]+'/'+SIM_TIP_POLLS+' POLLEN · '+hiveFlips[hive.team]+
     ' tombamento(s) · abertura ativa: '+hiveCellById(activeCellId(hive.team)).name;
+  const stock=state.inventory||{POLLEN:0,NECTAR:0},intake=state.intake||{};
+  $('inventory').textContent=`POLLEN ${stock.POLLEN||0} · NECTAR ${stock.NECTAR||0} · ${(intake.collected||0)} coletada(s)`;
+  $('intake-status').textContent=intake.active?'Intake MI ativo · captura frontal até ${intake.capacity||num('intake_capacity')} peça(s)':`MI parado · ${stock.POLLEN||0}/${intake.capacity||num('intake_capacity')} no estoque`;
   $('sensor-status').textContent=state.imu_frozen?'Falha simulada ativa: IMU travado. Yaw real e yaw medido podem divergir.':'';
   const warnings=Array.isArray(state.diagnostics)?state.diagnostics:[];
   $('diagnostic-count').textContent=warnings.length+' aviso(s)';
