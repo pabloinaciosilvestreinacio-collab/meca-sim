@@ -1,4 +1,4 @@
-import {rotate, launcher, heightAt, flight, gamepadValues, targetSolution, encoderScale, connectedPlayers, speedFromForce, forceFromSpeed, shotFeasibility, shotElapsed, hiveShotImpact, registerPollen, SIM_TIP_POLLS} from './model.mjs';
+import {rotate, launcher, heightAt, flight, gamepadValues, keyboardGamepadValues, targetSolution, encoderScale, connectedPlayers, speedFromForce, forceFromSpeed, shotFeasibility, shotElapsed, hiveShotImpact, registerPollen, SIM_TIP_POLLS} from './model.mjs';
 import {FIELD_METERS, ARENAS, validStart, drawArenaTop, drawArenaSide, hiveCellAt, hiveCellById, hiveSideGeometry, HIVE_SIDE} from './arena.mjs';
 import {candidates, diagnostics, highlightJava} from './editor.mjs';
 import {routeSteps, routeWarnings, makeRouteJava, MAX_WAYPOINTS} from './route.mjs';
@@ -676,16 +676,21 @@ async function poll() {
   catch(e){$('status').textContent='Servidor desconectado';notice('Não foi possível acessar o servidor local. Confira o terminal do Python.');}
   finally{polling=false;}
 }
-const controls=['w','s','a','d','b','x','y',' ','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'];
-document.addEventListener('keydown',e=>{if(['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName))return;const key=e.key.length===1?e.key.toLowerCase():e.key;if(controls.includes(key)){e.preventDefault();keys.add(key);}});
-document.addEventListener('keyup',e=>keys.delete(e.key.length===1?e.key.toLowerCase():e.key));
+const controls=new Set(['q','e','w','s','a','d','r','f','1','2',' ','b','x','y','z','c','Backspace','Enter','[',']','ArrowUp','ArrowDown','ArrowLeft','ArrowRight']);
+const normalizedKey=key=>key.length===1?key.toLowerCase():key;
+document.addEventListener('keydown',e=>{
+  if(e.target.closest?.('input,textarea,select,button,a,[contenteditable="true"]'))return;
+  const key=normalizedKey(e.key);
+  if(controls.has(key)){e.preventDefault();keys.add(key);}
+});
+document.addEventListener('keyup',e=>keys.delete(normalizedKey(e.key)));
 window.addEventListener('blur',()=>{focused=false;keys.clear();api('gamepad').catch(()=>{});});
 window.addEventListener('focus',()=>{focused=true;});
 document.addEventListener('visibilitychange',()=>{if(document.hidden){keys.clear();api('stop').catch(()=>{});}});
 async function sendPads(now) {
   if(now-lastPad<40||padBusy)return;lastPad=now;padBusy=true;
   try{const pads=connectedPlayers(navigator.getGamepads?Array.from(navigator.getGamepads()):[]),p1=gamepadValues(focused?pads[0]:null),p2=gamepadValues(focused?pads[1]:null);
-    if(focused&&!pads[0]){p1[1]=Number(keys.has('s'))-Number(keys.has('w'));p1[2]=Number(keys.has('d'))-Number(keys.has('a'));p1[6]=Number(keys.has(' '));['b','x','y'].forEach((k,i)=>p1[7+i]=Number(keys.has(k)));['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].forEach((k,i)=>p1[16+i]=Number(keys.has(k)));}
+    if(focused&&!pads[0])p1.splice(0,p1.length,...keyboardGamepadValues(keys));
     for(const [index,expiry] of virtualKeys){
       if(now<expiry)p1[index]=1;else virtualKeys.delete(index);
     }
