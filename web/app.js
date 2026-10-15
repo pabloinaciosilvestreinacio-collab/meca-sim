@@ -6,7 +6,7 @@ const $ = id => document.getElementById(id);
 const num = id => Number($(id).value);
 let state = {x:1.83,y:.65,yaw:0,width:.45,length:.45,trail:[],motors:{},time:0,status:'pronto'};
 let focused = document.hasFocus();
-let shot = null, examples = {}, javaFiles = {}, zipOpModes = [], selectedJavaPath = '', lastPad = 0, polling = false, padBusy = false, pickingStart = false;
+let shot = null, javaShots = [], lastJavaLaunchId = 0, examples = {}, javaFiles = {}, zipOpModes = [], selectedJavaPath = '', lastPad = 0, polling = false, padBusy = false, pickingStart = false;
 let lastDraw=0,lastLog='',lastMotorSignature='',lastDiagnosticSignature='',lastShotPoseKey='',highlightJob=0,routePicking=false;
 let routePoints=[],replayRows=[],replayIndex=-1,replayPlaying=false,replayLast=0,scoredShots=[],selectedHiveId='red-lower',tippedHives=new Set(),hiveCounts={red:0,blue:0},hiveFlips={red:0,blue:0},hiveMotion={},auto35StartPose=null,auto35Moved=false;
 const LIBRARY_KEY='meca-sim-library-v1',LOGO_KEY='meca-sim-logo-v1',KEYMAP_KEY='meca-sim-keymap-v1';
@@ -85,22 +85,22 @@ function recordImpact(shot,now){
     setShotResult('HIVE TOMBOU · '+SIM_TIP_POLLS+' POLLEN na '+cell.name+'; gangorra invertida.','hit');
   }else setShotResult('POLLEN CAPTURADO · '+hiveCounts[cell.team]+'/'+SIM_TIP_POLLS+' na '+cell.name+'.','hit');
 }
-function currentShotBall(now){
-  if(!shot)return null;
-  const t=shotElapsed(now,shot.start);
-  const impact=shot.impact?.hit?shot.impact:null;
-  const time=impact?Math.min(t,impact.time):Math.min(t,flight(shot.height,shot.speed,shot.elevation).time);
-  const along=shot.speed*Math.cos(shot.elevation*Math.PI/180)*time;
-  const dir=rotate(0,1,shot.yaw+shot.azimuth);
-  let z=heightAt(along,shot.height,shot.speed,shot.elevation);
+function currentShotBall(now,candidate=shot){
+  if(!candidate)return null;
+  const t=shotElapsed(now,candidate.start);
+  const impact=candidate.impact?.hit?candidate.impact:null;
+  const time=impact?Math.min(t,impact.time):Math.min(t,flight(candidate.height,candidate.speed,candidate.elevation).time);
+  const along=candidate.speed*Math.cos(candidate.elevation*Math.PI/180)*time;
+  const dir=rotate(0,1,candidate.yaw+candidate.azimuth);
+  let z=heightAt(along,candidate.height,candidate.speed,candidate.elevation);
   const fall=impact&&t>=impact.time?Math.min(1,(t-impact.time)/.42):0;
-  const eased=fall*fall*(3-2*fall),cell=hiveCellById(shot.cellId);
-  const index=shot.restIndex||0;
-  const landingX=cell?cell.x+cell.w*(.26+(index%3)*.24):shot.origin[0]+dir[0]*along;
-  const landingY=cell?cell.y+cell.h*(.25+Math.floor(index/3)*.28):shot.origin[1]+dir[1]*along;
-  const restZ=cell?hiveSideGeometry(cell,shot.hiveAngle).floorHeight+.060:impact?.height||0;
+  const eased=fall*fall*(3-2*fall),cell=hiveCellById(candidate.cellId);
+  const index=candidate.restIndex||0;
+  const landingX=cell?cell.x+cell.w*(.26+(index%3)*.24):candidate.origin[0]+dir[0]*along;
+  const landingY=cell?cell.y+cell.h*(.25+Math.floor(index/3)*.28):candidate.origin[1]+dir[1]*along;
+  const restZ=cell?hiveSideGeometry(cell,candidate.hiveAngle).floorHeight+.060:impact?.height||0;
   if(fall>0)z=impact.height+(restZ-impact.height)*eased;
-  const ix=shot.origin[0]+dir[0]*along,iy=shot.origin[1]+dir[1]*along;
+  const ix=candidate.origin[0]+dir[0]*along,iy=candidate.origin[1]+dir[1]*along;
   return {x:ix+(landingX-ix)*eased,y:iy+(landingY-iy)*eased,
     z,along:along+(-.075+(index%4)*.05)*eased,fall};
 }
@@ -251,7 +251,7 @@ async function api(path, data={}) {
   return result;
 }
 const action = (id, callback) => $(id).addEventListener('click',async()=>{try{notice('');await callback();}catch(e){notice(e.message);}});
-action('compile',async()=>{resetReplay();persist();shot=null;await api('run',{source:$('source').value,files:javaFiles,config:config()});});
+action('compile',async()=>{resetReplay();persist();shot=null;javaShots=[];lastJavaLaunchId=0;await api('run',{source:$('source').value,files:javaFiles,config:config()});});
 // O Autônomo 3.5 espera seleção (B/X/Y/↑) e confirmação A ANTES de START.
 // Envia pulsos no mesmo canal gamepad do Java, sem alterar o código original.
 $('auto35-confirm').addEventListener('click',async()=>{
@@ -281,8 +281,8 @@ action('start',async()=>{
   await api('heartbeat');await api('start');
 });
 action('stop',()=>api('stop'));
-action('reset',async()=>{resetReplay();shot=null;await api('reset',{config:config()});});
-action('clear-shots',()=>{scoredShots=[];shot=null;tippedHives.clear();hiveCounts={red:0,blue:0};hiveFlips={red:0,blue:0};hiveMotion={};setShotResult('POLLEN, contadores e gangorras reiniciados.','info');});
+action('reset',async()=>{resetReplay();shot=null;javaShots=[];lastJavaLaunchId=0;await api('reset',{config:config()});});
+action('clear-shots',()=>{scoredShots=[];shot=null;javaShots=[];lastJavaLaunchId=Math.max(lastJavaLaunchId,...(state.launches||[]).map(e=>e.id));tippedHives.clear();hiveCounts={red:0,blue:0};hiveFlips={red:0,blue:0};hiveMotion={};setShotResult('POLLEN, contadores e gangorras reiniciados.','info');});
 action('export',async()=>{
   const blob=new Blob([JSON.stringify({version:'0.2',config:config(),launcher:Object.fromEntries(launchIds.map(id=>[id,id==='shot-mode'?$(id).value:num(id)])),result:state},null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob), a=document.createElement('a');a.href=url;a.download='meca-sim-resultado.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
@@ -533,7 +533,9 @@ function drawTop(now) {
   c.lineWidth=1;c.setLineDash([5,5]);c.strokeStyle='#6b7584';c.beginPath();c.moveTo(...start);c.lineTo(...target);c.stroke();c.strokeStyle='#51d1bb';c.beginPath();c.moveTo(...start);c.lineTo(...end);c.stroke();c.setLineDash([]);
   c.fillStyle='#51d1bb';c.beginPath();c.arc(...start,4,0,Math.PI*2);c.fill();c.strokeStyle=(gateHit?gateHit.hit:check.possible)?'#55d9ab':'#ef727c';c.lineWidth=2;c.beginPath();c.arc(...target,9,0,Math.PI*2);c.moveTo(target[0]-14,target[1]);c.lineTo(target[0]+14,target[1]);c.moveTo(target[0],target[1]-14);c.lineTo(target[0],target[1]+14);c.stroke();
   if(impactPoint&&Number.isFinite(impactPoint.x)&&Number.isFinite(impactPoint.y)){const q=project(impactPoint.x,impactPoint.y);c.fillStyle='#ffe66d';c.strokeStyle=gateHit?.hit?'#fff7bd':'#ef727c';c.lineWidth=2;c.beginPath();c.arc(...q,6,0,Math.PI*2);c.fill();c.stroke();c.fillStyle='#1c2028';c.font='bold 9px system-ui';c.textAlign='center';c.fillText(gateHit?.hit?'ENTROU':'IMPACTO',q[0],q[1]-10);}
-  if(shot){const q=currentShotBall(now);if(q){const pos=project(q.x,q.y);c.fillStyle='#fff4a9';c.beginPath();c.arc(...pos,5,0,Math.PI*2);c.fill();c.strokeStyle='#bd924e';c.stroke();}}
+  for(const ballShot of [...javaShots,...(shot?[shot]:[])]){
+    const q=currentShotBall(now,ballShot);if(q&&q.fall<1){const pos=project(q.x,q.y);c.fillStyle=ballShot.kind==='NECTAR'?(ballShot.team==='blue'?'#4c91e8':'#e34f5a'):'#fff4a9';c.beginPath();c.arc(...pos,ballShot.kind==='NECTAR'?6:5,0,Math.PI*2);c.fill();c.strokeStyle='#bd924e';c.stroke();}
+  }
   $('bounds').textContent=state.collision?'Contato com parede · rodas podem patinar':'Paredes externas físicas · frente +Y · yaw positivo ↶';
 }
 top.addEventListener('click',async event=>{
@@ -628,13 +630,13 @@ $('timeline-play').addEventListener('click',()=>{
 $('timeline-exit').addEventListener('click',()=>{resetReplay();readouts();});
 
 function drawSide(now) {
-  const {ctx:c,w,h}=canvasContext(side),v=shot||launchValues();if(!v.valid){$('shot-info').textContent='Confira os parâmetros do lançador.';return;}
+  const {ctx:c,w,h}=canvasContext(side),sideShot=shot||javaShots.at(-1)||null,v=sideShot||launchValues();if(!v.valid){$('shot-info').textContent='Confira os parâmetros do lançador.';return;}
   const viewed=replayIndex>=0&&replayRows[replayIndex]?{...state,x:replayRows[replayIndex][1],y:replayRows[replayIndex][2],yaw:replayRows[replayIndex][3]}:state;
-  const origin=shot?.origin||launcher(viewed,v.lateral,v.forward),yaw=shot?.yaw??viewed.yaw,dir=rotate(0,1,yaw+v.azimuth),dx=v.tx-origin[0],dy=v.ty-origin[1],along=dx*dir[0]+dy*dir[1],cross=Math.abs(dx*dir[1]-dy*dir[0]),f=flight(v.height,v.speed,v.elevation);
+  const origin=sideShot?.origin||launcher(viewed,v.lateral,v.forward),yaw=sideShot?.yaw??viewed.yaw,dir=rotate(0,1,yaw+v.azimuth),dx=v.tx-origin[0],dy=v.ty-origin[1],along=dx*dir[0]+dy*dir[1],cross=Math.abs(dx*dir[1]-dy*dir[0]),f=flight(v.height,v.speed,v.elevation);
   const a=v.azimuth*Math.PI/180,half=(Math.abs(Math.sin(a))*state.width+Math.abs(Math.cos(a))*state.length)/2,offset=v.lateral*(-Math.sin(a))+v.forward*Math.cos(a),left=-offset-half,right=-offset+half;
   const minX=Math.min(-.6,left-.1,along-.65),maxX=Math.max(2.2,along+.8,right+.1),peak=v.height+(v.speed*Math.sin(v.elevation*Math.PI/180))**2/(2*9.81),maxH=Math.max(1.5,peak+.3,v.th+.3),sx=(w-55)/(maxX-minX),sy=(h-35)/maxH;
   const point=(x,y)=>[40+(x-minX)*sx,h-25-y*sy];c.font='10px system-ui';c.lineWidth=1;
-  const sideCell=hiveCellById(shot?.cellId||selectedHiveId);
+  const sideCell=hiveCellById(sideShot?.cellId||selectedHiveId);
   const redCell=sideCell?.team==='red'?sideCell:hiveCellById('red-lower');
   drawArenaSide(c,point,$('arena').value,along,v.th,redCell,scoredShots,hiveStatus('red',now));
   for(let i=0;i<=4;i++){const value=i*maxH/4,p=point(0,value);c.strokeStyle='#242c37';c.beginPath();c.moveTo(...p);c.lineTo(w-10,p[1]);c.stroke();c.fillStyle='#627085';c.fillText(value.toFixed(1)+'m',5,p[1]+3);}
@@ -642,7 +644,7 @@ function drawSide(now) {
   // Projeção do chassi no eixo do tiro; o lançador está em x=0.
   c.fillStyle='#ff852e20';c.strokeStyle='#ff852e';const p=point(left,.30);c.fillRect(p[0],p[1],(right-left)*sx,.30*sy);c.strokeRect(p[0],p[1],(right-left)*sx,.30*sy);
   c.strokeStyle='#f07a7b';c.lineWidth=2;c.setLineDash([7,4]);c.beginPath();
-  const arcEnd=shot?.impact?.hit?shot.impact.distance:f.range;
+  const arcEnd=sideShot?.impact?.hit?shot.impact.distance:f.range;
   for(let i=0;i<=120;i++){const x=arcEnd*i/120,q=point(x,Math.max(0,heightAt(x,v.height,v.speed,v.elevation)));i?c.lineTo(...q):c.moveTo(...q);}
   c.stroke();c.setLineDash([]);
   const check=shotFeasibility(viewed,v);
@@ -657,7 +659,7 @@ function drawSide(now) {
   const ramp=point(-reach,Math.max(0,v.height-reach*Math.tan(angle))),muzzle=point(0,v.height);
   c.strokeStyle='#ffb564';c.lineWidth=5;c.beginPath();c.moveTo(...ramp);c.lineTo(...muzzle);c.stroke();
   c.fillStyle='#ffb564';c.beginPath();c.arc(...muzzle,4,0,Math.PI*2);c.fill();
-  if(shot){const ball=currentShotBall(now);if(ball){const q=point(ball.along,ball.z);c.fillStyle='#fff4a9';c.beginPath();c.arc(...q,5,0,Math.PI*2);c.fill();c.strokeStyle='#b98944';c.stroke();}}
+  if(sideShot){const ball=currentShotBall(now,sideShot);if(ball){const q=point(ball.along,ball.z);c.fillStyle='#fff4a9';c.beginPath();c.arc(...q,5,0,Math.PI*2);c.fill();c.strokeStyle='#b98944';c.stroke();}}
   const at=along>=0&&along<=f.range?heightAt(along,v.height,v.speed,v.elevation):null;
   $('shot-info').textContent=((checkHive?checkHive.hit:check.possible)?'POSSÍVEL':'NÃO ATINGE O ALVO')+
     ' · v₀ '+v.speed.toFixed(2)+' m/s · alcance '+f.range.toFixed(2)+' m · distância horizontal '+along.toFixed(2)+
@@ -718,9 +720,28 @@ function readouts() {
   if(signature!==lastMotorSignature){lastMotorSignature=signature;
   $('motors').replaceChildren();Object.entries(state.motors).forEach(([name,m])=>{const node=document.createElement('div');node.className='motor';const label=document.createElement('strong');label.textContent=name;const value=document.createElement('span');value.textContent=`P ${m.power.toFixed(2)} · ${m.encoder} ticks`;const bar=document.createElement('div');bar.className='bar';const fill=document.createElement('i');fill.style.width=Math.abs(m.power)*100+'%';bar.append(fill);node.append(label,value,bar);$('motors').append(node);});}
 }
+function receiveJavaLaunches(){
+  for(const event of state.launches||[]){
+    if(event.id<=lastJavaLaunchId)continue;
+    lastJavaLaunchId=event.id;
+    const cell=hiveCellById(event.hive)||selectedHive();
+    if(!cell)continue;
+    const hiveAngle=(hiveFlips[cell.team]%2?1:-1)*HIVE_SIDE.angleDeg;
+    const target=hiveSideGeometry(cell,hiveAngle);
+    const v={...launchValues(),lateral:event.lateral,forward:event.forward,height:event.height,
+      speed:event.speed,elevation:event.elevation,azimuth:event.azimuth,
+      tx:cell.x+cell.w/2,ty:cell.y+cell.h/2,th:target.openingHeight,valid:true};
+    const origin=[event.x,event.y],yaw=event.yaw;
+    const impact=hiveShotImpact({...v,origin,yaw,hiveAngle},cell);
+    javaShots.push({...v,origin,yaw,start:performance.now()-Math.max(0,(state.time-event.time)*1000),
+      impact,cellId:cell.id,hiveAngle,restIndex:scoredShots.filter(ball=>ball.cellId===cell.id).length,
+      kind:event.kind,team:event.team||cell.team,pieceId:event.piece_id});
+    setShotResult('JAVA LANÇOU '+event.kind+' · '+(impact.hit?'trajetória prevista para a CELL.':'não atinge: '+impact.reason+'.'),'info');
+  }
+}
 async function poll() {
   if(polling)return;polling=true;
-  try{const response=await fetch('/api/state');if(!response.ok)throw Error('Falha ao consultar simulação');state=await response.json();readouts();}
+  try{const response=await fetch('/api/state');if(!response.ok)throw Error('Falha ao consultar simulação');state=await response.json();receiveJavaLaunches();readouts();}
   catch(e){$('status').textContent='Servidor desconectado';notice('Não foi possível acessar o servidor local. Confira o terminal do Python.');}
   finally{polling=false;}
 }
@@ -754,6 +775,19 @@ async function sendPads(now) {
   }catch{}finally{padBusy=false;}
 }
 function frame(now){
+  javaShots=javaShots.filter(candidate=>{
+    const elapsed=shotElapsed(now,candidate.start),impact=candidate.impact?.hit?candidate.impact:null;
+    if(impact&&!candidate.registered&&elapsed>=impact.time)recordImpact(candidate,now);
+    if(impact&&elapsed>=impact.time+.42){
+      if(!candidate.tipped){const cell=hiveCellById(candidate.cellId);scoredShots.push({cellId:cell.id,x:impact.x,y:impact.y,height:impact.height,kind:candidate.kind});}
+      if(candidate.tipped)selectHive(hiveCellById(activeCellId(impact.team)),false);
+      return false;
+    }
+    if(!impact&&elapsed>=flight(candidate.height,candidate.speed,candidate.elevation).time){
+      setShotResult('ERRO · '+(candidate.impact?.reason||'lançamento fora da abertura')+'.','error');return false;
+    }
+    return true;
+  });
   if(shot){
     const elapsed=shotElapsed(now,shot.start),impact=shot.impact?.hit?shot.impact:null;
     if(impact&&!shot.registered&&elapsed>=impact.time)recordImpact(shot,now);
