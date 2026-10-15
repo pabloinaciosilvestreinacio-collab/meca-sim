@@ -9,8 +9,38 @@ let focused = document.hasFocus();
 let shot = null, examples = {}, javaFiles = {}, zipOpModes = [], selectedJavaPath = '', lastPad = 0, polling = false, padBusy = false, pickingStart = false;
 let lastDraw=0,lastLog='',lastMotorSignature='',lastDiagnosticSignature='',lastShotPoseKey='',highlightJob=0,routePicking=false;
 let routePoints=[],replayRows=[],replayIndex=-1,replayPlaying=false,replayLast=0,scoredShots=[],selectedHiveId='red-lower',tippedHives=new Set(),hiveCounts={red:0,blue:0},hiveFlips={red:0,blue:0},hiveMotion={},auto35StartPose=null,auto35Moved=false;
-const LIBRARY_KEY='meca-sim-library-v1',LOGO_KEY='meca-sim-logo-v1';
+const LIBRARY_KEY='meca-sim-library-v1',LOGO_KEY='meca-sim-logo-v1',KEYMAP_KEY='meca-sim-keymap-v1';
 const keys = new Set(), virtualKeys=new Map(), top = $('top'), side = $('side');
+const keymapActions=[
+  ['lsxNeg','LS X −'],['lsxPos','LS X +'],['lsyNeg','LS Y −'],['lsyPos','LS Y +'],
+  ['rsxNeg','RS X −'],['rsxPos','RS X +'],['rsyNeg','RS Y −'],['rsyPos','RS Y +'],
+  ['a','A'],['b','B'],['x','X'],['y','Y'],['lb','LB'],['rb','RB'],['lt','LT'],['rt','RT'],
+  ['dpadUp','D-pad ↑'],['dpadDown','D-pad ↓'],['dpadLeft','D-pad ←'],['dpadRight','D-pad →'],
+  ['start','Start'],['back','Back'],['leftStick','LS click'],['rightStick','RS click']
+];
+function loadKeymap(){
+  try{
+    const saved=JSON.parse(localStorage.getItem(KEYMAP_KEY)||'null');
+    if(!saved||typeof saved!=='object')return {...DEFAULT_KEYMAP};
+    const map={...DEFAULT_KEYMAP};
+    for(const [action,key] of Object.entries(saved))if(action in map&&typeof key==='string'&&key.length>0&&key.length<=24)map[action]=key;
+    if(new Set(Object.values(map)).size!==Object.keys(map).length)return {...DEFAULT_KEYMAP};
+    return map;
+  }catch{return {...DEFAULT_KEYMAP};}
+}
+let keyMap=loadKeymap(),capturingKey=null;
+const displayKey=key=>key===' '?'Space':key==='ArrowUp'?'↑':key==='ArrowDown'?'↓':key==='ArrowLeft'?'←':key==='ArrowRight'?'→':key;
+function renderKeymap(){
+  const root=$('keymap');if(!root)return;root.replaceChildren();
+  for(const [action,label] of keymapActions){
+    const row=document.createElement('label');row.className='keymap-row';row.append(document.createTextNode(label));
+    const button=document.createElement('button');button.type='button';button.textContent=action===capturingKey?'Pressione uma tecla…':displayKey(keyMap[action]);
+    button.setAttribute('aria-label','Tecla para '+label);button.addEventListener('click',()=>{capturingKey=action;renderKeymap();notice('Pressione uma tecla para '+label+'; Esc cancela.');});
+    row.append(button);root.append(row);
+  }
+}
+$('reset-keymap').addEventListener('click',()=>{keyMap={...DEFAULT_KEYMAP};capturingKey=null;keys.clear();localStorage.removeItem(KEYMAP_KEY);renderKeymap();notice('Mapa padrão restaurado.');});
+
 const configIds = ['arena','drivetrain','robot-color','left','right','front_left','front_right','back_left','back_right','width','length','track','max_speed','ticks_per_m','duration','match-mode','timer-enabled','x','y','initial-yaw','invert_left','invert_right','acceleration','left_gain','right_gain','left_slip','right_slip','imu_delay','imu_drift','walls','imu_frozen','left_encoder_frozen','right_encoder_frozen'];
 const launchIds = ['offset-x','offset-y','height','shot-mode','force','speed','projectile-mass','acceleration-stroke','shot-efficiency','target-radius','target-tolerance','elevation','azimuth','target-x','target-y','target-h'];
 function config() {
@@ -676,21 +706,28 @@ async function poll() {
   catch(e){$('status').textContent='Servidor desconectado';notice('Não foi possível acessar o servidor local. Confira o terminal do Python.');}
   finally{polling=false;}
 }
-const controls=new Set(['q','e','w','s','a','d','r','f','1','2',' ','b','x','y','z','c','Backspace','Enter','[',']','ArrowUp','ArrowDown','ArrowLeft','ArrowRight']);
 const normalizedKey=key=>key.length===1?key.toLowerCase():key;
 document.addEventListener('keydown',e=>{
-  if(e.target.closest?.('input,textarea,select,button,a,[contenteditable="true"]'))return;
   const key=normalizedKey(e.key);
-  if(controls.has(key)){e.preventDefault();keys.add(key);}
+  if(capturingKey){
+    if(key==='Escape'){capturingKey=null;renderKeymap();notice('Remapeamento cancelado.');e.preventDefault();return;}
+    if(['Control','Shift','Alt','Meta'].includes(key))return;
+    if(Object.entries(keyMap).some(([action,value])=>action!==capturingKey&&value===key)){notice('Essa tecla já está atribuída. Escolha outra ou restaure o padrão.');e.preventDefault();return;}
+    keyMap[capturingKey]=key;capturingKey=null;keys.clear();
+    try{localStorage.setItem(KEYMAP_KEY,JSON.stringify(keyMap));}catch{}
+    renderKeymap();notice('Tecla atualizada.');e.preventDefault();return;
+  }
+  if(e.target.closest?.('input,textarea,select,button,a,[contenteditable="true"]'))return;
+  if(Object.values(keyMap).includes(key)){e.preventDefault();keys.add(key);}
 });
 document.addEventListener('keyup',e=>keys.delete(normalizedKey(e.key)));
-window.addEventListener('blur',()=>{focused=false;keys.clear();api('gamepad').catch(()=>{});});
+window.addEventListener('blur',()=>{focused=false;capturingKey=null;keys.clear();renderKeymap();api('gamepad').catch(()=>{});});
 window.addEventListener('focus',()=>{focused=true;});
 document.addEventListener('visibilitychange',()=>{if(document.hidden){keys.clear();api('stop').catch(()=>{});}});
 async function sendPads(now) {
   if(now-lastPad<40||padBusy)return;lastPad=now;padBusy=true;
   try{const pads=connectedPlayers(navigator.getGamepads?Array.from(navigator.getGamepads()):[]),p1=gamepadValues(focused?pads[0]:null),p2=gamepadValues(focused?pads[1]:null);
-    if(focused&&!pads[0])p1.splice(0,p1.length,...keyboardGamepadValues(keys));
+    if(focused&&!pads[0])p1.splice(0,p1.length,...keyboardGamepadValues(keys,keyMap));
     for(const [index,expiry] of virtualKeys){
       if(now<expiry)p1[index]=1;else virtualKeys.delete(index);
     }
@@ -722,7 +759,7 @@ function frame(now){
   requestAnimationFrame(frame);
 }
 async function init() {
-  try{const response=await fetch('/examples');examples=await response.json();Object.keys(examples).forEach(name=>{const option=document.createElement('option');option.value=name;option.textContent=name;$('example').append(option);});
+  try{renderKeymap();const response=await fetch('/examples');examples=await response.json();Object.keys(examples).forEach(name=>{const option=document.createElement('option');option.value=name;option.textContent=name;$('example').append(option);});
     refreshExamples();
     const saved=JSON.parse(localStorage.getItem('meca-sim-v02')||'null');if(saved){$('source').value=saved.source||'';javaFiles=saved.files&&typeof saved.files==='object'&&!Array.isArray(saved.files)?saved.files:{};restoreOpModeChoices();updateJavaFilesLabel();Object.entries(saved.values||{}).forEach(([id,value])=>{if($(id))$(id).type==='checkbox'?$(id).checked=Boolean(value):$(id).value=value;});
     if(!Object.prototype.hasOwnProperty.call(saved.values||{},'shot-mode'))$('shot-mode').value='speed';
