@@ -9,6 +9,16 @@ Validação local deste bloco: 5 asserções sobre vetor de 20 slots, eixos, bot
 Limitação: teclas e gatilhos são digitais e não reproduzem valores analógicos intermediários. O remapeamento persiste localmente neste navegador. Controles físicos padrão permanecem prioritários.
 
 
+## Fase 1 — elementos e intake (15/10/2026)
+
+Fonte de referência consultada: Competition Manual BIOBUZZ TU05, atualizado em 15/10/2026, e Field Setup Guide v1.0. A configuração modela 40 POLLEN (16 em FLOWERS, 8 em GARDENS, 16 preloads) e 16 NECTAR (6 em CELLS ascendentes, 10 reservados em ALLIANCE AREAS). Para o robô virtual, quatro preloads ficam no inventário; preloads dos outros três robôs são reservas sem representação física de outros robôs. Posições são aproximadas.
+
+Critérios cobertos: distinção por tipo/tamanho e estado, inventário com capacidade, captura somente com MI positivo e overlap do intake frontal, colisão sem captura fora do intake, amortecimento e contato com paredes e entre peças soltas.
+
+Testes executados contra os fontes desta branch: 6 testes Python passaram (contagens de início, captura, limite de capacidade, colisão lateral, parede/amortecimento e contato peça-peça). Ainda não foram executados os testes integrados do servidor/Java nem o workflow remoto após estes commits. Nenhum ensaio físico.
+
+Limites: partículas em FLOWER/HIVE e itens reservados são estados discretos, não corpos 3D; não há massas calibradas, solver rígido, coleta de NECTAR por regra ou lançamento por MS ainda.
+
 ## Correções solicitadas: parede, HIVE e tempo
 
 A colisão com a parede externa é agora imposta pelo servidor, portanto um valor antigo salvo no navegador não pode desligá-la. FLOWERS, HIVE e desenhos de campo seguem sem colisão, conforme o escopo solicitado.
