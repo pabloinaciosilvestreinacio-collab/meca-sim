@@ -50,7 +50,7 @@ try:
         assert page.locator('#status').text_content()=='pronto'
         page.context.grant_permissions(['clipboard-read','clipboard-write'],origin=f'http://127.0.0.1:{port}')
         source.press('Control+End')
-        marker='//editor-history-test'
+        marker='Z'
         page.keyboard.type(marker)
         source.press('Control+z')
         assert source.input_value()==original, 'Ctrl+Z não desfez'
