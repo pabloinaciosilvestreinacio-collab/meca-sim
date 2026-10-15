@@ -121,3 +121,13 @@
 - Cada borda de acionamento consome uma peça, registra tipo, FLOWER e ordem, e aparece no painel Driver Station; precisa retrair o servo antes de um novo ciclo.
 - Sem peça, fora de alcance ou com OpMode parado, não há depósito. A interação respeita o comando Java, sem botão paralelo que ignore o OpMode.
 - Alcance por distância ao centro é aproximação didática; ordem/estado são registrados, mas pontuação oficial, propriedade, condições de Nectar e regras G410 continuam pendentes.
+
+
+## Fase 1 — regras de entrada de NECTAR (15/10/2026)
+
+- Criado módulo `rules.py`, separado da física, para acompanhar TIPs, NECTAR reservado/introduzido, disponibilidade da aliança e penalidades registradas.
+- Cada TIP simulado libera uma entrada de NECTAR; nos últimos 60 s, todas as peças restantes da aliança ficam disponíveis. O botão explícito Human Player introduz uma por vez na Loading Zone esquemática.
+- O depósito de NECTAR em FLOWER antes dos últimos 60 s registra G410 como falta grave por peça. O depósito continua no modelo; o simulador não arbitra pontos nem substitui o árbitro.
+- O TIP continua derivado do limiar didático de 8 POLLEN; a posição da Loading Zone é aproximada. Esta entrega não implementa pontuação completa, fases automáticas Auto/TeleOp, GARDEN ou configuração personalizada das regras.
+- Referência normativa consultada: FIRST BIOBUZZ Competition Manual TU05, atualização de 15/10/2026, Sections 10–11, incluindo G410 e G426.
+- Testes focados adicionados em `tests/test_rules.py`; resultado será registrado após execução.
