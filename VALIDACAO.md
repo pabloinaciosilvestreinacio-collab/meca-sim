@@ -6,7 +6,6 @@ Mapeamento aprovado: Q/E LS-X; W/S LS-Y; A/D RS-X; R/F RS-Y; Espaço/B/X/Y A/B/X
 
 Limitação: teclas ainda não podem ser remapeadas pela interface; a customização visual continua pendente. Eixos digitais não reproduzem posições analógicas intermediárias. Controles físicos padrão permanecem prioritários.
 
-# Validação — candidato 0.3-rc3
 
 ## Correções solicitadas: parede, HIVE e tempo
 
