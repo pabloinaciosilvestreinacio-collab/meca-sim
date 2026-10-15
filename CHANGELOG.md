@@ -3,7 +3,7 @@
 - Modelo de 40 POLLEN e 16 NECTAR, com estados de campo, FLOWER, HIVE, preload, inventário e reserva; diâmetros aproximados do manual.
 - Intake frontal configurável (largura do chassi, alcance inicial 0,15 m, capacidade inicial 4). MI positivo captura apenas dentro da região e se houver capacidade.
 - Peças livres recebem amortecimento, colisões em pares, paredes e empurrão simplificado pelo chassi; duas vistas exibem os elementos e telemetria de inventário.
-- Modelo não é CAD/3D nem calibração de massa/atrito; posições são aproximadas. Shooter MS e pontuação oficial permanecem pendentes.
+- Modelo não é CAD/3D nem calibração de massa/atrito; posições são aproximadas.
 
 ## Fase 1 — gamepad completo pelo teclado (15/10/2026)
 
@@ -102,3 +102,11 @@
 - Adicionado gamepad1/gamepad2 padrão, teclado, telemetria, console, persistência e exportação.
 - Adicionados exemplos, testes analíticos/integração e plano de distribuição pública futura.
 - Compatibilidade explicitamente parcial; Java roda localmente sem sandbox; sem motor físico, câmera, colisão ou pontuação simulada.
+
+
+## Fase 1 — shooter MS/MI e relatório (15/10/2026)
+
+- MS+MI positivos consomem uma unidade do inventário por intervalo configurável (0,8 s inicial); estoque vazio registra tentativa sem criar lançamento.
+- A trajetória lançada pelo Java usa o perfil balístico existente e produz evento que alimenta as vistas. É simulação, não leitura de RPM nem calibração de robô.
+- Botão Terminar Simulação gera relatório persistente no navegador com resultado Java, métricas, telemetria, logs e diagnósticos; exportação JSON/CSV e descarte explícito.
+- O relatório diferencia fim normal do Java de sucesso da missão. Pontuação permanece parcial; FLOWER/GARDEN, penalidades e arbitragem completa ainda estão pendentes.
