@@ -86,6 +86,8 @@ class World:
     intake_capacity: int = 4
     collection_events: int = 0
     flower_range: float = .65
+    flower_servo_name: str = "flower"
+    flower_deploy_position: float = .8
     flower_events: list = field(default_factory=list)
     flower_sequence: int = 0
     launcher: dict = field(default_factory=lambda: {
