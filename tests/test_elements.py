@@ -63,5 +63,34 @@ class ElementSimulationTests(unittest.TestCase):
         self.assertGreaterEqual(((b.x-a.x)**2+(b.y-a.y)**2)**.5, a.radius+b.radius-1e-9)
 
 
+    def test_ms_and_mi_consume_one_piece_per_feed_interval(self):
+        world = World()
+        world.inventory = starting_inventory(world.elements)
+        world.motors["MS"].power = world.motors["MI"].power = 1
+        world.elapsed = .8
+        update_elements(world, .01)
+        self.assertEqual(world.launch_count, 1)
+        self.assertEqual(len(world.inventory), 3)
+        self.assertEqual(world.launches[-1]["kind"], "POLLEN")
+        self.assertEqual(world.launches[-1]["hive"], "red-lower")
+        world.elapsed = 1.59
+        update_elements(world, .01)
+        self.assertEqual(world.launch_count, 1)
+        world.elapsed = 1.6
+        update_elements(world, .01)
+        self.assertEqual(world.launch_count, 2)
+        self.assertEqual(len(world.inventory), 2)
+
+    def test_empty_inventory_never_creates_launch(self):
+        world = World()
+        world.inventory = []
+        world.motors["MS"].power = world.motors["MI"].power = 1
+        world.elapsed = .8
+        update_elements(world, .01)
+        self.assertEqual(world.launches, [])
+        self.assertEqual(world.launch_count, 0)
+        self.assertEqual(world.empty_feed_attempts, 1)
+
+
 if __name__ == "__main__":
     unittest.main()
