@@ -212,4 +212,4 @@ Implementada em branch experimental. Configura-se o nome do servo (padrão `flow
 
 A proximidade é uma aproximação didática ao centro da estrutura. Este bloco não decide pontuação, posse, sequências oficiais nem liberação de NECTAR; não declarar regras FLOWER completas.
 
-Testes adicionados em `tests/test_elements.py`: consumo/ordem, inventário e proximidade, acionamento por borda, ausência de duplicação sem retração e bloqueio quando OpMode não está executando. Ainda não executei os testes nem confirmei a CI desta alteração; o código permanece sujeito à validação integrada da branch.
+Testes em `tests/test_elements.py`: 12/12 passaram em execução Python em memória com os módulos da branch (incluindo consumo/ordem, proximidade, acionamento por borda e bloqueio sem OpMode ativo). Sintaxe Python dos quatro arquivos e sintaxe JavaScript de `web/app.js` também passaram. A CI remota não apresentou workflows/status para o commit, e E2E Chromium não foi executado; continua pendente a validação visual/integrada.
