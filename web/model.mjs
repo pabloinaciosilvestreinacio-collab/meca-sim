@@ -75,22 +75,29 @@ export function connectedPlayers(pads) {
   // Preserve browser index: unplugging player 1 must not promote player 2.
   return [pads[0]?.connected===false?null:pads[0], pads[1]?.connected===false?null:pads[1]];
 }
+/** Mapeamento inicial para teclado; eixos e gatilhos são digitais. */
+export const DEFAULT_KEYMAP = Object.freeze({
+  lsxNeg:'q',lsxPos:'e',lsyNeg:'w',lsyPos:'s',
+  rsxNeg:'a',rsxPos:'d',rsyNeg:'r',rsyPos:'f',
+  lt:'1',rt:'2',a:' ',b:'b',x:'x',y:'y',lb:'z',rb:'c',
+  back:'Backspace',start:'Enter',leftStick:'[',rightStick:']',
+  dpadUp:'ArrowUp',dpadDown:'ArrowDown',dpadLeft:'ArrowLeft',dpadRight:'ArrowRight'
+});
+
 /** Converte teclas virtuais no vetor FTC de 20 slots usado pelo servidor.
- * Os eixos são digitais (−1/0/1); LT/RT também são digitais (0/1).
- * O chamador só usa esta entrada quando nenhum Gamepad 1 físico está conectado. */
-export function keyboardGamepadValues(keys) {
-  const pressed = key => Number(keys.has(key));
+ * Os eixos são −1/0/1; LT/RT são 0/1. */
+export function keyboardGamepadValues(keys, map=DEFAULT_KEYMAP) {
+  const pressed = action => Number(keys.has(map[action]));
   return [
-    pressed('e')-pressed('q'),
-    pressed('s')-pressed('w'),
-    pressed('d')-pressed('a'),
-    pressed('f')-pressed('r'),
-    pressed('1'),
-    pressed('2'),
-    pressed(' '), pressed('b'), pressed('x'), pressed('y'),
-    pressed('z'), pressed('c'), pressed('Backspace'), pressed('Enter'),
-    pressed('['), pressed(']'),
-    pressed('ArrowUp'), pressed('ArrowDown'), pressed('ArrowLeft'), pressed('ArrowRight')
+    pressed('lsxPos')-pressed('lsxNeg'),
+    pressed('lsyPos')-pressed('lsyNeg'),
+    pressed('rsxPos')-pressed('rsxNeg'),
+    pressed('rsyPos')-pressed('rsyNeg'),
+    pressed('lt'), pressed('rt'),
+    pressed('a'), pressed('b'), pressed('x'), pressed('y'),
+    pressed('lb'), pressed('rb'), pressed('back'), pressed('start'),
+    pressed('leftStick'), pressed('rightStick'),
+    pressed('dpadUp'), pressed('dpadDown'), pressed('dpadLeft'), pressed('dpadRight')
   ];
 }
 
