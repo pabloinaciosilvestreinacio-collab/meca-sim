@@ -4,7 +4,9 @@ Bloco implementado na branch experimental: emulação dos 20 slots FTC usando so
 
 Mapeamento aprovado: Q/E LS-X; W/S LS-Y; A/D RS-X; R/F RS-Y; Espaço/B/X/Y A/B/X/Y; Z/C LB/RB; 1/2 LT/RT; setas D-pad; Enter/Backspace Start/Back; [/] cliques. A interface agora documenta o mapa.
 
-Limitação: as teclas são digitais e não reproduzem eixos analógicos intermediários; remapeamento e restauração agora são locais ao navegador. Teclas repetidas são rejeitadas. Eixos digitais não reproduzem posições analógicas intermediárias. Controles físicos padrão permanecem prioritários.
+Validação local deste bloco: 5 asserções sobre vetor de 20 slots, eixos, botões, gatilhos digitais, remapeamento e neutralidade passaram; `web/app.js` passou `node --input-type=module --check`; `tests/browser_e2e.py` passou compilação sintática Python. O teste de interação Chromium foi acrescentado, mas ainda aguarda execução no workflow. Nenhum controle físico foi ensaiado.
+
+Limitação: teclas e gatilhos são digitais e não reproduzem valores analógicos intermediários. O remapeamento persiste localmente neste navegador. Controles físicos padrão permanecem prioritários.
 
 
 ## Correções solicitadas: parede, HIVE e tempo
