@@ -278,6 +278,7 @@ $('auto35-confirm').addEventListener('click',async()=>{
 });
 for(const [id,target] of [['ds-init','compile'],['ds-start','start'],['ds-stop','stop']])$(id).addEventListener('click',()=>$(target).click());
 action('start',async()=>{
+  if(finalReport)throw Error('Exporte ou descarte o relatório anterior antes de iniciar outra partida.');
   auto35StartPose=/class\s+Autonomo35\b/.test($('source').value)?{x:state.x,y:state.y,yaw:state.yaw}:null;
   auto35Moved=false;
   await api('heartbeat');await api('start');matchStarted=true;
@@ -737,7 +738,7 @@ function readouts() {
   const hive=selectedHive();
   const progress=$('hive-progress');
   if(hive&&progress)progress.textContent='HIVE '+(hive.team==='red'?'vermelho':'azul')+
-    ' · '+hiveCounts[hive.team]+'/'+SIM_TIP_POLLS+' POLLEN · '+hiveFlips[hive.team]+
+    ' · '+hiveCounts[hive.team]+'/'+SIM_TIP_POLLS+' peças (modelo didático) · '+hiveFlips[hive.team]+
     ' tombamento(s) · abertura ativa: '+hiveCellById(activeCellId(hive.team)).name;
   const stock=state.inventory||{POLLEN:0,NECTAR:0},intake=state.intake||{};
   $('inventory').textContent=`POLLEN ${stock.POLLEN||0} · NECTAR ${stock.NECTAR||0} · ${(intake.collected||0)} coletada(s)`;
