@@ -698,8 +698,7 @@ function drawSide(now) {
   const minX=Math.min(-.6,left-.1,along-.65),maxX=Math.max(2.2,along+.8,right+.1),peak=v.height+(v.speed*Math.sin(v.elevation*Math.PI/180))**2/(2*9.81),maxH=Math.max(1.5,peak+.3,v.th+.3),sx=(w-55)/(maxX-minX),sy=(h-35)/maxH;
   const point=(x,y)=>[40+(x-minX)*sx,h-25-y*sy];c.font='10px system-ui';c.lineWidth=1;
   const sideCell=hiveCellById(sideShot?.cellId||selectedHiveId);
-  const redCell=sideCell?.team==='red'?sideCell:hiveCellById('red-lower');
-  drawArenaSide(c,point,$('arena').value,along,v.th,redCell,scoredShots,hiveStatus('red',now));
+  drawArenaSide(c,point,$('arena').value,along,v.th,sideCell,scoredShots,hiveStatus(sideCell?.team||'red',now));
   for(let i=0;i<=4;i++){const value=i*maxH/4,p=point(0,value);c.strokeStyle='#242c37';c.beginPath();c.moveTo(...p);c.lineTo(w-10,p[1]);c.stroke();c.fillStyle='#627085';c.fillText(value.toFixed(1)+'m',5,p[1]+3);}
   c.strokeStyle='#536277';c.beginPath();c.moveTo(...point(0,0));c.lineTo(...point(maxX,0));c.stroke();
   // Projeção do chassi no eixo do tiro; o lançador está em x=0.
