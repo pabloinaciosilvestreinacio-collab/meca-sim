@@ -300,7 +300,7 @@ class Session:
                         and previous < threshold <= self.servos[name]):
                     event = deposit_to_flower(self.world)
                     if event:
-                        self.log(f"\\nFLOWER {event['flower']}: {event['kind']} depositado (#{event['sequence']}).\\n")
+                        self.log(f"\nFLOWER {event['flower']}: {event['kind']} depositado (#{event['sequence']}).\n")
                 return ""
             if op == "motor":
                 name, action, *values = args
