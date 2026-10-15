@@ -75,6 +75,25 @@ export function connectedPlayers(pads) {
   // Preserve browser index: unplugging player 1 must not promote player 2.
   return [pads[0]?.connected===false?null:pads[0], pads[1]?.connected===false?null:pads[1]];
 }
+/** Converte teclas virtuais no vetor FTC de 20 slots usado pelo servidor.
+ * Os eixos são digitais (−1/0/1); LT/RT também são digitais (0/1).
+ * O chamador só usa esta entrada quando nenhum Gamepad 1 físico está conectado. */
+export function keyboardGamepadValues(keys) {
+  const pressed = key => Number(keys.has(key));
+  return [
+    pressed('e')-pressed('q'),
+    pressed('s')-pressed('w'),
+    pressed('d')-pressed('a'),
+    pressed('f')-pressed('r'),
+    pressed('1'),
+    pressed('2'),
+    pressed(' '), pressed('b'), pressed('x'), pressed('y'),
+    pressed('z'), pressed('c'), pressed('Backspace'), pressed('Enter'),
+    pressed('['), pressed(']'),
+    pressed('ArrowUp'), pressed('ArrowDown'), pressed('ArrowLeft'), pressed('ArrowRight')
+  ];
+}
+
 export function gamepadValues(pad) {
   const zero = Array(20).fill(0);
   if (!pad || pad.connected===false || pad.mapping !== 'standard') return zero;
