@@ -201,6 +201,7 @@ class Session:
         with self.lock:
             result = self.world.snapshot()
             result.update(status=self.status, logs=self.logs, telemetry=self.telemetry, servos=self.servos.copy(),
+                          gamepads=[pad[:] for pad in self.gamepads],
                           diagnostics=[entry.copy() for entry in self.inspector.warnings],
                           imu_yaw=math.degrees((self.world.sensor_yaw() - self.world.yaw_zero + math.pi)
                                                % (2 * math.pi) - math.pi),
