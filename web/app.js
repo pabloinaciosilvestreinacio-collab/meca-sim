@@ -290,8 +290,8 @@ $('finish-match').addEventListener('click',async()=>{
   catch(error){notice(error.message);}
 });
 function reportData(){
-  const tips=(hiveFlips.red||0)+(hiveFlips.blue||0);
-  const retained=scoredShots.filter(item=>item.kind==='POLLEN'||item.kind==='NECTAR').length;
+  const team=$('alliance').value,tips=hiveFlips[team]||0;
+  const retained=scoredShots.filter(item=>(item.kind==='POLLEN'||item.kind==='NECTAR')&&hiveCellById(item.cellId)?.team===team).length;
   const result=state.status==='concluído'?'Java terminou normalmente (isso não comprova sucesso da missão).':
     state.status==='erro'?'Execução Java terminou com erro.':'Simulação encerrada antes do fim normal do Java.';
   return {format:'meca-sim-match-report',version:1,endedAt:new Date().toISOString(),
