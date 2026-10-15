@@ -3,7 +3,7 @@
 - Teclas encaminhadas ao vetor virtual FTC de 20 slots do Gamepad 1; o OpMode recebe os mesmos eixos e botões usados pelo SDK parcial.
 - Mapeamento: Q/E LS-X, W/S LS-Y, A/D RS-X, R/F RS-Y; Espaço/B/X/Y; Z/C LB/RB; 1/2 LT/RT digitais; setas D-pad; Enter/Backspace Start/Back; [/] cliques dos analógicos.
 - Controle físico com mapeamento padrão permanece prioritário. Inputs do editor e controles HTML não são capturados como gamepad.
-- Eixos e gatilhos via teclado são discretos; teste de mapeamento cobre os 20 slots. Personalização de teclas na interface continua pendente.
+- Eixos e gatilhos via teclado são discretos; teste de mapeamento cobre os 20 slots. O mapa pode ser remapeado na interface e restaurado ao padrão; teclas duplicadas são rejeitadas.
 
 ## Fase 1 — atalhos do editor (15/10/2026)
 
