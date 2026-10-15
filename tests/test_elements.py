@@ -1,6 +1,7 @@
 import unittest
 
-from elements import inventory_counts, starting_elements, starting_inventory, update_elements
+from elements import inventory_counts, starting_elements, starting_inventory, update_elements, deposit_to_flower
+from server import Session
 from physics import World
 
 
@@ -62,6 +63,46 @@ class ElementSimulationTests(unittest.TestCase):
         update_elements(world, .01)
         self.assertGreaterEqual(((b.x-a.x)**2+(b.y-a.y)**2)**.5, a.radius+b.radius-1e-9)
 
+
+    def test_flower_deposit_consumes_inventory_and_records_sequence(self):
+        world = World(x=.45, y=1.82)
+        world.inventory = starting_inventory(world.elements)
+        first = deposit_to_flower(world)
+        second = deposit_to_flower(world)
+        self.assertEqual((first["sequence"], first["kind"], first["flower"]), (1, "POLLEN", 1))
+        self.assertEqual(second["sequence"], 2)
+        self.assertEqual(len(world.inventory), 2)
+        self.assertEqual(world.flower_events[-1]["element_id"], second["element_id"])
+        deposited = next(piece for piece in world.elements if piece.id == first["element_id"])
+        self.assertEqual((deposited.status, deposited.location), ("flower", "flower-0"))
+
+    def test_flower_deposit_requires_inventory_and_proximity(self):
+        world = World(x=1.83, y=.65)
+        world.inventory = []
+        self.assertIsNone(deposit_to_flower(world))
+        world.inventory = starting_inventory(world.elements)
+        before = list(world.inventory)
+        self.assertIsNone(deposit_to_flower(world))
+        self.assertEqual(world.inventory, before)
+        self.assertEqual(world.flower_events, [])
+
+    def test_opmode_servo_edge_triggers_one_flower_deposit(self):
+        session = Session({"x": .45, "y": 1.82, "flower-servo-name": "deposit"})
+        session.started = True
+        session.status = "executando"
+        session.rpc("servo", "deposit", "set", .8)
+        self.assertEqual(len(session.world.flower_events), 1)
+        session.rpc("servo", "deposit", "set", 1.0)
+        self.assertEqual(len(session.world.flower_events), 1)
+        session.rpc("servo", "deposit", "set", .2)
+        session.rpc("servo", "deposit", "set", .8)
+        self.assertEqual(len(session.world.flower_events), 2)
+
+    def test_flower_servo_does_not_deposit_when_opmode_is_not_running(self):
+        session = Session({"x": .45, "y": 1.82, "flower-servo-name": "deposit"})
+        session.rpc("servo", "deposit", "set", .8)
+        self.assertEqual(session.world.flower_events, [])
+        self.assertEqual(len(session.world.inventory), 4)
 
     def test_ms_and_mi_consume_one_piece_per_feed_interval(self):
         world = World()
