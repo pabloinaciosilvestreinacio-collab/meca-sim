@@ -15,7 +15,7 @@ Fonte de referência consultada: Competition Manual BIOBUZZ TU05, atualizado em 
 
 Critérios cobertos: distinção por tipo/tamanho e estado, inventário com capacidade, captura somente com MI positivo e overlap do intake frontal, colisão sem captura fora do intake, amortecimento e contato com paredes e entre peças soltas.
 
-Testes executados contra os fontes desta branch: 6 testes Python passaram (contagens de início, captura, limite de capacidade, colisão lateral, parede/amortecimento e contato peça-peça). Ainda não foram executados os testes integrados do servidor/Java nem o workflow remoto após estes commits. Nenhum ensaio físico.
+Testes executados contra os fontes desta branch: 6 testes Python passaram (contagens de início, captura, limite de capacidade, colisão lateral, parede/amortecimento e contato peça-peça); integração `build_world`/`snapshot` passou (contagem, preload, arena livre e rejeição de capacidade inválida); sintaxe Python de `elements.py`, `physics.py`, `server.py` e E2E passou; `web/app.js` passou checagem de sintaxe e o modelo de teclado passou asserções de vetor e remapeamento. O teste de interação Chromium está adicionado, mas ainda não executado; workflow remoto após estes commits não foi confirmado. Nenhum ensaio físico.
 
 Limites: partículas em FLOWER/HIVE e itens reservados são estados discretos, não corpos 3D; não há massas calibradas, solver rígido, coleta de NECTAR por regra ou lançamento por MS ainda.
 
