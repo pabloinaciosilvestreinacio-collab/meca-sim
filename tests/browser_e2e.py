@@ -39,34 +39,6 @@ try:
         assert page.locator('#clear-shots').count()==1
         page.locator('[data-tab="code"]').click()
         passed('Interface inicial, exemplos e canvas carregados')
-        source=page.locator('#source')
-        original=source.input_value()
-        with page.expect_download() as out:
-            source.focus()
-            page.keyboard.press('Control+s')
-        project_path=Path(out.value.path())
-        project_data=json.loads(project_path.read_text(encoding='utf-8'))
-        assert project_data['format']=='meca-sim-project' and project_data['source']==original
-        assert page.locator('#status').text_content()=='pronto'
-        source.press('Control+End')
-        marker='Z'
-        page.keyboard.type(marker)
-        source.press('Control+z')
-        assert source.input_value()==original, 'Ctrl+Z não desfez'
-        source.press('Control+y')
-        assert source.input_value()==original+marker, 'Ctrl+Y não refez'
-        source.press('Control+z')
-        source.press('Control+Shift+z')
-        assert source.input_value()==original+marker, 'Ctrl+Shift+Z não refez'
-        source.fill(original)
-        source.press('Control+a')
-        selection=source.evaluate('(el)=>[el.selectionStart,el.selectionEnd,el.value.length]')
-        assert selection==[0,len(original),len(original)], 'Ctrl+A não selecionou tudo'
-        source.press('Control+c')
-        source.press('Control+End')
-        source.press('Control+v')
-        assert source.input_value()==original+original, 'Ctrl+C/V não copiaram e colaram'
-        passed('Editor: Ctrl+S JSON, desfazer/refazer, selecionar tudo e copiar/colar')
         assert page.locator('#arena').input_value() in ('biobuzz','livre')
         page.locator('#arena').select_option('livre')
         page.locator('#pick-start').click()
@@ -342,6 +314,43 @@ public class ZipOutro extends LinearOpMode {
         page.screenshot(path=str(ROOT/'reports/interface-mobile.png'),full_page=True)
         assert not errors,errors
         passed('Desktop/celular sem overflow horizontal ou erros JavaScript')
+        editor=browser.new_page(viewport={'width':1280,'height':900})
+        editor_errors=[]
+        editor.on('pageerror',lambda error:editor_errors.append(str(error)))
+        editor.goto(f'http://127.0.0.1:{port}')
+        editor.locator('#source').wait_for()
+        editor.wait_for_function("document.querySelector('#source').value.includes('LinearOpMode')")
+        editor.locator('[data-tab="code"]').click()
+        source=editor.locator('#source')
+        original=source.input_value()
+        with editor.expect_download() as out:
+            source.focus()
+            editor.keyboard.press('Control+s')
+        project_path=Path(out.value.path())
+        project_data=json.loads(project_path.read_text(encoding='utf-8'))
+        assert project_data['format']=='meca-sim-project' and project_data['source']==original
+        assert editor.locator('#status').text_content()=='pronto'
+        source.press('Control+End')
+        marker='Z'
+        editor.keyboard.type(marker)
+        source.press('Control+z')
+        assert source.input_value()==original, 'Ctrl+Z não desfez'
+        source.press('Control+y')
+        assert source.input_value()==original+marker, 'Ctrl+Y não refez'
+        source.press('Control+z')
+        source.press('Control+Shift+z')
+        assert source.input_value()==original+marker, 'Ctrl+Shift+Z não refez'
+        source.fill(original)
+        source.press('Control+a')
+        selection=source.evaluate('(el)=>[el.selectionStart,el.selectionEnd,el.value.length]')
+        assert selection==[0,len(original),len(original)], 'Ctrl+A não selecionou tudo'
+        source.press('Control+c')
+        source.press('Control+End')
+        source.press('Control+v')
+        assert source.input_value()==original+original, 'Ctrl+C/V não copiaram e colaram'
+        assert not editor_errors, editor_errors
+        passed('Editor: Ctrl+S JSON, desfazer/refazer, selecionar tudo e copiar/colar')
+        editor.close()
         browser.close()
 finally:
     process.terminate()
