@@ -56,9 +56,9 @@ export function drawArenaTop(ctx,project,mode,selectedCellId='',scoredBalls=[],t
 // unidas por uma gangorra com rotação biestável perceptível.
 export function drawArenaSide(ctx,point,mode,targetDistance,targetHeight,cell=null,scoredBalls=[],hiveStatus={}){
   if(mode!=='biobuzz'||!Number.isFinite(targetDistance)||targetDistance<=.25||!cell)return;
-  // O corte é do HIVE VERMELHO exclusivamente; vista superior permanece intacta.
+  // O corte mostra o HIVE da CELL selecionada; vista superior permanece intacta.
   const angleDeg=Number.isFinite(hiveStatus.angle)?hiveStatus.angle:(cell.team==='blue'?1:-1)*HIVE_SIDE.angleDeg;
-  const teamColor=cell.team==='blue'?'#6daaff':teamColor,teamDark=cell.team==='blue'?'#254e7a':'#762d3b',teamLight=cell.team==='blue'?'#a7d0ff':teamLight;
+  const teamColor=cell.team==='blue'?'#6daaff':'#ef6770',teamDark=cell.team==='blue'?'#254e7a':'#762d3b',teamLight=cell.team==='blue'?'#a7d0ff':'#ffa1a0';
   const angle=angleDeg*Math.PI/180,arm=HIVE_SIDE.arm;
   const sin=Math.sin(angle),cos=Math.cos(angle),pivotY=DIMS.pivotHeight;
   const selectedSign=cell.id.endsWith('lower')?-1:1;
