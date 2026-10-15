@@ -1,9 +1,13 @@
+import json
+import threading
 import unittest
+from http.server import ThreadingHTTPServer
 from types import SimpleNamespace
+from urllib.request import Request, urlopen
 
 from elements import FLOWERS, starting_elements
 from rules import BioBuzzRules
-from server import Session
+from server import App, Session, handler_for
 
 
 class BioBuzzRulesTests(unittest.TestCase):
@@ -98,6 +102,32 @@ class BioBuzzRulesTests(unittest.TestCase):
         session.world.elapsed = 60
         session.rpc("servo", "flower", "set", .8)
         self.assertEqual(len(session.rules.penalties), 1)
+
+
+class RulesHttpTests(unittest.TestCase):
+    def test_human_player_endpoint_returns_entry_event(self):
+        app = App()
+        session = Session({"alliance": "red", "match-mode": "teleop"})
+        session.started, session.status = True, "executando"
+        session.register_hive_tip("red")
+        app.session = session
+        httpd = ThreadingHTTPServer(("127.0.0.1", 0), handler_for(app))
+        thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+        thread.start()
+        try:
+            body = json.dumps({"action": "nectar_entry"}).encode()
+            request = Request(f"http://127.0.0.1:{httpd.server_port}/api/rules", data=body,
+                              headers={"Content-Type": "application/json",
+                                       "X-Sim-Token": app.token})
+            with urlopen(request) as response:
+                result = json.loads(response.read())
+            self.assertTrue(result["ok"])
+            self.assertEqual(result["event"]["type"], "human_player_entry")
+            self.assertEqual(result["event"]["location"], "loading-zone-red")
+        finally:
+            httpd.shutdown()
+            httpd.server_close()
+            thread.join(timeout=2)
 
 
 if __name__ == "__main__":
