@@ -204,3 +204,12 @@ MS acima de 0,5 e MI acima de 0,5 alimentam o shooter virtual; cada intervalo (0
 `Terminar simulação` encerra o OpMode e preserva um relatório no navegador até descarte. O relatório inclui estado final do Java, duração, elementos coletados/lançados, tentativas vazias, logs, telemetria e diagnósticos; JSON/CSV podem ser exportados. O valor de pontuação é parcial e didático: não inclui FLOWER/GARDEN, penalidades ou ranking points. Java `concluído` significa apenas término normal do programa, não êxito da missão.
 
 Testes unitários executados neste bloco: `tests/test_elements.py` (8/8 aprovados, incluindo MS/MI e inventário vazio); validação de configuração de tiro e limites inválidos passou; sintaxe de `server.py`/`tests/browser_e2e.py` e `web/app.js` foi checada. O painel de telemetria é recolhível e inclui entradas digitais/eixos dos gamepads. E2E Chromium e CI remoto após estes commits ainda não foram executados/confirmados.
+
+
+## Interação com FLOWER — servo do OpMode (15/10/2026)
+
+Implementada em branch experimental. Configura-se o nome do servo (padrão `flower`), a posição de acionamento (0,8) e o alcance ao centro do FLOWER (0,65 m). A transição abaixo→acima da posição, feita pelo OpMode Java enquanto executa, consome a primeira peça do inventário, atualiza o estado e registra a sequência. É necessário retrair para acionar novamente. Sem inventário, fora da distância configurada ou sem execução Java, nenhuma peça é consumida. O painel Driver Station exibe os oito depósitos mais recentes.
+
+A proximidade é uma aproximação didática ao centro da estrutura. Este bloco não decide pontuação, posse, sequências oficiais nem liberação de NECTAR; não declarar regras FLOWER completas.
+
+Testes adicionados em `tests/test_elements.py`: consumo/ordem, inventário e proximidade, acionamento por borda, ausência de duplicação sem retração e bloqueio quando OpMode não está executando. Ainda não executei os testes nem confirmei a CI desta alteração; o código permanece sujeito à validação integrada da branch.
