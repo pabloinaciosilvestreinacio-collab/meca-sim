@@ -12,7 +12,7 @@ Simulador **local e independente** da Meca Tiger: cole uma classe Java `LinearOp
 ### Atualização rc2: física, shooter e configuração
 
 - **Parede física ativa por padrão:** somente as quatro paredes externas bloqueiam o chassi. FLOWERS, HIVE e marcações do campo continuam visuais, sem colisão.
-- **Shooter Java (modelo didático):** MS armado e MI alimentando consomem uma peça por intervalo configurável (0,8 s inicial). A trajetória usa a configuração balística atual; não há sensor de RPM nem calibração física. Prévia manual continua separada do comando Java. O HIVE ainda usa transição didática por contagem de peças (8) e não arbitra pontuação oficial.
+- **Shooter Java (modelo didático):** MS armado e MI alimentando consomem uma peça por intervalo configurável (0,8 s inicial). A trajetória usa a configuração balística atual; não há sensor de RPM nem calibração física. Prévia manual continua separada do comando Java. A telemetria é recolhível e inclui estado dos gamepads. O HIVE ainda usa transição didática por contagem de peças (8) e não arbitra pontuação oficial.
 - **Drivetrain selecionável:** diferencial é o perfil padrão da Mequinha (ME/MD). Mecanum é um modo alternativo, com FL/FR/BL/BR e cinemática ideal, para testar projetos de outras equipes.
 - **Escala e visual:** a arena é 3,66 × 3,66 m no modelo; a interface utiliza a marca vetorial Meca Tiger, cor de robô configurável e painéis Código/Chassi/Shooter.
 
