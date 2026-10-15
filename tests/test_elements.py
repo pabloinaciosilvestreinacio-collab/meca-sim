@@ -74,7 +74,7 @@ class ElementSimulationTests(unittest.TestCase):
         self.assertEqual(len(world.inventory), 2)
         self.assertEqual(world.flower_events[-1]["element_id"], second["element_id"])
         deposited = next(piece for piece in world.elements if piece.id == first["element_id"])
-        self.assertEqual((deposited.status, deposited.location), ("flower", "flower-0"))
+        self.assertEqual((deposited.status, deposited.location), ("deposited", "flower-0"))
 
     def test_flower_deposit_requires_inventory_and_proximity(self):
         world = World(x=1.83, y=.65)
