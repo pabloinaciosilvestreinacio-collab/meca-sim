@@ -1,6 +1,7 @@
 """Modelo ideal diferencial, SI, yaw positivo anti-horário, frente +Y em yaw=0."""
 from dataclasses import dataclass, field
 import math
+from elements import starting_elements, starting_inventory, inventory_counts, update_elements
 
 GRAVITY = 9.81
 
@@ -79,6 +80,11 @@ class World:
     imu_drift: float = 0
     sensor_history: list = field(default_factory=list)
     frozen_yaw: float | None = None
+    elements: list = field(default_factory=starting_elements)
+    inventory: list = field(default_factory=list)
+    intake_reach: float = .15
+    intake_capacity: int = 4
+    collection_events: int = 0
 
     def inside(self, x=None, y=None, yaw=None):
         x, y, yaw = (self.x if x is None else x, self.y if y is None else y, self.yaw if yaw is None else yaw)
@@ -110,6 +116,7 @@ class World:
             self._step(dt/count)
 
     def _step(self, dt):
+        old_x, old_y = self.x, self.y
         if not self.sensor_history:
             self.sensor_history.append((self.elapsed, self.yaw))
         if self.frozen_yaw is None:
@@ -157,6 +164,7 @@ class World:
         self.elapsed += dt
         self.sensor_history.append((self.elapsed, self.yaw))
         self.sensor_history = self.sensor_history[-250:]
+        update_elements(self, dt, ((self.x-old_x)/dt, (self.y-old_y)/dt))
         if not self.trail or math.hypot(self.x-self.trail[-1][0], self.y-self.trail[-1][1]) > .01:
             self.trail.append([self.x, self.y])
             self.trail = self.trail[-3000:]
@@ -166,4 +174,9 @@ class World:
                 "collision": self.collision, "walls": self.walls, "drivetrain": self.drivetrain,
                 "width": self.width, "length": self.length, "trail": self.trail[:],
                 "motors": {name: {"power": m.power, "encoder": m.position(), "direction": m.direction,
-                                  "mount": m.mount, "side": m.side, "mode": m.mode} for name, m in self.motors.items()}}
+                                  "mount": m.mount, "side": m.side, "mode": m.mode} for name, m in self.motors.items()},
+                "elements": [piece.snapshot() for piece in self.elements],
+                "inventory": inventory_counts(self.elements, self.inventory),
+                "intake": {"active": bool(self.motors.get("MI") and self.motors["MI"].power*self.motors["MI"].direction > .25),
+                           "capacity": self.intake_capacity, "reach": self.intake_reach,
+                           "collected": self.collection_events}}
