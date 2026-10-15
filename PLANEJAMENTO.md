@@ -4,9 +4,9 @@
 
 Branch `feature/fase1-editor-20261015`. O simulador existente foi preservado e segue baseado em Python (física/servidor), Java (LinearOpMode com SDK parcial) e JavaScript (interface/canvas).
 
-Concluído nesta branch: correções do editor; gamepad de teclado completo e remapeável; campo e tiro visual existentes; modelo inicial de 40 POLLEN/16 NECTAR, estados de estoque, colisões leves e captura pelo MI (15 cm/4 peças como parâmetros didáticos).
+Concluído nesta branch: correções do editor; gamepad de teclado completo e remapeável; modelo inicial de 40 POLLEN/16 NECTAR, estados e colisões leves, captura pelo MI, tiro MS+MI com consumo de inventário e relatório final persistente/exportável.
 
-Em andamento: ligação do MS e consumo de inventário; regras configuráveis oficiais/personalizadas, FLOWERS e desbloqueio de NECTAR; relatório encerrável/exportável. Ainda não considerar a Fase 1 concluída nem a branch estável.
+Em andamento: regras BIOBUZZ completas e personalizáveis, FLOWERS/GARDEN, desbloqueio de NECTAR, pontuação por categoria e telemetria opcional. HIVE segue com limiar de 8 peças explicitamente didático, não oficial. Ainda não considerar a Fase 1 concluída nem a branch estável.
 
 ## Aceite local
 
