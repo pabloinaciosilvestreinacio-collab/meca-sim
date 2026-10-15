@@ -1,3 +1,10 @@
+## Fase 1 — peças de campo e intake didático (15/10/2026)
+
+- Modelo de 40 POLLEN e 16 NECTAR, com estados de campo, FLOWER, HIVE, preload, inventário e reserva; diâmetros aproximados do manual.
+- Intake frontal configurável (largura do chassi, alcance inicial 0,15 m, capacidade inicial 4). MI positivo captura apenas dentro da região e se houver capacidade.
+- Peças livres recebem amortecimento, colisões em pares, paredes e empurrão simplificado pelo chassi; duas vistas exibem os elementos e telemetria de inventário.
+- Modelo não é CAD/3D nem calibração de massa/atrito; posições são aproximadas. Shooter MS e pontuação oficial permanecem pendentes.
+
 ## Fase 1 — gamepad completo pelo teclado (15/10/2026)
 
 - Teclas encaminhadas ao vetor virtual FTC de 20 slots do Gamepad 1; o OpMode recebe os mesmos eixos e botões usados pelo SDK parcial.
