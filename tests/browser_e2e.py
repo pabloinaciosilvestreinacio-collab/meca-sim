@@ -48,7 +48,6 @@ try:
         project_data=json.loads(project_path.read_text(encoding='utf-8'))
         assert project_data['format']=='meca-sim-project' and project_data['source']==original
         assert page.locator('#status').text_content()=='pronto'
-        page.context.grant_permissions(['clipboard-read','clipboard-write'],origin=f'http://127.0.0.1:{port}')
         source.press('Control+End')
         marker='Z'
         page.keyboard.type(marker)
@@ -64,7 +63,9 @@ try:
         selection=source.evaluate('(el)=>[el.selectionStart,el.selectionEnd,el.value.length]')
         assert selection==[0,len(original),len(original)], 'Ctrl+A não selecionou tudo'
         source.press('Control+c')
-        assert page.evaluate('navigator.clipboard.readText()')==original, 'Ctrl+C não copiou'
+        source.press('Control+End')
+        source.press('Control+v')
+        assert source.input_value()==original+original, 'Ctrl+C não copiou para a área de transferência'
         source.press('Control+x')
         assert source.input_value()=='', 'Ctrl+X não recortou'
         source.press('Control+v')
