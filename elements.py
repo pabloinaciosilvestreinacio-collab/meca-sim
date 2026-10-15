@@ -185,7 +185,7 @@ def deposit_to_flower(world):
         return None
     world.inventory.pop(0)
     x, y = FLOWERS[index]
-    piece.status = "flower"
+    piece.status = "deposited"
     piece.location = f"flower-{index}"
     piece.x, piece.y = x, y
     piece.vx = piece.vy = 0.0
