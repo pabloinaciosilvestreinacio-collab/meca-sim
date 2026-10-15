@@ -86,4 +86,4 @@ Comandos no README. Para repetir a versão, usar o commit exato de Actions. Para
 
 ## Fase 1 — editor e atalhos (15/10/2026)
 
-Escopo deste bloco: Ctrl+S no foco do editor chama o salvamento JSON existente; Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z, Ctrl+C, Ctrl+V, Ctrl+X e Ctrl+A permanecem no comportamento nativo do textarea. A regressão Chromium verifica o projeto exportado, o histórico, o clipboard e que Ctrl+S não inicia o OpMode. A validação da branch deve ser consultada antes de considerar o bloco aprovado.
+Escopo deste bloco: Ctrl+S no foco do editor chama o salvamento JSON existente; Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z, Ctrl+C, Ctrl+V, Ctrl+X e Ctrl+A permanecem no comportamento nativo do textarea. A regressão Chromium verifica o projeto exportado, o histórico, seleção e cópia/colagem, e que Ctrl+S não inicia o OpMode. Ctrl+X permanece no comportamento nativo do textarea, mas o recorte não é aferido automaticamente porque o Chromium headless não o reproduziu de forma consistente; requer conferência manual. A validação da branch deve ser consultada antes de considerar o bloco aprovado.

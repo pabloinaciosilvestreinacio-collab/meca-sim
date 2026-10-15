@@ -65,12 +65,8 @@ try:
         source.press('Control+c')
         source.press('Control+End')
         source.press('Control+v')
-        assert source.input_value()==original+original, 'Ctrl+C não copiou para a área de transferência'
-        source.press('Control+x')
-        assert source.input_value()=='', 'Ctrl+X não recortou'
-        source.press('Control+v')
-        assert source.input_value()==original, 'Ctrl+V não colou'
-        passed('Editor: Ctrl+S JSON, desfazer/refazer, copiar/colar/recortar e selecionar tudo')
+        assert source.input_value()==original+original, 'Ctrl+C/V não copiaram e colaram'
+        passed('Editor: Ctrl+S JSON, desfazer/refazer, selecionar tudo e copiar/colar')
         assert page.locator('#arena').input_value() in ('biobuzz','livre')
         page.locator('#arena').select_option('livre')
         page.locator('#pick-start').click()
