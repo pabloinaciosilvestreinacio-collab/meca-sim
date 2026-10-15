@@ -39,6 +39,37 @@ try:
         assert page.locator('#clear-shots').count()==1
         page.locator('[data-tab="code"]').click()
         passed('Interface inicial, exemplos e canvas carregados')
+        source=page.locator('#source')
+        original=source.input_value()
+        with page.expect_download() as out:
+            source.focus()
+            page.keyboard.press('Control+s')
+        project_path=Path(out.value.path())
+        project_data=json.loads(project_path.read_text(encoding='utf-8'))
+        assert project_data['format']=='meca-sim-project' and project_data['source']==original
+        assert page.locator('#status').text_content()=='pronto'
+        page.context.grant_permissions(['clipboard-read','clipboard-write'],origin=f'http://127.0.0.1:{port}')
+        source.press('Control+End')
+        marker='//editor-history-test'
+        page.keyboard.type(marker)
+        source.press('Control+z')
+        assert source.input_value()==original, 'Ctrl+Z não desfez'
+        source.press('Control+y')
+        assert source.input_value()==original+marker, 'Ctrl+Y não refez'
+        source.press('Control+z')
+        source.press('Control+Shift+z')
+        assert source.input_value()==original+marker, 'Ctrl+Shift+Z não refez'
+        source.fill(original)
+        source.press('Control+a')
+        selection=source.evaluate('(el)=>[el.selectionStart,el.selectionEnd,el.value.length]')
+        assert selection==[0,len(original),len(original)], 'Ctrl+A não selecionou tudo'
+        source.press('Control+c')
+        assert page.evaluate('navigator.clipboard.readText()')==original, 'Ctrl+C não copiou'
+        source.press('Control+x')
+        assert source.input_value()=='', 'Ctrl+X não recortou'
+        source.press('Control+v')
+        assert source.input_value()==original, 'Ctrl+V não colou'
+        passed('Editor: Ctrl+S JSON, desfazer/refazer, copiar/colar/recortar e selecionar tudo')
         assert page.locator('#arena').input_value() in ('biobuzz','livre')
         page.locator('#arena').select_option('livre')
         page.locator('#pick-start').click()

@@ -82,3 +82,8 @@ Comandos no README. Para repetir a versão, usar o commit exato de Actions. Para
 1. Diferencial: dirigir contra cada parede, em yaw 0°, 90°, 180° e -90°; a pose não pode ultrapassar os 3,66 m e FLORES/HIVE não podem bloquear.
 2. Shooter: alterar cada controle de posição e confirmar mudança simultânea na origem superior/lateral; acertar uma CELL e verificar que a peça fica desenhada no HIVE.
 3. Mecanum: em arena livre, FL/FR/BL/BR iguais avançam; padrão de strafe ideal desloca lateralmente; confirmar que esse perfil não altera o padrão diferencial ME/MD.
+
+
+## Fase 1 — editor e atalhos (15/10/2026)
+
+Escopo deste bloco: Ctrl+S no foco do editor chama o salvamento JSON existente; Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z, Ctrl+C, Ctrl+V, Ctrl+X e Ctrl+A permanecem no comportamento nativo do textarea. A regressão Chromium verifica o projeto exportado, o histórico, o clipboard e que Ctrl+S não inicia o OpMode. A validação da branch deve ser consultada antes de considerar o bloco aprovado.

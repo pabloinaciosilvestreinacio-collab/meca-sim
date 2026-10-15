@@ -22,7 +22,7 @@ Simulador **local e independente** da Meca Tiger: cole uma classe Java `LinearOp
 - **Posição inicial:** `Definir posição inicial no campo` (ou Shift+clique). O robô deve caber inteiramente no retângulo 3,66 m × 3,66 m. O clique simples continua apontando o alvo do lançador.
 - **Biblioteca:** `Guardar no menu` salva até 12 projetos nomeados no armazenamento local do navegador; o seletor `Exemplo de partida` mostra os exemplos e os projetos. `Salvar projeto` exporta JSON e também adiciona o código à biblioteca, usando o nome da classe Java quando possível. Abrir JSON também tenta adicioná-lo à biblioteca.
 - **Driver Station virtual:** INIT, START e STOP na área de hardware executam as mesmas ações do painel superior. Não se conecta ao Driver Hub.
-- **Editor Java:** texto editável, realce local leve, sugestões via digitação/Ctrl+Espaço, Tab para completar e erros do `javac` com arquivo e linha. Não é um IDE completo nem oferece compreensão semântica das bibliotecas FTC ausentes.
+- **Editor Java:** texto editável, realce local leve, sugestões via digitação/Ctrl+Espaço, Tab para completar, Ctrl+S para exportar o projeto JSON e atalhos nativos do campo de texto para desfazer/refazer/copiar/colar/recortar/selecionar tudo; erros do `javac` mostram arquivo e linha. Não é um IDE completo nem oferece compreensão semântica das bibliotecas FTC ausentes.
 - **Identidade:** o botão `Inserir logo da equipe` permite escolher o PNG/JPG/WebP oficial, reduzido para armazenamento local e mostrado na marca do cabeçalho. Enquanto o arquivo não for fornecido, aparece uma marca provisória `MT`. A logo **não é enviada ao GitHub ou a servidores**.
 
 - **Replay:** `Linha do tempo` permite carregar a última trajetória registrada (amostras de aproximadamente 0,05 s), selecionar instantes e reproduzir/pausar a visualização. O Java não é pausado nem controlado durante replay; use STOP normalmente.
@@ -80,7 +80,7 @@ O projeto JSON salvo preserva os arquivos auxiliares e os JSON anteriores contin
 
 O perfil inicial usa ME FORWARD, MD REVERSE e montagem direita invertida. É uma hipótese editável. O TeleOp histórico da equipe tem outra mistura; o teste preservado usa montagem dos dois lados invertida e **não comprova sinais do robô**.
 
-Teclado: W/S alimenta `left_stick_y`, A/D alimenta `right_stick_x`, espaço é A. Foco no editor ou em campo não aciona teclado. Um gamepad conectado substitui o teclado do jogador 1. Desconectar o jogador 1 não transforma o jogador 2 em jogador 1. Ao perder foco, entradas zeram; ao ocultar a página, STOP; sem entradas por 0,3 s, controles zeram; sem heartbeat por 2 s, STOP. Botões LB/RB e gatilhos requerem gamepad físico nesta versão.
+Teclado: W/S alimenta `left_stick_y`, A/D alimenta `right_stick_x`, espaço é A. Foco no editor ou em campo não aciona teclado. Um gamepad conectado substitui o teclado do jogador 1. Desconectar o jogador 1 não transforma o jogador 2 em jogador 1. Ao perder foco, entradas zeram; ao ocultar a página, STOP; sem entradas por 0,3 s, controles zeram; sem heartbeat por 2 s, STOP. Botões LB/RB e gatilhos requerem gamepad físico nesta versão. No editor, Ctrl+S exporta o projeto JSON e os demais atalhos de texto permanecem nativos do navegador.
 
 ## Precisão e limites
 

@@ -1,3 +1,8 @@
+## Fase 1 — atalhos do editor (15/10/2026)
+
+- Ctrl+S no editor exporta o projeto pelo fluxo JSON existente; desfazer/refazer e clipboard permanecem nativos do textarea.
+- Regressão Chromium adicionada para salvar, histórico de edição, seleção e clipboard.
+
 ## 0.3-rc3 — HIVE selecionável e regras de partida
 
 - Parede externa agora é obrigatória no servidor, evitando que preferências antigas do navegador desliguem a colisão.

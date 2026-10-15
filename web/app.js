@@ -403,6 +403,9 @@ $('example').addEventListener('change',async()=>{
 });
 $('source').addEventListener('keydown',event=>{
   const src=event.target;
+  if((event.ctrlKey||event.metaKey)&&!event.altKey&&event.key.toLowerCase()==='s'){
+    event.preventDefault();$('save-project').click();return;
+  }
   if(event.ctrlKey&&event.code==='Space'){event.preventDefault();showSuggestions(true);return;}
   if(event.key==='Escape'){$('code-suggest').hidden=true;return;}
   if(event.key==='Tab'){
