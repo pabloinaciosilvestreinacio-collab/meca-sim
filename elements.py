@@ -193,6 +193,7 @@ def deposit_to_flower(world):
     event = {"sequence": world.flower_sequence, "element_id": piece.id,
              "kind": piece.kind, "flower": index + 1, "time": world.elapsed}
     world.flower_events.append(event)
+    world.flower_events = world.flower_events[-32:]
     return event
 
 
