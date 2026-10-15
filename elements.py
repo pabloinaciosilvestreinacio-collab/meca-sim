@@ -132,6 +132,40 @@ def _robot_collision(world, piece, robot_velocity):
     piece.vx, piece.vy = rvx, rvy
 
 
+def _try_launch(world):
+    ms, mi = world.motors.get("MS"), world.motors.get("MI")
+    if not (ms and mi and ms.power*ms.direction > .5 and mi.power*mi.direction > .5):
+        return
+    settings = world.launcher
+    if world.elapsed-world.last_feed_time < settings["interval"]:
+        return
+    world.last_feed_time = world.elapsed
+    if not world.inventory:
+        world.empty_feed_attempts += 1
+        return
+    piece_id = world.inventory.pop(0)
+    piece = next((item for item in world.elements if item.id == piece_id), None)
+    if piece is None:
+        world.empty_feed_attempts += 1
+        return
+    piece.status = "launched"
+    piece.location = "shooter"
+    dx, dy = _world(settings["lateral"], settings["forward"], world.yaw)
+    world.launch_sequence += 1
+    world.launch_count += 1
+    event = {
+        "id": world.launch_sequence, "piece_id": piece.id, "kind": piece.kind,
+        "team": piece.team, "time": world.elapsed,
+        "x": world.x+dx, "y": world.y+dy, "yaw": math.degrees(world.yaw),
+        "hive": settings["hive"], "lateral": settings["lateral"],
+        "forward": settings["forward"], "height": settings["height"],
+        "speed": settings["speed"], "elevation": settings["elevation"],
+        "azimuth": settings["azimuth"]
+    }
+    world.launches.append(event)
+    world.launches = world.launches[-32:]
+
+
 def update_elements(world, dt, robot_velocity=(0.0, 0.0)):
     """Integra peças soltas, colisões e captura enquanto MI gira para intake."""
     active = [p for p in world.elements if p.status == "field"]
@@ -190,3 +224,4 @@ def update_elements(world, dt, robot_velocity=(0.0, 0.0)):
             continue
         if piece.status == "field":
             _robot_collision(world, piece, robot_velocity)
+    _try_launch(world)
