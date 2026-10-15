@@ -110,3 +110,6 @@
 - A trajetória lançada pelo Java usa o perfil balístico existente e produz evento que alimenta as vistas. É simulação, não leitura de RPM nem calibração de robô.
 - Botão Terminar Simulação gera relatório persistente no navegador com resultado Java, métricas, telemetria, logs e diagnósticos; exportação JSON/CSV e descarte explícito.
 - O relatório diferencia fim normal do Java de sucesso da missão. Pontuação permanece parcial; FLOWER/GARDEN, penalidades e arbitragem completa ainda estão pendentes.
+
+- Telemetria pode ser recolhida e agora mostra Gamepad 1/2 (botões e eixos) junto com os sensores, motores, estoque, tempo e diagnósticos.
+- Orientação inicial das CELLs foi alinhada à configuração de partida: red-lower e blue-upper.
