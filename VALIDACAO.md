@@ -11,7 +11,7 @@ Limitação: teclas e gatilhos são digitais e não reproduzem valores analógic
 
 ## Fase 1 — elementos e intake (15/10/2026)
 
-Fonte de referência consultada: Competition Manual BIOBUZZ TU05, atualizado em 15/10/2026, e Field Setup Guide v1.0. A configuração modela 40 POLLEN (16 em FLOWERS, 8 em GARDENS, 16 preloads) e 16 NECTAR (6 em CELLS ascendentes, 10 reservados em ALLIANCE AREAS). Para o robô virtual, quatro preloads ficam no inventário; preloads dos outros três robôs são reservas sem representação física de outros robôs. Posições são aproximadas.
+Fonte de referência consultada: Competition Manual BIOBUZZ TU05, atualizado em 15/10/2026, e Field Setup Guide v1.0. A orientação inicial agora respeita HIVE vermelho com CELL inferior ascendente e HIVE azul com CELL superior ascendente. A configuração modela 40 POLLEN (16 em FLOWERS, 8 em GARDENS, 16 preloads) e 16 NECTAR (6 em CELLS ascendentes, 10 reservados em ALLIANCE AREAS). Para o robô virtual, quatro preloads ficam no inventário; preloads dos outros três robôs são reservas sem representação física de outros robôs. Posições são aproximadas.
 
 Critérios cobertos: distinção por tipo/tamanho e estado, inventário com capacidade, captura somente com MI positivo e overlap do intake frontal, colisão sem captura fora do intake, amortecimento e contato com paredes e entre peças soltas.
 
@@ -203,4 +203,4 @@ MS acima de 0,5 e MI acima de 0,5 alimentam o shooter virtual; cada intervalo (0
 
 `Terminar simulação` encerra o OpMode e preserva um relatório no navegador até descarte. O relatório inclui estado final do Java, duração, elementos coletados/lançados, tentativas vazias, logs, telemetria e diagnósticos; JSON/CSV podem ser exportados. O valor de pontuação é parcial e didático: não inclui FLOWER/GARDEN, penalidades ou ranking points. Java `concluído` significa apenas término normal do programa, não êxito da missão.
 
-Testes unitários executados neste bloco: `tests/test_elements.py` (8/8 aprovados, incluindo MS/MI e inventário vazio). E2E Chromium e CI remoto após estes commits ainda não foram executados/confirmados.
+Testes unitários executados neste bloco: `tests/test_elements.py` (8/8 aprovados, incluindo MS/MI e inventário vazio); validação de configuração de tiro e limites inválidos passou; sintaxe de `server.py`/`tests/browser_e2e.py` e `web/app.js` foi checada. O painel de telemetria é recolhível e inclui entradas digitais/eixos dos gamepads. E2E Chromium e CI remoto após estes commits ainda não foram executados/confirmados.
