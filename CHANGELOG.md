@@ -155,7 +155,7 @@
 - Um NECTAR reservado mantém o mesmo ID ao ser liberado por TIP/endgame e entra pelo estado transitório `entering`, com queda visual de 0,45 m na Loading Zone; depois passa a `field` e usa colisões/intake existentes.
 - A queda é uma aproximação visual vertical: o manual TU05 G426/G427 libera a entrada após TIP/último minuto e exige que o Human Player introduza o NECTAR pela Loading Zone; o elemento não é ejetado do HIVE.
 - Regressão verifica queda, conservação dos 16 NECTAR, IDs únicos e coleta de uma entrada anterior enquanto outra está entrando.
-- Suíte local após a etapa HIVE/FLOWER: 92 testes aprovados, 14 testes de JVM ignorados por JDK ausente; JavaScript, checagem sintática, compilação Python e diff ainda precisam ser repetidos antes do fechamento deste bloco. E2E Chromium e CI remota deste commit ainda pendentes.
+- Suíte local após a etapa HIVE/FLOWER: 92 testes aprovados, 14 testes de JVM ignorados por JDK ausente; `node --test tests/model.test.mjs` passou 28/28, `node --check web/app.js`, `py_compile` e `git diff --check` passaram. GitHub Actions run 38836939974, tentativa 2, passou no Windows e Linux, incluindo JVM real, nove OpModes, cenários de falha, Chromium e pacote Windows. A tentativa 1 falhou uma vez porque um teste de TeleOp observou `compilando` onde esperava `inicializando`; o teste passou sem mudanças de código na tentativa 2.
 
 # 16/10/2026 — Estado do HIVE, FLOWER e pontuação estimada
 
