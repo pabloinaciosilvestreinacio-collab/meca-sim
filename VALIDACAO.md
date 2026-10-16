@@ -239,3 +239,7 @@ Implementada em branch experimental. Configura-se o nome do servo (padrão `flow
 A proximidade é uma aproximação didática ao centro da estrutura. Este bloco não decide pontuação, posse, sequências oficiais nem liberação de NECTAR; não declarar regras FLOWER completas.
 
 Testes em `tests/test_elements.py`: 12/12 passaram em execução Python em memória com os módulos da branch (incluindo consumo/ordem, proximidade, acionamento por borda e bloqueio sem OpMode ativo). Sintaxe Python dos quatro arquivos e sintaxe JavaScript de `web/app.js` também passaram. A CI remota não apresentou workflows/status para o commit, e E2E Chromium não foi executado; continua pendente a validação visual/integrada.
+
+## Validação Chromium da branch experimental (16/10/2026)
+
+Na Action `38830725490`, os testes de Python/JVM, JavaScript, nove OpModes e cenários de falha passaram no Linux e Windows. O E2E Chromium passou pelos fluxos de partida, Java, replay, exportação, ZIP, TeleOp, editor e layout responsivo; falhou apenas ao localizar o remapeamento porque o roteiro não expandia o `<details>` “Personalizar teclas”. O seletor do teste foi corrigido para abrir esse painel antes de interagir. A validação integral deve ser repetida na próxima Action antes de considerar este bloco fechado.

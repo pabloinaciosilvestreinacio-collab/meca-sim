@@ -404,6 +404,7 @@ public class ZipOutro extends LinearOpMode {
         source.press('Control+v')
         assert source.input_value()==original+original, 'Ctrl+C/V não copiaram e colaram'
         editor.locator('[data-tab="robot"]').click()
+        editor.locator('.keymap-settings summary').click()
         editor.get_by_role('button',name='Tecla para A').click()
         editor.keyboard.press('g')
         assert editor.get_by_role('button',name='Tecla para A').text_content()=='g'
