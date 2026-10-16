@@ -1,3 +1,24 @@
+# Auditoria de aderência aos pedidos — 16/10/2026
+
+**Conclusão: o ciclo básico da partida está validado nos cenários ensaiados; o conjunto completo de pedidos da Fase 1 ainda não está concluído.** Aprovação dos testes existentes não representa cobertura de todos os requisitos.
+
+Verificação desta revisão: 97 testes Python repetidos, todos passaram sem skips, e 28 testes JavaScript repetidos, todos passaram. Os logs da execução `38880163800`, do mesmo código funcional entregue, confirmam as partidas Chromium/JVM em Windows e Linux; o navegador não foi executado novamente localmente nesta revisão.
+
+Comprovado: quatro preloads, redução de inventário por disparo, ausência de disparo vazio, captura via teclado/MI removendo a peça da arena, relançamento do mesmo ID, contribuição do NECTAR inicial, sete IDs liberados pelo TIP, queda até o piso, conservação 40 POLLEN + 16 NECTAR e recaptura de NECTAR no teste de física. A relação 3 NECTAR + 4 POLLEN é uma calibração de treino configurável, não uma massa ou um limiar oficial medido.
+
+Pendências e defeitos reproduzidos:
+
+1. **Relatório final — defeito confirmado:** executando a função real `reportData` com `launcher_status.empty_feed_attempts=5`, `activity.emptyFeedAttempts` não existe. A interface e o CSV leem esse campo e recebem `undefined`. O CSV também não contém todas as categorias de pontuação/penalidade solicitadas; contagem cumulativa completa de acertos e erros não está pronta. Arquivo: `web/app.js`.
+2. **Autocomplete — requisito incompleto:** `candidates` para `DcMotor intakeEscolar;\nintakeEsc` devolve `[]`; `setPo` sugere apenas a string `setPower`, sem assinatura/parâmetros. Existe lista fixa, mas não análise dos símbolos locais nem sugestões completas por tipo. Arquivo: `web/editor.mjs`.
+3. **Regras — requisito incompleto:** não existe modo Oficial/Personalizado com grupos de regras e penalidades habilitáveis/restauráveis. A pontuação é parcial e baseada em aproximações 2D. Arquivos: `rules.py`, `server.py`, interface.
+4. **Tempo livre — requisito incompleto:** desativar o limite não oferece controle manual de fases. Ensaio TeleOp, cronômetro desativado, tempo 90 s: `endgame_unlocked=true`, pois o desbloqueio continua derivado do tempo decorrido. Não há comando implementado para escolher manualmente a fase relevante.
+5. **Colisão em sobreposição inicial — defeito de borda reproduzido:** `Session({'x':.4,'y':.225})` é uma posição válida do chassi no campo. Após um passo de 0,01 s, `pollen-garden-red-2` e `pollen-garden-red-3` ainda têm o centro dentro do chassi. `_robot_collision` desloca pelo raio, mas não inclui toda a profundidade quando a peça começa dentro do retângulo. Isso não invalida os testes de contato externo, mas deixa este caso sem resolução imediata. Arquivo: `elements.py`.
+6. **Validação restante:** controle físico não ensaiado, posições oficiais exatas e fidelidade mecânica não comprovadas. Aparência e opção de rastro estão implementadas, mas não receberam nesta revisão ensaio visual específico equivalente ao ciclo de peças.
+
+Prioridade recomendada: relatório e sobreposição inicial; depois modos de regras/fases; depois autocomplete. Nenhuma mudança funcional foi aplicada nesta auditoria. Fases 2 e 3 continuam fora do escopo atual.
+
+---
+
 # Correção integrada da partida — 16/10/2026
 
 Autorização: corrigir os nove defeitos apontados, mantendo o trabalho na branch experimental. Main e Meca Tiger Hub não foram alterados.
