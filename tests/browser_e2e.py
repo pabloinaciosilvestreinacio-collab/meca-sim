@@ -15,6 +15,31 @@ process=subprocess.Popen([sys.executable,str(ROOT/'server.py')],env={**os.enviro
 checks=[]
 def passed(text):
     checks.append(text);print('PASS:',text,flush=True)
+
+def wait_java_finished(page, timeout=30000):
+    """Wait for a terminal Java state and include simulator evidence on failure."""
+    try:
+        page.wait_for_function(
+            "['concluído','erro','parado'].includes(document.querySelector('#status').textContent)",
+            timeout=timeout)
+    except Exception as error:
+        state=page.request.get(f'http://127.0.0.1:{port}/api/state').json()
+        raise AssertionError(
+            f"Java não chegou a um estado terminal: status={state['status']!r}; "
+            f"telemetria={state['telemetry']!r}; logs={state['logs']!r}; "
+            f"aviso={page.locator('#message').text_content()!r}") from error
+    state=page.request.get(f'http://127.0.0.1:{port}/api/state').json()
+    assert state['status']=='concluído', {
+        'status':state['status'],'telemetry':state['telemetry'],
+        'logs':state['logs'],'message':page.locator('#message').text_content()}
+
+def dismiss_report(page, expected='Java terminou normalmente'):
+    """A interface exige que o relatório da partida anterior seja descartado."""
+    page.wait_for_function("!document.querySelector('#final-report').hidden")
+    assert expected in page.locator('#report-summary').text_content()
+    page.locator('#dismiss-report').click()
+    page.wait_for_function("document.querySelector('#final-report').hidden")
+
 try:
     deadline=time.monotonic()+15
     while time.monotonic()<deadline:
@@ -110,13 +135,14 @@ try:
         page.wait_for_function("document.querySelector('#status').textContent==='inicializando'",timeout=30000)
         assert page.locator('#ds-start').is_enabled()
         page.locator('#ds-start').click()
-        page.wait_for_function("document.querySelector('#status').textContent==='concluído'",timeout=30000)
+        wait_java_finished(page)
         result=page.request.get(f'http://127.0.0.1:{port}/api/state').json()
         # E2E cruza ticks da JVM, servidor e navegador. O erro angular final
         # pode diferir ligeiramente após zerar potência; não é ensaio de PID físico.
         assert abs(result['yaw']-50)<2.5,{'yaw':result['yaw'],'time':result['time'],'telemetry':result['telemetry']}
         assert all(m['power']==0 for m in result['motors'].values())
         assert 'CONCLUÍDO' in page.locator('#ds-state').text_content().upper()
+        dismiss_report(page)
         passed('Autônomo real via INIT/START/Driver Station concluiu e zerou motores')
         page.locator('[data-workspace="paths"]').click()
         assert page.locator('#timeline-panel').get_attribute('open') is not None
@@ -162,8 +188,9 @@ public class AuxiliarBrowser {
             page.locator('#compile').click()
             page.wait_for_function("document.querySelector('#status').textContent==='inicializando'",timeout=30000)
             page.locator('#start').click()
-            page.wait_for_function("document.querySelector('#status').textContent==='concluído'",timeout=30000)
+            wait_java_finished(page)
             assert 'Importacao multipla OK' in page.locator('#telemetry').text_content()
+            dismiss_report(page)
             with page.expect_download() as out:page.locator('#save-project').click()
             saved=json.loads(Path(out.value.path()).read_text(encoding='utf-8'))
             assert len(saved['files'])==1
@@ -192,8 +219,9 @@ public class ZipOutro extends LinearOpMode {
             page.locator('#compile').click()
             page.wait_for_function("document.querySelector('#status').textContent==='inicializando'",timeout=30000)
             page.locator('#start').click()
-            page.wait_for_function("document.querySelector('#status').textContent==='concluído'",timeout=30000)
+            wait_java_finished(page)
             assert 'OUTRO OK' in page.locator('#telemetry').text_content()
+            dismiss_report(page)
             with page.expect_download() as out:page.locator('#save-project').click()
             saved_zip=Path(out.value.path())
             assert len(json.loads(saved_zip.read_text(encoding='utf-8'))['files'])==1
@@ -218,6 +246,7 @@ public class ZipOutro extends LinearOpMode {
         page.wait_for_function("document.querySelector('#status').textContent==='parado'")
         result=page.request.get(f'http://127.0.0.1:{port}/api/state').json()
         assert all(m['power']==0 for m in result['motors'].values())
+        dismiss_report(page,'Simulação encerrada antes do fim normal do Java')
         passed('TeleOp: teclado movimenta e STOP encerra JVM')
         page.locator('[data-workspace="paths"]').click()
         assert page.locator('#route-panel').get_attribute('open') is not None
@@ -289,7 +318,7 @@ public class ZipOutro extends LinearOpMode {
         page.wait_for_function("document.querySelector('#status').textContent==='executando'",timeout=15000)
         # O teste antigo era falso positivo: terminar não prova que o robô andou.
         page.wait_for_function("Math.abs(parseFloat(document.querySelector('#yaw').textContent))>12",timeout=12000)
-        page.wait_for_function("document.querySelector('#status').textContent==='concluído'",timeout=45000)
+        wait_java_finished(page,timeout=45000)
         assert 'Autonomo 3.5 concluido' in page.locator('#telemetry').text_content()
         assert 'COMPLETO' in page.locator('#telemetry').text_content(),'Modo GIRO em vez de COMPLETO'
         result=page.request.get(f'http://127.0.0.1:{port}/api/state').json()

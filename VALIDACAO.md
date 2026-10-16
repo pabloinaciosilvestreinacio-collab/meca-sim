@@ -102,6 +102,14 @@ Comandos no README. Para repetir a versão, usar o commit exato de Actions. Para
 2. Shooter: alterar cada controle de posição e confirmar mudança simultânea na origem superior/lateral; acertar uma CELL e verificar que a peça fica desenhada no HIVE.
 3. Mecanum: em arena livre, FL/FR/BL/BR iguais avançam; padrão de strafe ideal desloca lateralmente; confirmar que esse perfil não altera o padrão diferencial ME/MD.
 
+## Regressão E2E — relatório entre partidas (15/10/2026)
+
+A execução `38826162266` (commit `71a5901`) passou nos testes Python/JVM, Node, compatibilidade de OpModes e cenários de falha, mas falhou nos dois sistemas operacionais no fluxo Chromium de múltiplos arquivos Java. A causa encontrada foi o fluxo do teste: após concluir uma partida, a interface exibe e preserva o relatório final; o botão START impede iniciar outra até que o relatório seja descartado. O E2E tentava executar mais partidas sem descartar o relatório anterior.
+
+`tests/browser_e2e.py` agora valida e descarta o relatório antes de cada partida seguinte. Os helpers de término também produzem status, telemetria, logs e aviso da interface caso o Java não alcance um estado terminal. Não houve alteração no comportamento do simulador.
+
+Validação local nesta revisão (Python 3.12, OpenJDK 17.0.20, Node 24): 83 testes Python/JVM aprovados; 28 testes Node aprovados; compatibilidade compilou os nove OpModes; três cenários sintéticos de falha passaram; `py_compile` e `git diff --check` aprovados. O Chromium E2E não foi executado localmente: o download do navegador pelo Playwright retornou arquivo inválido de 0 bytes. A nova execução Actions em Windows e Linux ainda é necessária para validar este ajuste de interface.
+
 
 ## Fase 1 — editor e atalhos (15/10/2026)
 
