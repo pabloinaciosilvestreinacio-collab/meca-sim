@@ -110,6 +110,14 @@ A execução `38826162266` (commit `71a5901`) passou nos testes Python/JVM, Node
 
 Validação local nesta revisão (Python 3.12, OpenJDK 17.0.20, Node 24): 83 testes Python/JVM aprovados; 28 testes Node aprovados; compatibilidade compilou os nove OpModes; três cenários sintéticos de falha passaram; `py_compile` e `git diff --check` aprovados. O Chromium E2E não foi executado localmente: o download do navegador pelo Playwright retornou arquivo inválido de 0 bytes. A nova execução Actions em Windows e Linux ainda é necessária para validar este ajuste de interface.
 
+### Correção do defeito revelado pela nova CI (16/10/2026)
+
+A execução `38828447565` confirmou que o primeiro ajuste do teste ainda não bastava: a CI Linux chegou à execução de múltiplos arquivos, mas recebeu o aviso de que o relatório anterior não havia sido descartado. Causa: `readouts()` recriava o relatório a cada polling enquanto `matchStarted` permanecia verdadeiro, mesmo depois do clique explícito em Descartar.
+
+`buildFinalReport()` agora encerra esse estado interno ao produzir o relatório. O E2E aguarda 250 ms (mais de dois ciclos de polling) e afirma que o relatório descartado continua oculto. Esta correção altera a interface; a nova CI Windows/Linux é necessária antes de considerar o bloco validado.
+
+Verificação local da revisão: 83 testes Python/JVM, 28 testes Node, compatibilidade dos nove OpModes e três cenários sintéticos de falha aprovados; `py_compile`, `node --check` e `git diff --check` aprovados. E2E Chromium continua pendente localmente pelo download inválido do navegador; a nova Actions será o teste visual/integrado.
+
 
 ## Fase 1 — editor e atalhos (15/10/2026)
 

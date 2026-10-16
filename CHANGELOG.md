@@ -131,3 +131,8 @@
 - O TIP continua derivado do limiar didático de 8 POLLEN; a posição da Loading Zone é aproximada. Esta entrega não implementa pontuação completa, fases automáticas Auto/TeleOp, GARDEN ou configuração personalizada das regras.
 - Referência normativa consultada: FIRST BIOBUZZ Competition Manual TU05, atualização de 15/10/2026, Sections 10–11, incluindo G410 e G426.
 - Testes focados adicionados em `tests/test_rules.py`; resultado será registrado após execução.
+
+## Fase 1 — descarte definitivo do relatório (16/10/2026)
+
+- Depois de gerar o relatório final de uma partida, a interface deixa de tratar a partida como ativa; descartar o relatório agora continua descartando-o nos ciclos seguintes de telemetria.
+- O E2E espera mais de dois ciclos de polling após o descarte para detectar eventual reaparecimento.

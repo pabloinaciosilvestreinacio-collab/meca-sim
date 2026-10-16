@@ -39,6 +39,8 @@ def dismiss_report(page, expected='Java terminou normalmente'):
     assert expected in page.locator('#report-summary').text_content()
     page.locator('#dismiss-report').click()
     page.wait_for_function("document.querySelector('#final-report').hidden")
+    page.wait_for_timeout(250)  # mais de dois ciclos de polling da interface
+    assert page.locator('#final-report').is_hidden(), 'Relatório descartado reapareceu'
 
 try:
     deadline=time.monotonic()+15
