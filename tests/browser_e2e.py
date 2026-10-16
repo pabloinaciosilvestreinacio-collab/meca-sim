@@ -243,7 +243,16 @@ public class ZipOutro extends LinearOpMode {
             page.locator('#load-project').set_input_files(str(saved_zip))
             page.wait_for_function("document.querySelector('#opmode-choice').options.length===2")
             page.locator('#opmode-choice').select_option(label='ZipDemo — org/firstinspires/ftc/teamcode/ZipDemo.java')
-            assert 'ZipDemo' in page.locator('#source').input_value()
+            try:
+                page.wait_for_function("document.querySelector('#source').value.includes('ZipDemo')",timeout=5000)
+            except Exception as error:
+                raise AssertionError(
+                    'A troca de OpMode após reabrir o ZIP não atualizou o editor: '
+                    f"selected={page.locator('#opmode-choice').input_value()!r}; "
+                    f"options={page.locator('#opmode-choice').locator('option').all_text_contents()!r}; "
+                    f"source={page.locator('#source').input_value()[:240]!r}; "
+                    f"message={page.locator('#message').text_content()!r}"
+                ) from error
             passed('ZIP TeamCode seleciona OpMode, compila, executa e restaura opções ao reabrir JSON')
         if page.locator('#files-menu').get_attribute('open') is not None:
             page.locator('#files-menu summary').click()

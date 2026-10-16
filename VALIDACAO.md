@@ -112,7 +112,9 @@ A revisão `91e8bca` removeu acidentalmente aproximadamente 390 linhas do final 
 
 O arquivo completo da revisão anterior foi restaurado e recebeu apenas a alteração necessária em `buildFinalReport()` para encerrar o estado de partida ao montar o relatório. A suíte E2E agora também registra erros JavaScript, erros de console e requests com falha se o exemplo não carregar. A Action `38829334579` será usada para verificar esta correção; até seu resultado, interface permanece não validada.
 
-Na Action `38829590023`, o E2E passou pelo exemplo inicial, movimentos, shooter/HIVE, Java, replay, exportações, projetos ZIP, TeleOp, Autônomo 3.5, autocomplete e layout móvel. O teste final de remapeamento tentou clicar em um controle oculto enquanto permanecia na aba Código. O controle fica na configuração do robô; o teste agora abre essa aba antes do clique. A validação Chromium completa continua pendente de nova execução.
+Na Action `38829590023`, o E2E passou pelo exemplo inicial, movimentos, shooter/HIVE, Java, replay, exportações, projetos ZIP, TeleOp, Autônomo 3.5, autocomplete e layout móvel. O teste final de remapeamento tentou clicar em um controle oculto enquanto permanecia na aba Código. O controle fica na configuração do robô; o teste agora abre essa aba antes do clique.
+
+Na Action `38830052723`, o E2E avançou além do teste anterior, mas falhou ao verificar a troca para outro OpMode depois de reabrir um projeto ZIP. Foi adicionada espera de atualização e diagnóstico da opção selecionada, lista de OpModes, código e mensagem. A validação Chromium completa aguarda nova execução.
 
 `tests/browser_e2e.py` agora valida e descarta o relatório antes de cada partida seguinte. Os helpers de término também produzem status, telemetria, logs e aviso da interface caso o Java não alcance um estado terminal. Não houve alteração no comportamento do simulador.
 
