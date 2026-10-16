@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import math
+from hive import cell_load, cell_contents
 
 MAX_ALLIANCE_NECTAR = 5
 ENDGAME_REMAINING_SECONDS = 60.0
@@ -45,19 +46,33 @@ class BioBuzzRules:
         # A CELL que estava para cima passa a apontar para baixo; as peças que
         # ficaram nela são liberadas como os mesmos objetos, em queda até o piso.
         if world is not None:
-            for piece in world.elements:
-                zone = piece.score_zone or (piece.location if piece.location in
-                                             (*HIVE_CELLS[team].values(),) else None)
-                if zone != cell_id or piece.status not in ("hive", "scored"):
-                    continue
+            world.hive_active_cells[team] = self.active_hive_cell(team)
+            for index, piece in enumerate(cell_contents(world, cell_id)):
                 piece.status, piece.location = "falling", "hive-release"
+                piece.launch_id = None
+                piece.vx = ((index % 3)-1)*.24
+                piece.vy = -.45 if cell_id.endswith("lower") else .45
                 piece.flight = {"mode": "hive_release", "started_at": float(elapsed),
-                                "height": .75, "z": .75, "cell_id": cell_id}
+                                "height": .75, "z": .75, "cell_id": cell_id,
+                                "x": piece.x, "y": piece.y}
         event = {"type": "hive_tip", "team": team, "cell_id": cell_id,
                  "time": round(float(elapsed), 3),
                  "source": "simulated_hive_tip"}
         self._append(self.events, event)
         return event
+
+    def update_hives(self, world):
+        if world.arena != "biobuzz":
+            return
+        for team in ALLIANCES:
+            cell_id = self.active_hive_cell(team)
+            if cell_load(world, cell_id)["load"] + 1e-9 >= world.hive_tip_load:
+                self.register_hive_tip(team, world.elapsed, world, cell_id)
+
+    def hive_snapshot(self, world):
+        return {team: {**cell_load(world, self.active_hive_cell(team)),
+                       "tips": self.hive_tips[team], "nectar_load": world.hive_nectar_load}
+                for team in ALLIANCES}
 
     def active_hive_cell(self, team):
         if team not in ALLIANCES:
@@ -121,7 +136,7 @@ class BioBuzzRules:
                                          if category != "total")
         return {"by_alliance": points,
                 "limitations": [
-                    "HIVE TIP pontua 20, mas o evento é gerado pelo limiar didático de 8 POLLEN.",
+                    "HIVE TIP usa carga ponderada configurável de treino; não é um limiar físico oficial.",
                     "FLOWER usa a ordem dos depósitos do OpMode como aproximação vertical do volume.",
                     "GARDEN usa círculos e zonas 2D esquemáticas; zonas oficiais/CAD e arbitragem não são reproduzidas.",
                     "Pontos por peças em CELL são uma projeção do estado atual da CELL voltada para cima."
@@ -202,7 +217,7 @@ class BioBuzzRules:
             "events": [event.copy() for event in self.events],
             "penalties": [penalty.copy() for penalty in self.penalties],
             "limitations": [
-                "O TIP vem do modelo didático de 8 POLLEN; não representa critério físico oficial.",
+                "O TIP considera POLLEN e NECTAR presentes na CELL; cargas e limiar são calibrações de treino.",
                 "G426 libera a entrada e G427 exige a Loading Zone; o botão do Human Player inicia uma queda visual aproximada de 0,45 m.",
                 "Pontos BIOBUZZ são estimados de estados 2D; áreas verticais e julgamento de falta continuam aproximados."
             ]

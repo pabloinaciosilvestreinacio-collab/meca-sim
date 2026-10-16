@@ -1,5 +1,19 @@
 # Meca Sim 0.3-rc2 — laboratório FTC em duas vistas
 
+## Correção de partida — build `partida-integrada-20261016`
+
+Use a branch experimental `fix/pollen-lifecycle-20261016` e o artefato Windows de uma execução verde desta correção. A branch principal continua preservada. A identificação do build aparece na Driver Station.
+
+1. Feche a versão antiga antes de abrir o novo executável. Código salvo no navegador é preservado: clique em **Carregar TeleOp com intake/shooter** para experimentar o novo exemplo.
+2. No Lançador, **Calcular tiro ideal** prepara a mira para o próximo INIT. Clique **INIT → START** e dê foco à arena.
+3. **W/S** avança/recua, **A/D** gira, **Z (LB)** liga MI para coletar na frente, **C (RB)** liga MI+MS para alimentar e lançar. Soltar desliga. O painel **Controles** reflete o remapeamento real. Controle físico conectado tem prioridade.
+4. Os quatro preloads são objetos reais; cada tiro retira um ID do armazenamento. Prévia de trajetória serve para cálculo visual e não altera peças, HIVE ou pontuação.
+5. A carga do HIVE inclui POLLEN e NECTAR. Calibração de treino padrão: P=1, N=4/3, tombamento em 8 unidades (3 N + 4 P). Ajustável no Chassi. **Não é massa medida nem limite oficial FIRST**: o manual descreve carga suficiente e mecanismo biestável sem estabelecer um número universal de POLLEN. A física usa uma aproximação leve.
+6. Ao tombar, os IDs acumulados caem, chegam ao piso e podem ser coletados. Os cinco NECTAR reservados por aliança continuam separados da carga inicial e obedecem ao fluxo do Human Player implementado.
+
+Referência conferida: [página oficial do manual BIOBUZZ](https://ftc-resources.firstinspires.org/ftc/game), TU05 de 15/10/2026; [Seção 9](https://ftc-resources.firstinspires.org/ftc/game/manual-09), TU04. Posições e mecânica continuam esquemáticas.
+
+
 Simulador **local e independente** da Meca Tiger: cole uma classe Java `LinearOpMode`, configure o chassi diferencial, execute INIT/START e observe encoders, IMU, telemetria e trajetória. Inclui controles USB e teclado, vista de cima e estudo balístico lateral.
 
 ### Referência Desmos: arena e viabilidade do lançamento
@@ -18,7 +32,7 @@ Simulador **local e independente** da Meca Tiger: cole uma classe Java `LinearOp
 
 ### Nova interface: campos, projetos e editor
 
-- **Arena:** seletor entre `BIOBUZZ 2026–2027` e `Arena livre`. As dimensões principais agora refletem o manual oficial: quadro HIVE de 1,2565 × 0,9895 m, pivô a 1,1165 m, espaçamento das CELLS 0,478 m, abertura dos FLOWERS a 0,546 m, GARDENS 0,584 × 0,051 m e LOADING ZONES 0,584 × 0,2795 m. Posições individuais e orientação das CELLS/FLOWERS continuam **esquemáticas**, não reproduzidas do STEP oficial; não existem colisões internas, articulações ou pontuação.
+- **Arena:** seletor entre `BIOBUZZ 2026–2027` e `Arena livre`. As dimensões principais agora refletem o manual oficial: quadro HIVE de 1,2565 × 0,9895 m, pivô a 1,1165 m, espaçamento das CELLS 0,478 m, abertura dos FLOWERS a 0,546 m, GARDENS 0,584 × 0,051 m e LOADING ZONES 0,584 × 0,2795 m. Posições individuais e orientação das CELLS/FLOWERS continuam **esquemáticas**, não reproduzidas do STEP oficial; não existem colisões rígidas internas nem articulações 3D; a pontuação implementada é estimada a partir dos estados das peças.
 - **POLLEN/NECTAR e intake (experimental):** 40 POLLEN e 16 NECTAR têm tipo, tamanho e estado separados (em campo, FLOWER/HIVE, preload/inventário ou reservado). O modelo posiciona peças em FLOWERS, GARDENS, CELLS e zonas por aproximação 2D. Quatro POLLEN começam no inventário do robô. A região frontal do intake acompanha a largura e o alcance editáveis (padrão 0,15 m); MI positivo coleta somente dentro da região e até a capacidade configurada (padrão 4). Peças livres têm amortecimento e colisões leves com outras peças, chassi e paredes. Massas, contatos 3D e posições oficiais exatas ainda não estão completos.
 - **Ciclo do POLLEN (experimental):** cada peça mantém o mesmo ID ao ser coletada, aparecer no estoque visual do robô, sair da posição do shooter e percorrer a trajetória. Um acerto previsto transfere esse ID ao estado pontuado; um erro devolve o mesmo objeto ao piso, onde volta a interagir com a física. A trajetória usa velocidade e ângulo configurados sem arrasto ou colisão 3D; a decisão de acerto continua no modelo didático do HIVE.
 - **Aparência do robô:** cor do chassi, cor dos detalhes e decoração (faixa, faixas laterais, painel frontal ou sem detalhes) são opções visuais. O controle do rastro laranja só oculta o desenho; o histórico de trajetória continua sendo registrado para replay e diagnóstico. Preferências ficam no projeto local/exportado e não entram na configuração enviada à física do robô.

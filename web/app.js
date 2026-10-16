@@ -1,11 +1,11 @@
-import {rotate, launcher, heightAt, flight, gamepadValues, keyboardGamepadValues, DEFAULT_KEYMAP, targetSolution, encoderScale, connectedPlayers, speedFromForce, forceFromSpeed, shotFeasibility, shotElapsed, hiveShotImpact, registerPollen, SIM_TIP_POLLS} from './model.mjs';
+import {rotate, launcher, heightAt, flight, gamepadValues, keyboardGamepadValues, DEFAULT_KEYMAP, targetSolution, encoderScale, connectedPlayers, speedFromForce, forceFromSpeed, shotFeasibility, shotElapsed, hiveShotImpact} from './model.mjs';
 import {FIELD_METERS, ARENAS, validStart, drawArenaTop, drawArenaSide, hiveCellAt, hiveCellById, hiveSideGeometry, HIVE_SIDE} from './arena.mjs';
 import {candidates, diagnostics, highlightJava} from './editor.mjs';
 import {routeSteps, routeWarnings, makeRouteJava, MAX_WAYPOINTS} from './route.mjs';
 const $ = id => document.getElementById(id);
 const num = id => Number($(id).value);
 let state = {x:1.83,y:.65,yaw:0,width:.45,length:.45,trail:[],motors:{},time:0,status:'pronto'};
-let matchStarted=false,finalReport=null;
+let matchStarted=false,finalReport=null,activeSource='',controlSignature='';
 const REPORT_KEY='meca-sim-final-report-v1';
 let focused = document.hasFocus();
 let shot = null, javaShots = [], lastJavaLaunchId = 0, examples = {}, javaFiles = {}, zipOpModes = [], selectedJavaPath = '', lastPad = 0, polling = false, padBusy = false, pickingStart = false;
@@ -43,7 +43,7 @@ function renderKeymap(){
 }
 $('reset-keymap').addEventListener('click',()=>{keyMap={...DEFAULT_KEYMAP};capturingKey=null;keys.clear();localStorage.removeItem(KEYMAP_KEY);renderKeymap();notice('Mapa padrão restaurado.');});
 
-const configIds = ['arena','drivetrain','robot-color','left','right','front_left','front_right','back_left','back_right','width','length','track','max_speed','ticks_per_m','duration','match-mode','timer-enabled','x','y','initial-yaw','invert_left','invert_right','acceleration','left_gain','right_gain','left_slip','right_slip','imu_delay','imu_drift','walls','alliance','intake_reach','intake_capacity','imu_frozen','left_encoder_frozen','right_encoder_frozen','flower-servo-name','flower-deploy-position','flower-range'];
+const configIds = ['arena','drivetrain','robot-color','left','right','front_left','front_right','back_left','back_right','width','length','track','max_speed','ticks_per_m','duration','match-mode','timer-enabled','x','y','initial-yaw','invert_left','invert_right','acceleration','left_gain','right_gain','left_slip','right_slip','imu_delay','imu_drift','walls','alliance','intake_reach','intake_capacity','imu_frozen','left_encoder_frozen','right_encoder_frozen','flower-servo-name','flower-deploy-position','flower-range','hive-nectar-load','hive-tip-load'];
 const visualIds=['robot-detail-color','robot-style','show-trail'];
 const launchIds = ['offset-x','offset-y','height','shot-mode','force','speed','projectile-mass','acceleration-stroke','shot-efficiency','target-radius','target-tolerance','elevation','azimuth','target-x','target-y','target-h','feed-interval'];
 function config() {
@@ -72,33 +72,35 @@ function hiveStatus(team,now){
     angle=motion.from+(motion.to-motion.from)*ease+Math.sin(t*Math.PI*3)*(1-t)*2;
     if(t>=1)delete hiveMotion[team];
   }
-  return {angle,count:hiveCounts[team],tips:hiveFlips[team],activeCellId:activeCellId(team)};
+  return {angle,load:state.hives?.[team]?.load||0,threshold:state.hives?.[team]?.threshold||8,count:hiveCounts[team],tips:hiveFlips[team],activeCellId:activeCellId(team)};
 }
-function recordImpact(shot,now){
-  const cell=hiveCellById(shot.cellId);
-  if(!cell||!shot.impact?.hit||shot.registered)return;
-  const result=registerPollen(hiveCounts[cell.team],SIM_TIP_POLLS);
-  hiveCounts[cell.team]=result.count;
-  shot.registered=true;shot.tipped=result.tipped;
-  const resolved=shot.pieceId
-    ?api('element-result',{element_id:shot.pieceId,launch_id:shot.launchId,result:'scored',x:shot.impact.x,y:shot.impact.y})
-    :Promise.resolve();
-  if(result.tipped){
-    if(matchStarted&&state.status==='executando')
-      resolved.then(()=>api('rules',{action:'hive_tip',team:cell.team,cell_id:cell.id}))
-        .catch(error=>notice(error.message));
-    else resolved.catch(error=>notice(error.message));
-    const previous=hiveOrientation(cell.team)*HIVE_SIDE.angleDeg;
-    hiveFlips[cell.team]++;
-    hiveMotion[cell.team]={start:now,from:previous,to:-previous};
-    tippedHives.add(cell.id);
-    // Ao virar, a CELL anterior descarrega as bolas acumuladas.
-    scoredShots=scoredShots.filter(b=>b.cellId!==cell.id);
-    setShotResult('HIVE TOMBOU · limiar didático de '+SIM_TIP_POLLS+' peças na '+cell.name+'; elementos liberados.','hit');
-  }else{
-    resolved.catch(error=>notice(error.message));
-    setShotResult((shot.kind||'POLLEN')+' CAPTURADO · '+hiveCounts[cell.team]+'/'+SIM_TIP_POLLS+' peças na '+cell.name+'.','hit');
+function recordImpact(candidate){
+  if(candidate.registered)return;
+  candidate.registered=true;
+  setShotResult('PRÉVIA · trajetória entra na CELL. Inventário e HIVE só mudam com os mecanismos do Java.','hit');
+}
+function syncWorldVisuals(){
+  scoredShots=(state.elements||[]).filter(p=>['hive','scored'].includes(p.status))
+    .map(p=>({...p,cellId:p.score_zone||p.location}));
+  for(const team of ['red','blue']){
+    const h=state.hives?.[team];if(!h)continue;
+    if(h.tips>hiveFlips[team]){
+      const previous=hiveOrientation(team)*HIVE_SIDE.angleDeg;
+      hiveMotion[team]={start:performance.now(),from:previous,to:-previous};
+      tippedHives.add(activeCellId(team));
+      setShotResult('HIVE TOMBOU · peças reais liberadas; acompanhe a queda na arena.','hit');
+    }else if(h.tips<hiveFlips[team]){delete hiveMotion[team];tippedHives.clear();}
+    hiveCounts[team]=h.POLLEN+h.NECTAR;hiveFlips[team]=h.tips;
   }
+}
+function renderControlGuide(){
+  const source=(['compilando','inicializando','executando'].includes(state.status)?activeSource:'')||$('source').value;
+  const demo=Boolean(examples['TeleOp · gamepad / teclado'])&&source.trim()===examples['TeleOp · gamepad / teclado'].trim();
+  const signature=JSON.stringify([demo,keyMap]);if(signature===controlSignature)return;controlSignature=signature;
+  $('control-actions').textContent=demo
+    ? `TeleOp de demonstração: ${displayKey(keyMap.lsyNeg)}/${displayKey(keyMap.lsyPos)} avançar/recuar; ${displayKey(keyMap.rsxNeg)}/${displayKey(keyMap.rsxPos)} girar; ${displayKey(keyMap.lb)} (LB) coleta com MI; ${displayKey(keyMap.rb)} (RB) alimenta com MI e lança com MS. Soltar para parar. Os demais botões estão disponíveis ao Java, sem ação neste exemplo.`
+    : 'OpMode personalizado: as ações dependem do código Java. Abaixo estão as entradas realmente enviadas ao gamepad virtual.';
+  $('control-map').textContent=keymapActions.map(([id,label])=>`${label}: ${displayKey(keyMap[id])}`).join(' · ');
 }
 function currentShotBall(now,candidate=shot){
   if(!candidate)return null;
@@ -273,7 +275,7 @@ action('introduce-nectar',async()=>{
   const result=await api('rules',{action:'nectar_entry'});
   notice('Human Player introduziu '+result.event.element_id+' pela Loading Zone. Confira a entrada no campo.');
 });
-action('compile',async()=>{resetReplay();persist();shot=null;javaShots=[];lastJavaLaunchId=0;matchStarted=false;await api('run',{source:$('source').value,files:javaFiles,config:config()});});
+action('compile',async()=>{resetReplay();persist();shot=null;javaShots=[];lastJavaLaunchId=0;matchStarted=false;activeSource=$('source').value;await api('run',{source:$('source').value,files:javaFiles,config:config()});});
 // O Autônomo 3.5 espera seleção (B/X/Y/↑) e confirmação A ANTES de START.
 // Envia pulsos no mesmo canal gamepad do Java, sem alterar o código original.
 $('auto35-confirm').addEventListener('click',async()=>{
@@ -301,7 +303,7 @@ action('start',async()=>{
   if(finalReport)throw Error('Exporte ou descarte o relatório anterior antes de iniciar outra partida.');
   auto35StartPose=/class\s+Autonomo35\b/.test($('source').value)?{x:state.x,y:state.y,yaw:state.yaw}:null;
   auto35Moved=false;
-  await api('heartbeat');await api('start');matchStarted=true;
+  await api('heartbeat');await api('start');matchStarted=true;top.focus();
 });
 action('stop',()=>api('stop'));
 $('finish-match').addEventListener('click',async()=>{
@@ -368,7 +370,7 @@ $('dismiss-report').addEventListener('click',()=>{
   finalReport=null;try{localStorage.removeItem(REPORT_KEY);}catch{}renderFinalReport();notice('Relatório descartado.');
 });
 action('reset',async()=>{resetReplay();shot=null;javaShots=[];lastJavaLaunchId=0;await api('reset',{config:config()});});
-action('clear-shots',()=>{scoredShots=[];shot=null;javaShots=[];lastJavaLaunchId=Math.max(lastJavaLaunchId,...(state.launches||[]).map(e=>e.id));tippedHives.clear();hiveCounts={red:0,blue:0};hiveFlips={red:0,blue:0};hiveMotion={};setShotResult('POLLEN, contadores e gangorras reiniciados.','info');});
+action('clear-shots',()=>{shot=null;setShotResult('Prévia limpa. Para reiniciar a partida e as peças, use Reiniciar posição ou INIT.','info');});
 action('export',async()=>{
   const blob=new Blob([JSON.stringify({version:'0.2',config:config(),launcher:Object.fromEntries(launchIds.map(id=>[id,id==='shot-mode'?$(id).value:num(id)])),result:state},null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob), a=document.createElement('a');a.href=url;a.download='meca-sim-resultado.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
@@ -587,7 +589,7 @@ function drawTop(now) {
   c.lineWidth=1;c.font='10px system-ui';
   for(let i=0;i<=6;i++){const p=i*3.66/6,[x,y]=project(p,p);c.strokeStyle='#242c37';c.beginPath();c.moveTo(x,g.oy);c.lineTo(x,g.oy-3.66*g.scale);c.moveTo(g.ox,y);c.lineTo(g.ox+3.66*g.scale,y);c.stroke();c.fillStyle='#627085';c.fillText(p.toFixed(2),x-9,g.oy+15);c.fillText(p.toFixed(2),g.ox-28,y+3);}
   c.strokeStyle='#536277';c.strokeRect(g.ox,g.oy-3.66*g.scale,3.66*g.scale,3.66*g.scale);
-  (state.elements||[]).filter(item=>['field','flower','hive','deposited','launched','entering','falling'].includes(item.status)).forEach(item=>{
+  (state.elements||[]).filter(item=>['field','flower','deposited','launched','entering','falling'].includes(item.status)).forEach(item=>{
     const q=project(item.x,item.y),radius=Math.max(3,item.radius*g.scale);
     const nectar=item.kind==='NECTAR',fill=nectar?(item.team==='red'?'#e34f5a':'#4c91e8'):'#f1ce54';
     if(item.status==='entering'||item.status==='falling'){c.beginPath();c.arc(q[0],q[1],radius+4,0,Math.PI*2);c.strokeStyle='#ffffffcc';c.lineWidth=1.5;c.stroke();}
@@ -614,8 +616,8 @@ function drawTop(now) {
   const elementsById=new Map((state.elements||[]).map(item=>[item.id,item]));
   const preloads=(state.inventory_ids||[]).map(id=>elementsById.get(id)).filter(item=>item?.status==='robot');
   preloads.forEach((item,index)=>{
-    const slots=[[-.10,-.11],[-.035,-.11],[.035,-.11],[.10,-.11]],local=slots[index%slots.length];
-    const p=corner(local[0],local[1]);c.fillStyle='#f1ce54';c.strokeStyle='#fff2ad';c.lineWidth=1.2;
+    const cols=Math.min(4,preloads.length),rows=Math.ceil(preloads.length/cols),local=[(index%cols-(cols-1)/2)*state.width/(cols+1),-state.length*.15+(Math.floor(index/cols)-(rows-1)/2)*state.length/(rows+2)];
+    const p=corner(local[0],local[1]);c.fillStyle=item.kind==='NECTAR'?(item.team==='blue'?'#4c91e8':'#e34f5a'):'#f1ce54';c.strokeStyle=item.kind==='NECTAR'?'#fff':'#fff2ad';c.lineWidth=1.2;
     c.beginPath();c.arc(...p,Math.max(4,item.radius*g.scale),0,Math.PI*2);c.fill();c.stroke();
   });
   const intakeReach=Number.isFinite(state.intake?.reach)?state.intake.reach:num('intake_reach');
@@ -638,6 +640,7 @@ function drawTop(now) {
   $('bounds').textContent=state.collision?'Contato com parede · rodas podem patinar':'Paredes externas físicas · frente +Y · yaw positivo ↶';
 }
 top.addEventListener('click',async event=>{
+  top.focus();
   const rect=top.getBoundingClientRect(),g=geometry();
   const x=(event.clientX-rect.left-g.ox)/g.scale,y=(g.oy-event.clientY+rect.top)/g.scale;
   if(routePicking&&!event.shiftKey&&!pickingStart){
@@ -739,16 +742,15 @@ function drawSide(now) {
   drawArenaSide(c,point,$('arena').value,along,v.th,sideCell,scoredShots,hiveStatus(sideCell?.team||'red',now));
   for(let i=0;i<=4;i++){const value=i*maxH/4,p=point(0,value);c.strokeStyle='#242c37';c.beginPath();c.moveTo(...p);c.lineTo(w-10,p[1]);c.stroke();c.fillStyle='#627085';c.fillText(value.toFixed(1)+'m',5,p[1]+3);}
   c.strokeStyle='#536277';c.beginPath();c.moveTo(...point(0,0));c.lineTo(...point(maxX,0));c.stroke();
-  (state.elements||[]).filter(item=>['entering','falling'].includes(item.status)&&
-      ['human_entry','hive_release'].includes(item.flight?.mode)).forEach(item=>{
-    const sxWorld=(item.x-origin[0])*dir[0]+(item.y-origin[1])*dir[1],q=point(sxWorld,item.flight.z||0);
-    c.fillStyle=item.team==='blue'?'#72b4ff':'#ff7780';c.strokeStyle='#fff';c.lineWidth=1.5;
+  (state.elements||[]).filter(item=>['entering','falling','launched','field'].includes(item.status)).forEach(item=>{
+    const sxWorld=(item.x-origin[0])*dir[0]+(item.y-origin[1])*dir[1],q=point(sxWorld,item.flight?.z??item.flight?.height??item.radius);
+    c.fillStyle=item.kind==='POLLEN'?'#f1ce54':item.team==='blue'?'#72b4ff':'#ff7780';c.strokeStyle='#fff';c.lineWidth=1.5;
     c.beginPath();c.arc(...q,5,0,Math.PI*2);c.fill();c.stroke();
   });
   // Projeção do chassi no eixo do tiro; o lançador está em x=0.
   c.fillStyle='#ff852e20';c.strokeStyle='#ff852e';const p=point(left,.30);c.fillRect(p[0],p[1],(right-left)*sx,.30*sy);c.strokeRect(p[0],p[1],(right-left)*sx,.30*sy);
   c.strokeStyle='#f07a7b';c.lineWidth=2;c.setLineDash([7,4]);c.beginPath();
-  const arcEnd=sideShot?.impact?.hit?shot.impact.distance:f.range;
+  const arcEnd=sideShot?.impact?.hit?sideShot.impact.distance:f.range;
   for(let i=0;i<=120;i++){const x=arcEnd*i/120,q=point(x,Math.max(0,heightAt(x,v.height,v.speed,v.elevation)));i?c.lineTo(...q):c.moveTo(...q);}
   c.stroke();c.setLineDash([]);
   const check=shotFeasibility(viewed,v);
@@ -763,7 +765,7 @@ function drawSide(now) {
   const ramp=point(-reach,Math.max(0,v.height-reach*Math.tan(angle))),muzzle=point(0,v.height);
   c.strokeStyle='#ffb564';c.lineWidth=5;c.beginPath();c.moveTo(...ramp);c.lineTo(...muzzle);c.stroke();
   c.fillStyle='#ffb564';c.beginPath();c.arc(...muzzle,4,0,Math.PI*2);c.fill();
-  if(sideShot){const ball=currentShotBall(now,sideShot);if(ball){const q=point(ball.along,ball.z);c.fillStyle='#fff4a9';c.beginPath();c.arc(...q,5,0,Math.PI*2);c.fill();c.strokeStyle='#b98944';c.stroke();}}
+  if(shot){const ball=currentShotBall(now,shot);if(ball){const q=point(ball.along,ball.z);c.fillStyle='#fff4a9';c.beginPath();c.arc(...q,5,0,Math.PI*2);c.fill();c.strokeStyle='#b98944';c.stroke();}}
   const at=along>=0&&along<=f.range?heightAt(along,v.height,v.speed,v.elevation):null;
   $('shot-info').textContent=((checkHive?checkHive.hit:check.possible)?'POSSÍVEL':'NÃO ATINGE O ALVO')+
     ' · v₀ '+v.speed.toFixed(2)+' m/s · alcance '+f.range.toFixed(2)+' m · distância horizontal '+along.toFixed(2)+
@@ -781,14 +783,17 @@ function readouts() {
   $('imu-yaw').textContent=Number.isFinite(state.imu_yaw)?state.imu_yaw.toFixed(1)+'°':'—';
   const hive=selectedHive();
   const progress=$('hive-progress');
-  if(hive&&progress)progress.textContent='HIVE '+(hive.team==='red'?'vermelho':'azul')+
-    ' · '+hiveCounts[hive.team]+'/'+SIM_TIP_POLLS+' peças (modelo didático) · '+hiveFlips[hive.team]+
-    ' tombamento(s) · abertura ativa: '+hiveCellById(activeCellId(hive.team)).name;
+  if(hive&&progress){const h=state.hives?.[hive.team];progress.textContent=h
+    ? `HIVE ${hive.team==='red'?'vermelho':'azul'} · ${h.POLLEN} POLLEN + ${h.NECTAR} NECTAR · carga ${h.load.toFixed(2)}/${h.threshold} (treino) · ${h.tips} tombamento(s) · abertura ativa: ${hiveCellById(h.cell_id).name}`
+    : 'Aguardando estado do HIVE';}
+  $('build-id').textContent=state.build||'';
+  renderControlGuide();
   const stock=state.inventory||{POLLEN:0,NECTAR:0},intake=state.intake||{};
   $('inventory').textContent=`POLLEN ${stock.POLLEN||0} · NECTAR ${stock.NECTAR||0} · ${(intake.collected||0)} coletada(s)`;
   $('intake-status').textContent=intake.active
     ? `Intake MI ativo · captura frontal até ${intake.capacity||num('intake_capacity')} peça(s)`
-    : `MI parado · ${stock.POLLEN||0}/${intake.capacity||num('intake_capacity')} no estoque`;
+    : `MI parado · ${(stock.POLLEN||0)+(stock.NECTAR||0)}/${intake.capacity||num('intake_capacity')} no estoque`;
+  $('inventory-pieces').textContent='Armazenamento: '+((state.inventory_ids||[]).join(' · ')||'vazio');
   const rules=state.rules||{};
   const entryButton=$('introduce-nectar');
   entryButton.disabled=state.status!=='executando'||(rules.nectar_available||0)<1;
@@ -865,7 +870,7 @@ function receiveJavaLaunches(){
 }
 async function poll() {
   if(polling)return;polling=true;
-  try{const response=await fetch('/api/state');if(!response.ok)throw Error('Falha ao consultar simulação');state=await response.json();receiveJavaLaunches();readouts();}
+  try{const response=await fetch('/api/state');if(!response.ok)throw Error('Falha ao consultar simulação');state=await response.json();syncWorldVisuals();receiveJavaLaunches();readouts();}
   catch(e){$('status').textContent='Servidor desconectado';notice('Não foi possível acessar o servidor local. Confira o terminal do Python.');}
   finally{polling=false;}
 }
@@ -899,32 +904,14 @@ async function sendPads(now) {
   }catch{}finally{padBusy=false;}
 }
 function frame(now){
-  javaShots=javaShots.filter(candidate=>{
-    const elapsed=shotElapsed(now,candidate.start),impact=candidate.impact?.hit?candidate.impact:null;
-    if(impact&&!candidate.registered&&elapsed>=impact.time)recordImpact(candidate,now);
-    if(impact&&elapsed>=impact.time+.42){
-      if(!candidate.tipped){const cell=hiveCellById(candidate.cellId);scoredShots.push({cellId:cell.id,x:impact.x,y:impact.y,height:impact.height,kind:candidate.kind});
-      }
-      if(candidate.tipped)selectHive(hiveCellById(activeCellId(impact.team)),false);
-      return false;
-    }
-    if(!impact&&elapsed>=flight(candidate.height,candidate.speed,candidate.elevation).time){
-      setShotResult('ERRO · '+(candidate.impact?.reason||'lançamento fora da abertura')+'.','error');return false;
-    }
-    return true;
-  });
+  const flying=new Set((state.elements||[]).filter(p=>p.status==='launched').map(p=>p.id));
+  javaShots=javaShots.filter(candidate=>flying.has(candidate.pieceId));
   if(shot){
     const elapsed=shotElapsed(now,shot.start),impact=shot.impact?.hit?shot.impact:null;
-    if(impact&&!shot.registered&&elapsed>=impact.time)recordImpact(shot,now);
-    if(impact&&elapsed>=impact.time+.42){
-      if(!shot.tipped){const cell=hiveCellById(shot.cellId);
-        scoredShots.push({cellId:cell.id,x:impact.x,y:impact.y,height:impact.height});}
-      // A bolinha chega ao alvo, cai DENTRO e só então deixa a animação.
-      if(shot.tipped)selectHive(hiveCellById(activeCellId(impact.team)),false);
-      shot=null;
-    }else if(!impact&&elapsed>=flight(shot.height,shot.speed,shot.elevation).time){
-      setShotResult('ERRO · '+(shot.impact?.reason||'lançamento fora da abertura')+'.','error');
-      shot=null;
+    if(impact&&!shot.registered&&elapsed>=impact.time)recordImpact(shot);
+    if(impact&&elapsed>=impact.time+.42)shot=null;
+    else if(!impact&&elapsed>=flight(shot.height,shot.speed,shot.elevation).time){
+      setShotResult('PRÉVIA · não atinge a abertura: '+(shot.impact?.reason||'fora do alvo')+'.','error');shot=null;
     }
   }
   if(replayPlaying&&replayIndex>=0&&replayRows.length>1){
@@ -935,6 +922,13 @@ function frame(now){
   if(!document.hidden&&now-lastDraw>=33){lastDraw=now;drawTop(now);drawSide(now);sendPads(now);}
   requestAnimationFrame(frame);
 }
+action('load-teleop',()=>{
+  if(['compilando','inicializando','executando'].includes(state.status))throw Error('Pare o Java antes de carregar outro programa.');
+  $('source').value=examples['TeleOp · gamepad / teclado'];javaFiles={};zipOpModes=[];selectedJavaPath='';activeSource='';restoreOpModeChoices();
+  $('example').value='TeleOp · gamepad / teclado';$('match-mode').value='teleop';
+  refreshMatchLimit();refreshHighlight();updateJavaFilesLabel();persist();renderControlGuide();
+  notice('TeleOp carregado: INIT → START → clique na arena. LB coleta; RB lança com MI + MS.');
+});
 async function init() {
   try{finalReport=JSON.parse(localStorage.getItem(REPORT_KEY)||'null');}catch{finalReport=null;}
   try{renderFinalReport();renderKeymap();const response=await fetch('/examples');examples=await response.json();Object.keys(examples).forEach(name=>{const option=document.createElement('option');option.value=name;option.textContent=name;$('example').append(option);});
@@ -942,7 +936,7 @@ async function init() {
     const saved=JSON.parse(localStorage.getItem('meca-sim-v02')||'null');if(saved){$('source').value=saved.source||'';javaFiles=saved.files&&typeof saved.files==='object'&&!Array.isArray(saved.files)?saved.files:{};restoreOpModeChoices();updateJavaFilesLabel();Object.entries(saved.values||{}).forEach(([id,value])=>{if($(id))$(id).type==='checkbox'?$(id).checked=Boolean(value):$(id).value=value;});
     if(!Object.prototype.hasOwnProperty.call(saved.values||{},'shot-mode'))$('shot-mode').value='speed';
     if(hiveCellById(saved.hive))selectedHiveId=saved.hive;
-    }else{$('source').value=Object.values(examples)[0];}
+    }else{$('source').value=examples['TeleOp · gamepad / teclado'];$('example').value='TeleOp · gamepad / teclado';$('match-mode').value='teleop';}
     $('walls').checked=true;refreshMatchLimit();selectHive(selectedHive(),false);
     $('field-description').textContent=$('arena').value==='biobuzz'?'BIOBUZZ · layout Desmos; paredes externas físicas, HIVE/FLOWERS livres':'Campo livre · grade cartesiana';
     try{const logo=localStorage.getItem(LOGO_KEY);if(logo?.startsWith('data:image/'))setTeamLogo(logo);}catch{}

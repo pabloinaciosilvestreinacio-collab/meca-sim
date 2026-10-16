@@ -78,6 +78,7 @@ try:
         page.locator('#timer-enabled').uncheck()
         assert page.locator('#clear-shots').count()==1
         page.locator('[data-tab="code"]').click()
+        page.locator('#example').select_option(label='Autônomo · encoder + IMU')
         passed('Interface inicial, exemplos e canvas carregados')
         assert page.locator('#arena').input_value() in ('biobuzz','livre')
         page.locator('#arena').select_option('livre')
@@ -117,28 +118,15 @@ try:
         assert page.locator('#speed').get_attribute('readonly') is not None
         page.locator('#solve-shot').click()
         page.wait_for_function("document.querySelector('#shot-verdict').dataset.possible==='yes'")
-        # Um erro lateral ainda exibe o ponto no plano, mas não pode contar POLLEN.
-        page.locator('#azimuth').fill('45')
-        page.wait_for_function("document.querySelector('#shot-verdict').dataset.possible==='no'")
+        # A prévia é apenas matemática; não cria peças nem pontua.
+        before=page.request.get(f'http://127.0.0.1:{port}/api/state').json()
         page.locator('#shoot').click()
-        page.wait_for_function("document.querySelector('#shot-result').textContent.includes('sem captura')")
-        page.wait_for_timeout(1500)
-        assert '0/8 peças' in page.locator('#hive-progress').text_content()
-        page.locator('#solve-shot').click()
-        page.wait_for_function("document.querySelector('#shot-verdict').dataset.possible==='yes'")
-        page.locator('#shoot').click()
-        page.wait_for_function("document.querySelector('#hive-progress').textContent.includes('1/8 peças')",timeout=10000)
-        assert '0 tombamento' in page.locator('#hive-progress').text_content()
-        page.wait_for_timeout(520)
-        for expected in range(2,9):
-            page.locator('#shoot').click()
-            if expected<8:
-                page.wait_for_function("(n)=>document.querySelector('#hive-progress').textContent.includes(n+'/8 peças')",arg=str(expected),timeout=10000)
-            else:
-                page.wait_for_function("document.querySelector('#hive-progress').textContent.includes('0/8 peças') && document.querySelector('#hive-progress').textContent.includes('1 tombamento')",timeout=10000)
-                assert 'TOMBOU' in page.locator('#shot-result').text_content()
-            page.wait_for_timeout(520)
-        passed('POLLEN capturado sem duplicação e HIVE tomba apenas no oitavo acerto')
+        page.wait_for_function("document.querySelector('#shot-result').textContent.includes('PRÉVIA')",timeout=10000)
+        after=page.request.get(f'http://127.0.0.1:{port}/api/state').json()
+        assert before['inventory_ids']==after['inventory_ids']
+        assert before['hives']==after['hives']
+        assert before['elements']==after['elements']
+        passed('Prévia balística não duplica peças, não consome inventário e não tomba HIVE')
         passed('Força, velocidade, ângulo, mira e parabola com veredito atualizam')
         page.locator('[data-tab="robot"]').click()
         page.locator('summary').filter(has_text='Calcular ticks').click()

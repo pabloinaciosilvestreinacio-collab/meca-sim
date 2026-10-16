@@ -1,3 +1,19 @@
+# Correção integrada da partida — 16/10/2026
+
+Autorização: corrigir os nove defeitos apontados, mantendo o trabalho na branch experimental. Main e Meca Tiger Hub não foram alterados.
+
+Causas confirmadas: a prévia incrementava um contador visual próprio; o TeleOp do bundle `examples.json` não acionava MI/MS; tombamento não considerava NECTAR inicial; `drawSide` desreferenciava `shot` nulo durante lançamento Java; direção do projétil convertia yaw que já estava em radianos. A combinação permitia tela congelada e contabilização visual sem alteração física.
+
+Agora o servidor decide trajetória, entrada, carga e descarga. Renderização usa IDs/estados do snapshot. Teste independente verifica a parábola e compara Python/JavaScript em quatro orientações. O ciclo conserva 40 POLLEN + 16 NECTAR em captura, disparo, pontuação, queda e recaptura. A carga de treino é explicitamente configurável, sem alegação de massa oficial.
+
+Validação local: `python -m unittest discover -s tests -v`: 97 casos, **83 passaram e 14 foram ignorados** por falta de javac. `node --test tests/model.test.mjs`: **28 passaram**. Sintaxe de app.js e scripts E2E passou. Compatibilidade de nove OpModes não executou por falta de JDK; cenários de falha foram tentados e interromperam pelo mesmo motivo. Instalação local de Chromium falhou (download truncado). Nenhum resultado local comprova JVM/navegador.
+
+CI acrescenta `tests/partida_e2e.py`: teclado real → Java → MI/MS, estoque 4→3→0, HIVE com 3 NECTAR + 4 POLLEN, sete IDs caindo e chegando ao piso, nenhum tiro vazio, coleta de FLOWER via W+Z, novo disparo do ID coletado e ausência de erros JavaScript. Evidências em `reports/partida-checks.json` e PNGs. Resultado remoto: pendente neste commit; conferir execução correspondente antes de distribuir.
+
+Limites: física 2D leve, carga didática não calibrada com equipamento real, sem validação de gamepad físico. As seções abaixo são registros históricos e não substituem este estado atual.
+
+---
+
 # Validação — gamepad de teclado
 
 Bloco implementado na branch experimental: emulação dos 20 slots FTC usando somente teclas, com gatilhos digitais; entrada do teclado é fallback quando Gamepad 1 físico não está conectado. O vetor é o mesmo consumido pela camada Java. Não altera OpModes nem lógica de Gamepad 2.

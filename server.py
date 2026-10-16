@@ -71,6 +71,13 @@ def build_world(config):
     if isinstance(capacity, bool) or not isinstance(capacity, int) or not 1 <= capacity <= 20:
         raise ValueError("Capacidade do intake deve ser um inteiro entre 1 e 20")
     world.intake_capacity = capacity
+    world.arena = str(config.get("arena", "biobuzz"))
+    for key, attr, default, low, high in (("hive-nectar-load", "hive_nectar_load", 4/3, .1, 10),
+                                         ("hive-tip-load", "hive_tip_load", 8, 1, 100)):
+        value = float(config.get(key, default))
+        if not math.isfinite(value) or not low <= value <= high:
+            raise ValueError("Carga do HIVE fora do limite")
+        setattr(world, attr, value)
     flower_servo_name = config.get("flower-servo-name", "flower")
     if not isinstance(flower_servo_name, str) or not re.fullmatch(r"[A-Za-z_$][A-Za-z0-9_$-]{0,39}", flower_servo_name):
         raise ValueError("Nome do servo de FLOWER inválido")
@@ -223,7 +230,9 @@ class Session:
                           imu_frozen=self.world.imu_frozen,
                           rules=self.rules.snapshot(self.match_remaining_seconds(), self.match_mode,
                                                     self.timer_enabled),
-                          scoring=self.rules.score_snapshot(self.world))
+                          scoring=self.rules.score_snapshot(self.world),
+                          hives=self.rules.hive_snapshot(self.world),
+                          build="partida-integrada-20261016")
             return result
 
     def match_remaining_seconds(self):
@@ -261,6 +270,7 @@ class Session:
                     self.stop()
                 if self.started and self.status == "executando":
                     self.world.step(.01)
+                    self.rules.update_hives(self.world)
                     self.inspector.inspect(self.world,True)
                     if not self.history or self.world.elapsed-self.history[-1][0] >= .049:
                         self.history.append([self.world.elapsed, self.world.x, self.world.y, math.degrees(self.world.yaw)] +

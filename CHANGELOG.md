@@ -1,3 +1,13 @@
+## Correção integrada da partida — 16/10/2026
+
+- Interseção balística e tombamento passam a ser resolvidos no servidor, sem depender de callbacks/animação do navegador.
+- Os três NECTAR iniciais contribuem para uma carga de treino configurável. Padrão: POLLEN = 1, NECTAR = 4/3, limiar = 8; 3 NECTAR + 4 POLLEN tombam. Valores didáticos, não massas ou limiar oficial FIRST.
+- O HIVE descarrega os mesmos IDs de POLLEN e NECTAR: queda, piso, colisões e nova coleta; reservas do Human Player permanecem separadas.
+- Corrigido yaw em radianos no projétil e acesso nulo na vista lateral que interrompia animação e envio do gamepad.
+- Estoque e conteúdo visual do HIVE usam o snapshot real. A prévia de trajetória não cria peças, não pontua e não altera HIVE.
+- TeleOp inicial e bundle empacotado incluem MI/MS: Z/LB coleta; C/RB alimenta e lança. Painel Controles mostra o mapa configurado e as ações do exemplo. Botão explícito carrega o novo exemplo sem apagar automaticamente código salvo.
+- Novos testes de ciclo completo no motor e de partida em Chromium com teclado + JVM; sem modificar fixtures históricas.
+
 ## Fase 1 — peças de campo e intake didático (15/10/2026)
 
 - Modelo de 40 POLLEN e 16 NECTAR, com estados de campo, FLOWER, HIVE, preload, inventário e reserva; diâmetros aproximados do manual.

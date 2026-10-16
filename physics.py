@@ -99,6 +99,10 @@ class World:
     launch_count: int = 0
     empty_feed_attempts: int = 0
     launches: list = field(default_factory=list)
+    hive_active_cells: dict = field(default_factory=lambda: {"red": "red-lower", "blue": "blue-upper"})
+    hive_nectar_load: float = 4/3
+    hive_tip_load: float = 8.0
+    arena: str = "biobuzz"
 
     def inside(self, x=None, y=None, yaw=None):
         x, y, yaw = (self.x if x is None else x, self.y if y is None else y, self.yaw if yaw is None else yaw)

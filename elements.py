@@ -6,6 +6,7 @@ não como colisões 3D dos mecanismos reais.
 """
 from dataclasses import dataclass
 import math
+from hive import first_impact
 
 FIELD_SIZE = 3.66
 POLLEN_RADIUS = .0355  # manual: aprox. 7,1 cm de diâmetro
@@ -157,10 +158,12 @@ def _try_launch(world):
         return
     piece.status = "launched"
     piece.location = "projectile"
+    piece.score_zone = None
+    piece.deposit_sequence = None
     dx, dy = _world(settings["lateral"], settings["forward"], world.yaw)
     origin_x, origin_y = world.x+dx, world.y+dy
     angle = math.radians(settings["elevation"])
-    direction = math.radians(world.yaw + settings["azimuth"])
+    direction = world.yaw + math.radians(settings["azimuth"])
     world.launch_sequence += 1
     world.launch_count += 1
     event = {
@@ -179,6 +182,7 @@ def _try_launch(world):
                     "height": settings["height"], "speed": settings["speed"],
                     "elevation": settings["elevation"], "direction": direction,
                     "launch_id": world.launch_sequence}
+    piece.flight["impact"] = first_impact(event, world.hive_active_cells, piece.radius) if world.arena == "biobuzz" else None
     piece.launch_id = world.launch_sequence
     world.launches.append(event)
     world.launches = world.launches[-32:]
@@ -207,6 +211,7 @@ def resolve_launch(world, element_id, launch_id, result, x=None, y=None):
         piece.x, piece.y = x, y
         piece.status, piece.location = "scored", "hive"
         piece.score_zone = launch.get("hive")
+        launch["result"] = "scored"
         piece.vx = piece.vy = 0.0
     else:
         piece.status, piece.location = "field", "field"
@@ -257,6 +262,9 @@ def update_elements(world, dt, robot_velocity=(0.0, 0.0)):
                 "mode") not in ("human_entry", "hive_release"):
             continue
         t = max(0.0, world.elapsed - piece.flight["started_at"])
+        if piece.flight.get("mode") == "hive_release":
+            piece.x = piece.flight["x"] + piece.vx*t
+            piece.y = piece.flight["y"] + piece.vy*t
         z = piece.flight["height"] - 4.905*t*t
         piece.flight["z"] = max(0.0, z)
         piece.flight["elapsed"] = t
@@ -276,6 +284,15 @@ def update_elements(world, dt, robot_velocity=(0.0, 0.0)):
         distance = horizontal_speed * t
         piece.x = data["x"] - distance * math.sin(data["direction"])
         piece.y = data["y"] + distance * math.cos(data["direction"])
+        hit = data.get("impact")
+        if hit and t >= hit["time"]:
+            team = hit["cell_id"].split("-")[0]
+            if world.hive_active_cells[team] == hit["cell_id"]:
+                launch = next(e for e in world.launches if e["id"] == piece.launch_id)
+                launch["hive"] = hit["cell_id"]
+                resolve_launch(world, piece.id, piece.launch_id, "scored", hit["x"], hit["y"])
+                continue
+            data["impact"] = None
         z = data["height"] + data["speed"] * math.sin(angle) * t - 4.905*t*t
         data["z"] = max(0.0, z)
         data["elapsed"] = t
@@ -338,6 +355,10 @@ def update_elements(world, dt, robot_velocity=(0.0, 0.0)):
             piece.status = "robot"
             piece.location = "inventory"
             piece.vx = piece.vy = 0
+            piece.score_zone = None
+            piece.deposit_sequence = None
+            piece.launch_id = None
+            piece.flight = None
             world.inventory.append(piece.id)
             world.collection_events += 1
             continue
