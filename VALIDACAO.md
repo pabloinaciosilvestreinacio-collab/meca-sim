@@ -106,6 +106,12 @@ Comandos no README. Para repetir a versão, usar o commit exato de Actions. Para
 
 A execução `38826162266` (commit `71a5901`) passou nos testes Python/JVM, Node, compatibilidade de OpModes e cenários de falha, mas falhou nos dois sistemas operacionais no fluxo Chromium de múltiplos arquivos Java. A causa encontrada foi o fluxo do teste: após concluir uma partida, a interface exibe e preserva o relatório final; o botão START impede iniciar outra até que o relatório seja descartado. O E2E tentava executar mais partidas sem descartar o relatório anterior.
 
+### Correção da regressão de interface — 16/10/2026
+
+A revisão `91e8bca` removeu acidentalmente aproximadamente 390 linhas do final de `web/app.js`, incluindo a carga do exemplo inicial e handlers de início/parada, relatório, projetos e exportação. Por isso, a Action `38828881007` falhou no Chromium antes do primeiro passo de interface, embora testes Python/JVM, Node, nove OpModes e três falhas sintéticas tenham passado nos dois sistemas. O log apontou timeout aguardando o exemplo Java.
+
+O arquivo completo da revisão anterior foi restaurado e recebeu apenas a alteração necessária em `buildFinalReport()` para encerrar o estado de partida ao montar o relatório. A suíte E2E agora também registra erros JavaScript, erros de console e requests com falha se o exemplo não carregar. A Action `38829334579` será usada para verificar esta correção; até seu resultado, interface permanece não validada.
+
 `tests/browser_e2e.py` agora valida e descarta o relatório antes de cada partida seguinte. Os helpers de término também produzem status, telemetria, logs e aviso da interface caso o Java não alcance um estado terminal. Não houve alteração no comportamento do simulador.
 
 Validação local nesta revisão (Python 3.12, OpenJDK 17.0.20, Node 24): 83 testes Python/JVM aprovados; 28 testes Node aprovados; compatibilidade compilou os nove OpModes; três cenários sintéticos de falha passaram; `py_compile` e `git diff --check` aprovados. O Chromium E2E não foi executado localmente: o download do navegador pelo Playwright retornou arquivo inválido de 0 bytes. A nova execução Actions em Windows e Linux ainda é necessária para validar este ajuste de interface.

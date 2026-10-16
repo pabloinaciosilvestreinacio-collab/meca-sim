@@ -17,6 +17,11 @@
 - Ctrl+S no editor exporta o projeto pelo fluxo JSON existente; desfazer/refazer e clipboard permanecem nativos do textarea.
 - Regressão Chromium adicionada para salvar, histórico de edição, seleção e clipboard.
 
+## Correção de regressão da interface (16/10/2026)
+
+- Restaurados handlers de partida, relatórios, exportação, projetos e controles que haviam sido removidos acidentalmente de `web/app.js`.
+- Preservada a correção que impede relatório descartado de reaparecer. A CI revelou a regressão antes de validar essa alteração.
+
 ## 0.3-rc3 — HIVE selecionável e regras de partida
 
 - Parede externa agora é obrigatória no servidor, evitando que preferências antigas do navegador desliguem a colisão.
