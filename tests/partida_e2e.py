@@ -46,10 +46,17 @@ def start(page):
     wait_state(page,"s.status==='executando'")
     page.locator('#top').focus()
 
-def stop(page, report_check=False):
+def stop(page, report_check=False, rules_check=False):
     page.locator('#ds-stop').click()
     wait_state(page,"s.status==='parado'")
     page.wait_for_function("!document.querySelector('#final-report').hidden")
+    if rules_check:
+        report=page.evaluate("JSON.parse(localStorage.getItem('meca-sim-final-report-v1'))")
+        assert report['ruleStatus']['profile']['mode']=='custom'
+        assert report['ruleStatus']['phase']=='teleop'
+        assert report['ruleStatus']['remaining_seconds'] is None
+        assert len([e for e in report['ruleStatus']['events'] if e['type']=='phase_changed'])==2
+        assert 'Personalizado' in page.locator('#report-summary').text_content()
     if report_check:
         report=page.evaluate("JSON.parse(localStorage.getItem('meca-sim-final-report-v1'))")
         assert report['activity']['hits']==4 and report['activity']['misses']==0
@@ -143,6 +150,87 @@ try:
         assert not errors,errors
         passed('W+Z move e coleta 4 POLLEN da FLOWER via Java; deixam a arena e entram no robô; C lança o mesmo ID e reduz estoque')
         stop(page)
+        # Perfil personalizado: todos os pontos desligados, G426 ainda ativo.
+        page.locator('[data-tab="robot"]').click()
+        page.locator('#timer-enabled').uncheck()
+        page.locator('[data-tab="rules"]').click()
+        page.locator('#rules-mode').select_option('custom')
+        for key in ('penalties', 'score-hive', 'score-flower', 'score-garden'):
+            page.locator('#rule-'+key).uncheck()
+        page.locator('#manual-phase').select_option('teleop')
+        start(page)
+        trained=wait_state(page,"s.rules.phase==='teleop' && s.rules.phase_source==='manual'")
+        conservation(trained)
+        assert trained['rules']['remaining_seconds'] is None
+        assert trained['rules']['nectar_available']==0
+        assert all(v['total']==0 for v in trained['scoring']['by_alliance'].values())
+        page.locator('[data-tab="rules"]').click()
+        page.wait_for_function("document.querySelector('#rules-mode').disabled")
+        assert page.locator('#timer-enabled').is_disabled()
+        assert page.locator('#restore-rules').is_disabled()
+        page.locator('#manual-phase').select_option('endgame')
+        page.locator('#apply-phase').click()
+        late=wait_state(page,"s.rules.phase==='endgame' && s.rules.nectar_available===5")
+        assert late['inventory_ids']==trained['inventory_ids']
+        assert trained['time']<=late['time']<trained['time']+15  # Sem salto de 60/120 s.
+        assert late['status']=='executando'
+        page.wait_for_function("!document.querySelector('#introduce-nectar').disabled")
+        page.locator('#introduce-nectar').click()
+        wait_state(page,"s.rules.nectar_entered===1")
+        page.locator('#manual-phase').select_option('teleop')
+        page.locator('#apply-phase').click()
+        early=wait_state(page,"s.rules.phase==='teleop' && s.rules.nectar_available===0 && s.elements.some(p=>p.id==='nectar-alliance-red-0' && p.status==='field')")
+        conservation(early)
+        assert early['inventory_ids']==trained['inventory_ids']
+        assert early['rules']['nectar_entered']==1
+        assert len([e for e in early['rules']['events'] if e['type']=='phase_changed'])==2
+        page.screenshot(path=str(REPORTS/'partida-04-regras-fases.png'),full_page=True)
+        stop(page, rules_check=True)
+        assert early['rules']['profile']['mode']=='custom'
+        passed('Regras: perfil fixo após INIT, fase manual sem reiniciar Java/estoque, G426 e peça liberada preservados')
+
+        # Configuração acompanha JSON de projeto e recarga; restaurar não altera física.
+        page.locator('#files-menu summary').click()
+        with page.expect_download() as out: page.locator('#save-project').click()
+        project_path=Path(out.value.path())
+        project=json.loads(project_path.read_text(encoding='utf-8'))
+        assert project['config']['rules-mode']=='custom'
+        assert project['config']['manual-phase']=='teleop'
+        assert project['config']['rule-penalties'] is False
+        page.locator('#files-menu summary').click()
+        page.locator('[data-tab="rules"]').click()
+        page.wait_for_function("!document.querySelector('#restore-rules').disabled")
+        page.locator('#restore-rules').click()
+        assert page.locator('#rules-mode').input_value()=='official'
+        for key in ('penalties','g410','nectar-release','score-hive','score-flower','score-garden'):
+            assert page.locator('#rule-'+key).is_checked() and page.locator('#rule-'+key).is_disabled()
+        page.locator('#load-project').set_input_files(str(project_path))
+        page.wait_for_function("document.querySelector('#rules-mode').value==='custom'")
+        assert not page.locator('#rule-penalties').is_checked()
+        page.reload()
+        page.wait_for_function("document.querySelector('#rules-mode').value==='custom'")
+        page.locator('[data-tab="rules"]').click()
+        assert not page.locator('#rule-penalties').is_checked()
+        assert page.locator('#manual-phase').input_value()=='teleop'
+        assert not page.locator('#timer-enabled').is_checked()
+        # Restrição G426 desligada torna disponíveis exatamente cinco reservas.
+        page.locator('#rule-nectar-release').uncheck()
+        start(page)
+        unrestricted=wait_state(page,"s.rules.profile['nectar-release']===false && s.rules.nectar_available===5")
+        conservation(unrestricted)
+        stop(page)
+        # Projeto antigo não herda flags desligadas do projeto anterior.
+        legacy={**project, 'config': {k:v for k,v in project['config'].items() if not k.startswith('rule') and k!='manual-phase'}}
+        page.locator('#load-project').set_input_files({'name':'legacy.json','mimeType':'application/json','buffer':json.dumps(legacy).encode()})
+        page.wait_for_function("document.querySelector('#rules-mode').value==='official'")
+        assert page.locator('#rule-penalties').is_checked()
+        assert page.locator('#manual-phase').input_value()=='teleop'
+        page.set_viewport_size({'width':390,'height':844})
+        page.locator('[data-tab="rules"]').click()
+        assert page.evaluate('document.documentElement.scrollWidth<=window.innerWidth+2')
+        page.screenshot(path=str(REPORTS/'partida-05-regras-mobile.png'),full_page=True)
+        assert not errors,errors
+        passed('Regras: JSON e recarga preservam escolhas; restauração oficial e projetos antigos; G426 opcional; painel mobile')
         browser.close()
 finally:
     process.terminate()

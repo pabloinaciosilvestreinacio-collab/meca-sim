@@ -1,3 +1,17 @@
+## Bloco autorizado: regras configuráveis e fases — 16/10/2026
+
+Autorização: resposta “Sim” à proposta de implementar regras e fases; retomada “Continue este chat”. Branch experimental `fix/pollen-lifecycle-20261016`; main e Hub preservados.
+
+Decisões: perfil padrão denominado “Oficial — regras implementadas”, com cobertura parcial explícita; personalizado configura G410, penalidades implementadas, G426 e três grupos de pontuação. Perfil fixo após INIT para evitar reinterpretação retroativa da partida. Somente a fase pode mudar ao vivo, no tempo livre. A fase manual afeta condições temporais, não o OpMode, relógio ou inventário. Fonte: manual FIRST BIOBUZZ TU05, consultado em 16/10/2026, https://ftc-resources.firstinspires.org/ftc/game/manual (G410, G426, G427, tabelas 10-2 e 10-4).
+
+Critérios: tempo livre não libera reservas pelo tempo; fase manual libera/restringe entradas futuras sem recolher peças liberadas; desligar pontos/penalidades não apaga efeitos físicos; G426 desligada nunca cria peças adicionais; dados de projeto e relatório preservam configuração; restauração e projetos antigos usam flags oficiais implementadas.
+
+Validação local: 112 testes Python passaram sem skips (12 novos), 30 testes JavaScript passaram, nove OpModes compilaram contra o SDK parcial e os três cenários de falha passaram com motores zerados. Sintaxe Python/JavaScript e diff passaram. O ambiente não expõe o binário javac; um wrapper temporário invocou o módulo jdk.compiler da JVM 17 instalada. Testes Chromium ampliados aguardam CI Windows/Linux com JDK completo. Não houve execução local de navegador nesta etapa.
+
+Pendências fora deste bloco: autocomplete avançado; regras oficiais não modeladas (LEAVE/PARK, cartões, ranking points, acumulação AUTO/TELEOP), precisão de campo/CAD, controles físicos e fidelidade mecânica. As limitações estão também na interface; o perfil Oficial não é uma alegação de cobertura integral.
+
+---
+
 ## Bloco: relatório e sobreposição inicial — 16/10/2026
 
 Correções autorizadas após a auditoria: contador de tentativas vazias conectado ao relatório; contadores cumulativos de acertos, erros e tiros ainda em voo preservados após TIP/recaptura; categorias e registros completos no CSV; relatórios antigos exibem campos ausentes como não registrados; rótulo de pontos recebidos por penalidades corrigido. JSON e persistência mantidos.

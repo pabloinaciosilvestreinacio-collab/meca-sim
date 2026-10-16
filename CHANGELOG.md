@@ -1,3 +1,12 @@
+## Perfis de regras e fases manuais — 16/10/2026
+
+- Aba Regras com perfis Oficial (regras implementadas)/Personalizado, seis grupos independentes e restauração.
+- Fase manual no tempo livre, sem inferência pelo tempo decorrido; mudança pela API validada e registrada sem reiniciar Java ou peças.
+- Configuração fixada após INIT, persistida em projeto/preferências e incluída nos relatórios. Migração de projetos anteriores sem herdar flags de outro projeto.
+- G410 separada dos efeitos físicos e de G426. Metadados de penalidade agora refletem os 20 pontos estimados já usados no placar. Acumulado preservado após rotação do log detalhado.
+- Testes de combinações, fronteira de 60 s, conservação de reservas, relógio, endpoint e integração Chromium. Referência TU05 consultada; limitações oficiais documentadas.
+- Arquivos: `rules.py`, `server.py`, `web/app.js`, `web/index.html`, `tests/test_rule_profiles.py`, `tests/test_rules.py`, `tests/partida_e2e.py`, `tests/packaged_smoke.py`; README e VALIDACAO.
+
 ## Bloco: relatório e sobreposição inicial — 16/10/2026
 
 Correções autorizadas após a auditoria: contador de tentativas vazias conectado ao relatório; contadores cumulativos de acertos, erros e tiros ainda em voo preservados após TIP/recaptura; categorias e registros completos no CSV; relatórios antigos exibem campos ausentes como não registrados; rótulo de pontos recebidos por penalidades corrigido. JSON e persistência mantidos.

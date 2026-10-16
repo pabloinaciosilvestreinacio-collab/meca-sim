@@ -16,7 +16,7 @@ from urllib.parse import urlparse
 
 from physics import World, Motor
 from elements import starting_elements, starting_inventory, deposit_to_flower, resolve_launch
-from rules import BioBuzzRules
+from rules import BioBuzzRules, MANUAL_PHASES
 from sdk import write_sdk
 from project_import import import_ftc_zip
 from diagnostics import Inspector
@@ -182,9 +182,14 @@ class Session:
         self.match_mode = str(settings.get("match-mode", "auto"))
         if self.match_mode not in ("auto", "teleop"):
             raise ValueError("Modo de partida deve ser auto ou teleop")
-        self.timer_enabled = bool(settings.get("timer-enabled", True))
+        self.timer_enabled = settings.get("timer-enabled", True)
+        if type(self.timer_enabled) is not bool:
+            raise ValueError("timer-enabled deve ser booleano")
         self.alliance = str(settings.get("alliance", "red"))
-        self.rules = BioBuzzRules(self.alliance)
+        self.rules = BioBuzzRules(self.alliance, settings)
+        self.manual_phase = settings.get("manual-phase", self.match_mode)
+        if self.manual_phase not in MANUAL_PHASES:
+            raise ValueError("Fase manual deve ser auto, teleop ou endgame")
         # A interface envia match-mode e aplica as regras FTC. A duração livre é
         # preservada somente para a API legada e para cenários automatizados.
         if "match-mode" in settings:
@@ -229,13 +234,39 @@ class Session:
                                                % (2 * math.pi) - math.pi),
                           imu_frozen=self.world.imu_frozen,
                           rules=self.rules.snapshot(self.match_remaining_seconds(), self.match_mode,
-                                                    self.timer_enabled),
+                                                    self.timer_enabled, phase=self.match_phase(),
+                                                    endgame=self.match_phase() == "endgame"),
                           scoring=self.rules.score_snapshot(self.world),
                           hives=self.rules.hive_snapshot(self.world),
                           build="partida-integrada-20261016")
             return result
 
+    def match_phase(self):
+        if not self.timer_enabled:
+            return self.manual_phase
+        if self.match_mode == "auto":
+            return "auto"
+        return "endgame" if self.match_remaining_seconds() <= 60 else "teleop"
+
+    def set_manual_phase(self, phase):
+        with self.lock:
+            if self.timer_enabled:
+                raise ValueError("A fase é controlada pelo cronômetro nesta partida")
+            if phase not in MANUAL_PHASES:
+                raise ValueError("Fase manual deve ser auto, teleop ou endgame")
+            if self.status not in ("inicializando", "executando") or self.stop_event.is_set():
+                raise ValueError("Inicialize o Java antes de aplicar uma fase manual")
+            event = {"type": "phase_changed", "previous": self.manual_phase, "phase": phase,
+                     "time": round(self.world.elapsed, 3), "source": "manual"}
+            if phase != self.manual_phase:
+                self.rules._append(self.rules.events, event)
+                self.log(f"\nFase de treino: {self.manual_phase} → {phase}. Tempo e inventário preservados.\n")
+            self.manual_phase = phase
+            return event
+
     def match_remaining_seconds(self):
+        if not self.timer_enabled:
+            return None
         # Auto ocupa os primeiros 30 s de um match de 158 s; a simulação
         # TeleOp começa após Auto + transição e usa seu próprio relógio de 120 s.
         duration = 158.0 if self.match_mode == "auto" else 120.0
@@ -252,7 +283,7 @@ class Session:
             if not self.started or self.status != "executando" or self.stop_event.is_set():
                 raise ValueError("O Human Player só pode introduzir NECTAR durante a partida")
             event = self.rules.enter_nectar(self.alliance, self.match_remaining_seconds(),
-                                            self.world.elapsed, self.world)
+                                            self.world.elapsed, self.world, endgame=self.match_phase() == "endgame")
             self.log(f"\nHuman Player: {event['element_id']} entrou pela Loading Zone {self.alliance}.\n")
             return event
 
@@ -339,10 +370,11 @@ class Session:
                     if event:
                         event["robot_alliance"] = self.alliance
                         penalty = self.rules.record_flower_deposit(
-                            event, self.match_remaining_seconds(), self.alliance)
+                            event, self.match_remaining_seconds(), self.alliance,
+                            endgame=self.match_phase() == "endgame")
                         self.log(f"\nFLOWER {event['flower']}: {event['kind']} depositado (#{event['sequence']}).\n")
                         if penalty:
-                            self.log("G410 registrado: NECTAR depositado antes dos últimos 60 segundos; falta não arbitrada pelo simulador.\n")
+                            self.log("G410 simulado: NECTAR antecipado na FLOWER; 20 pontos estimados para o oponente.\n")
                 return ""
             if op == "motor":
                 name, action, *values = args
@@ -545,6 +577,8 @@ def handler_for(app):
                         if action == "hive_tip":
                             event = session.register_hive_tip(data.get("team"), data.get("cell_id"))
                             session.log(f"\nTIP de HIVE simulado para {event['team']} (contagem didática).\n")
+                        elif action == "set_phase":
+                            event = session.set_manual_phase(data.get("phase"))
                         elif action == "nectar_entry":
                             event = session.introduce_nectar()
                         else:

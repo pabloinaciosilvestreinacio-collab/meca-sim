@@ -12,6 +12,30 @@ from hive import cell_load, cell_contents
 MAX_ALLIANCE_NECTAR = 5
 ENDGAME_REMAINING_SECONDS = 60.0
 ALLIANCES = ("red", "blue")
+RULE_FLAGS = ("penalties", "g410", "nectar-release", "score-hive", "score-flower", "score-garden")
+MANUAL_PHASES = ("auto", "teleop", "endgame")
+
+
+def rule_profile(settings=None):
+    """Perfil efetivo. O modo oficial nunca aceita flags personalizadas ocultas."""
+    settings = settings or {}
+    mode = settings.get("rules-mode", "official")
+    if mode not in ("official", "custom"):
+        raise ValueError("Perfil de regras deve ser official ou custom")
+    flags = {}
+    for name in RULE_FLAGS:
+        value = settings.get("rule-" + name, True)
+        if type(value) is not bool:
+            raise ValueError("rule-" + name + " deve ser booleano")
+        flags[name] = True if mode == "official" else value
+    return {"mode": mode, **flags}
+
+
+def in_endgame(remaining_seconds, endgame=None):
+    if endgame is not None:
+        return bool(endgame)
+    return remaining_seconds is not None and remaining_seconds <= ENDGAME_REMAINING_SECONDS
+
 FIELD_SIZE = 3.66
 HIVE_CELLS = {"red": {"lower": "red-lower", "upper": "red-upper"},
               "blue": {"lower": "blue-lower", "upper": "blue-upper"}}
@@ -26,14 +50,18 @@ GARDEN_ZONES = {
 @dataclass
 class BioBuzzRules:
     alliance: str = "red"
+    settings: dict | None = None
 
     def __post_init__(self):
         if self.alliance not in ALLIANCES:
             raise ValueError("Aliança deve ser red ou blue")
+        self.config = rule_profile(self.settings)
         self.hive_tips = {"red": 0, "blue": 0}
         self.nectar_entered = {"red": 0, "blue": 0}
         self.events = []
         self.penalties = []
+        self.penalty_count = 0
+        self.penalty_points = {team: 0 for team in ALLIANCES}
 
     def register_hive_tip(self, team, elapsed, world=None, cell_id=None):
         if team not in ALLIANCES:
@@ -124,14 +152,17 @@ class BioBuzzRules:
                     points[team]["gardens"] += 1
                     break
 
-        for penalty in self.penalties:
-            penalized = penalty.get("team")
-            if penalized not in ALLIANCES:
-                continue
-            recipient = "blue" if penalized == "red" else "red"
-            points[recipient]["penalties_received"] += int(penalty.get("points_to_opponent", 20))
+        for team in ALLIANCES:
+            recipient = "blue" if team == "red" else "red"
+            points[recipient]["penalties_received"] = self.penalty_points[team]
 
         for team in ALLIANCES:
+            for flag, categories in (("score-hive", ("hive_tips", "hive_elements")),
+                                     ("score-flower", ("flowers", "bottom_nectar_bonus")),
+                                     ("score-garden", ("gardens",))):
+                if not self.config[flag]:
+                    for category in categories:
+                        points[team][category] = 0
             points[team]["total"] = sum(value for category, value in points[team].items()
                                          if category != "total")
         return {"by_alliance": points,
@@ -142,18 +173,18 @@ class BioBuzzRules:
                     "Pontos por peças em CELL são uma projeção do estado atual da CELL voltada para cima."
                 ]}
 
-    def available_nectar(self, team, remaining_seconds):
+    def available_nectar(self, team, remaining_seconds, *, endgame=None):
         if team not in ALLIANCES:
             raise ValueError("Aliança inválida")
         remaining = max(0, MAX_ALLIANCE_NECTAR - self.nectar_entered[team])
-        if remaining_seconds <= ENDGAME_REMAINING_SECONDS:
+        if not self.config["nectar-release"] or in_endgame(remaining_seconds, endgame):
             return remaining
         return min(remaining, max(0, self.hive_tips[team] - self.nectar_entered[team]))
 
-    def enter_nectar(self, team, remaining_seconds, elapsed, world):
+    def enter_nectar(self, team, remaining_seconds, elapsed, world, *, endgame=None):
         if team != self.alliance:
             raise ValueError("Apenas o NECTAR da aliança selecionada pode ser introduzido")
-        if self.available_nectar(team, remaining_seconds) < 1:
+        if self.available_nectar(team, remaining_seconds, endgame=endgame) < 1:
             raise ValueError("Nenhum NECTAR disponível: aguarde um TIP do seu HIVE ou os últimos 60 segundos")
         piece = next((item for item in world.elements
                       if item.id.startswith(f"nectar-alliance-{team}-")
@@ -179,8 +210,13 @@ class BioBuzzRules:
         self._append(self.events, event)
         return event
 
-    def record_flower_deposit(self, event, remaining_seconds, robot_alliance=None):
-        if not event or event.get("kind") != "NECTAR" or remaining_seconds <= ENDGAME_REMAINING_SECONDS:
+    def record_flower_deposit(self, event, remaining_seconds, robot_alliance=None, *, endgame=None):
+        if not event or event.get("kind") != "NECTAR" or in_endgame(remaining_seconds, endgame):
+            return None
+        if not self.config["penalties"] or not self.config["g410"]:
+            self._append(self.events, {"type": "penalty_disabled", "code": "G410",
+                                      "element_id": event.get("element_id"),
+                                      "time": round(float(event.get("time", 0)), 3)})
             return None
         penalized_team = robot_alliance or event.get("robot_alliance") or event.get("team")
         penalty = {"code": "G410", "severity": "major_foul",
@@ -188,7 +224,10 @@ class BioBuzzRules:
                    "team": penalized_team, "points_to_opponent": 20,
                    "time": round(float(event.get("time", 0)), 3),
                    "description": "NECTAR entrou no volume de pontuação da FLOWER antes dos últimos 60 segundos.",
-                   "points_awarded": None, "adjudication": "recorded_not_awarded"}
+                   "points_awarded": 20, "adjudication": "simulated"}
+        self.penalty_count += 1
+        if penalized_team in ALLIANCES:
+            self.penalty_points[penalized_team] += 20
         self._append(self.penalties, penalty)
         return penalty
 
@@ -197,25 +236,32 @@ class BioBuzzRules:
         collection.append(event)
         del collection[:-100]
 
-    def snapshot(self, remaining_seconds, match_mode, timer_enabled):
-        remaining = max(0.0, float(remaining_seconds))
+    def snapshot(self, remaining_seconds, match_mode, timer_enabled, *, phase=None, endgame=None):
+        remaining = max(0.0, float(remaining_seconds)) if remaining_seconds is not None else None
         team = self.alliance
         available_by_tip = min(max(0, MAX_ALLIANCE_NECTAR - self.nectar_entered[team]),
                                max(0, self.hive_tips[team] - self.nectar_entered[team]))
-        endgame_unlock = remaining <= ENDGAME_REMAINING_SECONDS
+        endgame_unlock = in_endgame(remaining, endgame)
         return {
             "alliance": team,
             "match_mode": match_mode,
             "timer_enabled": bool(timer_enabled),
-            "remaining_seconds": round(remaining, 2),
+            "remaining_seconds": round(remaining, 2) if remaining is not None else None,
+            "phase": phase or ("endgame" if endgame_unlock else match_mode),
+            "phase_source": "clock" if timer_enabled else "manual",
+            "profile": self.config.copy(),
+            "manual_reference": "BIOBUZZ TU05 · verificado em 16/10/2026",
+            "scope": "Regras implementadas: G410, liberação G426, pontuação parcial de HIVE/FLOWER/GARDEN. Sem arbitragem completa.",
             "nectar_total": MAX_ALLIANCE_NECTAR,
             "nectar_entered": self.nectar_entered[team],
-            "nectar_available": self.available_nectar(team, remaining),
+            "nectar_available": self.available_nectar(team, remaining, endgame=endgame_unlock),
             "eligible_from_hive_tips": max(0, available_by_tip),
             "endgame_unlocked": endgame_unlock,
             "hive_tips_didactic": self.hive_tips.copy(),
             "events": [event.copy() for event in self.events],
             "penalties": [penalty.copy() for penalty in self.penalties],
+            "penalty_count": self.penalty_count,
+            "penalty_points": self.penalty_points.copy(),
             "limitations": [
                 "O TIP considera POLLEN e NECTAR presentes na CELL; cargas e limiar são calibrações de treino.",
                 "G426 libera a entrada e G427 exige a Loading Zone; o botão do Human Player inicia uma queda visual aproximada de 0,45 m.",

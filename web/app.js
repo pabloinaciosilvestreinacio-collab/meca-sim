@@ -44,7 +44,9 @@ function renderKeymap(){
 }
 $('reset-keymap').addEventListener('click',()=>{keyMap={...DEFAULT_KEYMAP};capturingKey=null;keys.clear();localStorage.removeItem(KEYMAP_KEY);renderKeymap();notice('Mapa padrão restaurado.');});
 
-const configIds = ['arena','drivetrain','robot-color','left','right','front_left','front_right','back_left','back_right','width','length','track','max_speed','ticks_per_m','duration','match-mode','timer-enabled','x','y','initial-yaw','invert_left','invert_right','acceleration','left_gain','right_gain','left_slip','right_slip','imu_delay','imu_drift','walls','alliance','intake_reach','intake_capacity','imu_frozen','left_encoder_frozen','right_encoder_frozen','flower-servo-name','flower-deploy-position','flower-range','hive-nectar-load','hive-tip-load'];
+const ruleIds=['rule-penalties','rule-g410','rule-nectar-release','rule-score-hive','rule-score-flower','rule-score-garden'];
+const phaseNames={auto:'Autônomo',teleop:'TeleOp',endgame:'Últimos 60 segundos'};
+const configIds = ['arena','drivetrain','robot-color','left','right','front_left','front_right','back_left','back_right','width','length','track','max_speed','ticks_per_m','duration','match-mode','timer-enabled','x','y','initial-yaw','invert_left','invert_right','acceleration','left_gain','right_gain','left_slip','right_slip','imu_delay','imu_drift','walls','alliance','intake_reach','intake_capacity','imu_frozen','left_encoder_frozen','right_encoder_frozen','flower-servo-name','flower-deploy-position','flower-range','hive-nectar-load','hive-tip-load','rules-mode','manual-phase',...ruleIds];
 const visualIds=['robot-detail-color','robot-style','show-trail'];
 const launchIds = ['offset-x','offset-y','height','shot-mode','force','speed','projectile-mass','acceleration-stroke','shot-efficiency','target-radius','target-tolerance','elevation','azimuth','target-x','target-y','target-h','feed-interval'];
 function config() {
@@ -137,6 +139,29 @@ function refreshMatchLimit(){
   $('match-mode').value=mode;$('duration').value=mode==='auto'?'30':'120';
   $('duration').title=$('timer-enabled').checked?'Limite aplicado pelo simulador':'Cronômetro de partida desativado';
 }
+function restoreRuleFields(values={}){
+  $('rules-mode').value=values['rules-mode']||'official';
+  if(!['official','custom'].includes($('rules-mode').value))$('rules-mode').value='official';
+  for(const id of ruleIds)$(id).checked=$('rules-mode').value==='official'||values[id]!==false;
+  $('manual-phase').value=values['manual-phase']||$('match-mode').value;
+  if(!phaseNames[$('manual-phase').value])$('manual-phase').value=$('match-mode').value;
+  refreshRulesControls();
+}
+function refreshRulesControls(){
+  const busy=['compilando','inicializando','executando'].includes(state.status);
+  const timer=busy?state.rules?.timer_enabled:$('timer-enabled').checked;
+  $('rules-mode').disabled=busy;$('restore-rules').disabled=busy;
+  $('match-mode').disabled=busy;$('timer-enabled').disabled=busy;
+  for(const id of ruleIds)$(id).disabled=busy||$('rules-mode').value==='official';
+  $('manual-phase').disabled=!!timer||state.status==='compilando';
+  $('apply-phase').disabled=!!timer||!['inicializando','executando'].includes(state.status);
+  const r=state.rules;
+  $('rules-live-status').textContent=r
+    ? 'Sessão: '+(r.profile?.mode==='custom'?'Personalizado':'Oficial — regras implementadas')+
+      ' · fase '+(phaseNames[r.phase]||'não registrada')+' · '+(r.phase_source==='manual'?'seleção manual':'cronômetro')+
+      '. '+(busy?'Perfil fixado até STOP.':'Configurações acima serão usadas no próximo INIT.')
+    : 'Configure as regras e faça INIT para iniciar.';
+}
 function setTeamLogo(url){$('team-logo').src=url;$('team-logo').hidden=false;}
 function library(){try{const items=JSON.parse(localStorage.getItem(LIBRARY_KEY)||'[]');return Array.isArray(items)?items.filter(x=>x&&typeof x.name==='string'&&x.project?.version===2).slice(0,12):[];}catch{return [];}}
 function projectData(){return {format:'meca-sim-project',version:2,source:$('source').value,files:{...javaFiles},config:{...config(),...visualConfig()},launcher:Object.fromEntries(launchIds.map(id=>[id,id==='shot-mode'?$(id).value:num(id)])),route:routePoints.slice(),hive:selectedHiveId};}
@@ -165,9 +190,13 @@ async function loadProjectData(data){
   const resetConfig={};
   for(const id of configIds){const key=id==='initial-yaw'?'yaw':id;if(!(key in (data.config||{})))continue;
     resetConfig[key]=$(id).type==='checkbox'?Boolean(data.config[key]):data.config[key];}
+  // Projetos anteriores ao painel usam o perfil oficial e a fase do OpMode.
+  resetConfig['rules-mode'] ??= 'official';
+  resetConfig['manual-phase'] ??= resetConfig['match-mode']||'auto';
   await api('reset',{config:resetConfig});
   $('source').value=data.source;javaFiles={...(data.files||{})};restoreOpModeChoices();updateJavaFilesLabel();
   for(const id of [...configIds,...visualIds]){const key=id==='initial-yaw'?'yaw':id;if(key in (data.config||{}))$(id).type==='checkbox'?$(id).checked=Boolean(data.config[key]):$(id).value=data.config[key];}
+  restoreRuleFields({...data.config,'manual-phase':resetConfig['manual-phase']});
   for(const id of launchIds)if(id in (data.launcher||{}))$(id).value=data.launcher[id];
   if(!Object.prototype.hasOwnProperty.call(data.launcher||{},'shot-mode'))$('shot-mode').value='speed'; // projeto v2 antigo
   routePoints=Array.isArray(data.route)?data.route.slice(0,MAX_WAYPOINTS).filter(p=>p&&Number.isFinite(p.x)&&Number.isFinite(p.y)):[];if(hiveCellById(data.hive))selectedHiveId=data.hive;$('walls').checked=true;refreshMatchLimit();selectHive(selectedHive(),false);updateRoute();
@@ -272,6 +301,18 @@ async function api(path, data={}) {
   return result;
 }
 const action = (id, callback) => $(id).addEventListener('click',async()=>{try{notice('');await callback();}catch(e){notice(e.message);}});
+action('apply-phase',async()=>{
+  const result=await api('rules',{action:'set_phase',phase:$('manual-phase').value});
+  persist();await poll();notice('Fase aplicada: '+phaseNames[result.event.phase]+'. Java e inventário preservados.');
+});
+$('rules-mode').addEventListener('change',()=>{
+  if($('rules-mode').value==='official')for(const id of ruleIds)$(id).checked=true;
+  refreshRulesControls();persist();
+});
+$('restore-rules').addEventListener('click',()=>{
+  $('rules-mode').value='official';for(const id of ruleIds)$(id).checked=true;
+  refreshRulesControls();persist();notice('Regras implementadas restauradas para o próximo INIT.');
+});
 action('introduce-nectar',async()=>{
   const result=await api('rules',{action:'nectar_entry'});
   notice('Human Player introduziu '+result.event.element_id+' pela Loading Zone. Confira a entrada no campo.');
@@ -321,6 +362,8 @@ function renderFinalReport(){
   const fields=[
     ['Resultado Java',r.javaResult],['Missão','Não avaliada pelo simulador'],
     ['Duração',Number(r.durationSeconds).toFixed(2)+' s'],
+    ['Perfil de regras',r.ruleStatus?.profile?.mode==='custom'?'Personalizado':r.ruleStatus?.profile?'Oficial — regras implementadas':'não registrado'],
+    ['Fase final',phaseNames[r.ruleStatus?.phase]||'não registrada'],
     ['Pontuação estimada',r.estimatedPoints.partialTotal+' pts'],
     ['HIVE · TIPs',r.estimatedPoints.hiveTipsDidactic+' simulado(s) · '+(r.estimatedPoints.hive_tips||0)+' pts'],
     ['Peças na CELL',(r.estimatedPoints.hive_elements||0)+' pts'],
@@ -335,7 +378,7 @@ function renderFinalReport(){
     ['Tiros que chegaram ao piso sem acerto',r.activity.misses??'não registrado'],
     ['Tiros ainda sem resultado',r.activity.pending??'não registrado'],
     ['Avisos de diagnóstico',r.activity.diagnostics],
-    ['Penalidades registradas',r.ruleStatus?.penalties?.length||0]
+    ['Penalidades registradas',r.ruleStatus?.penalty_count??r.ruleStatus?.penalties?.length??0]
   ];
   for(const [label,value] of fields){const p=document.createElement('p');p.textContent=label+': '+value;summary.append(p);}
 }
@@ -416,8 +459,8 @@ $('elevation-preview').addEventListener('input',()=>{
 });
 function refreshDriveMode(){const mecanum=$('drivetrain').value==='mecanum';$('mecanum-names').hidden=!mecanum;$('route-panel').hidden=mecanum;}
 $('drivetrain').addEventListener('change',()=>{refreshDriveMode();persist();notice($('drivetrain').value==='mecanum'?'Mecanum configurado: use FL, FR, BL e BR no Java.':'Diferencial configurado: Mequinha usa ME e MD.');});
-$('match-mode').addEventListener('change',()=>{refreshMatchLimit();persist();notice($('match-mode').value==='auto'?'Autônomo limitado a 30 s.':'TeleOp limitado a 2 min.');});
-$('timer-enabled').addEventListener('change',()=>{refreshMatchLimit();persist();notice($('timer-enabled').checked?'Cronômetro de partida ativado.':'Cronômetro de partida desativado; STOP manual continua disponível.');});
+$('match-mode').addEventListener('change',()=>{$('manual-phase').value=$('match-mode').value;refreshMatchLimit();refreshRulesControls();persist();notice($('match-mode').value==='auto'?'Autônomo limitado a 30 s.':'TeleOp limitado a 2 min.');});
+$('timer-enabled').addEventListener('change',()=>{refreshMatchLimit();refreshRulesControls();persist();notice($('timer-enabled').checked?'Cronômetro de partida ativado.':'Tempo livre: escolha a fase na aba Regras. STOP manual continua disponível.');});
 function switchWorkspace(mode){
   const main=document.querySelector('main');
   const next=['overview','code','paths'].includes(mode)?mode:'overview';
@@ -778,12 +821,13 @@ function readouts() {
     ? `Intake MI ativo · captura frontal até ${intake.capacity||num('intake_capacity')} peça(s)`
     : `MI parado · ${(stock.POLLEN||0)+(stock.NECTAR||0)}/${intake.capacity||num('intake_capacity')} no estoque`;
   $('inventory-pieces').textContent='Armazenamento: '+((state.inventory_ids||[]).join(' · ')||'vazio');
+  refreshRulesControls();
   const rules=state.rules||{};
   const entryButton=$('introduce-nectar');
   entryButton.disabled=state.status!=='executando'||(rules.nectar_available||0)<1;
   $('rules-status').textContent='Human Player · NECTAR '+(rules.nectar_available||0)+' disponível(is) / '+(rules.nectar_total||5)+
     ' · TIPs simulados: '+((rules.hive_tips_didactic||{})[rules.alliance]||0)+
-    ' · G410: '+(rules.penalties||[]).length+' registro(s)';
+    ' · G410: '+(rules.penalty_count??(rules.penalties||[]).length)+' registro(s)';
   const flowerEvents=state.flower_events||[];
   $('flower-status').textContent=flowerEvents.length
     ? 'FLOWER · '+flowerEvents.slice(-8).map(event=>`#${event.sequence} ${event.kind} → F${event.flower}`).join(' · ')
@@ -910,6 +954,7 @@ action('load-teleop',()=>{
   if(['compilando','inicializando','executando'].includes(state.status))throw Error('Pare o Java antes de carregar outro programa.');
   $('source').value=examples['TeleOp · gamepad / teclado'];javaFiles={};zipOpModes=[];selectedJavaPath='';activeSource='';restoreOpModeChoices();
   $('example').value='TeleOp · gamepad / teclado';$('match-mode').value='teleop';
+  $('manual-phase').value='teleop';refreshRulesControls();
   refreshMatchLimit();refreshHighlight();updateJavaFilesLabel();persist();renderControlGuide();
   notice('TeleOp carregado: INIT → START → clique na arena. LB coleta; RB lança com MI + MS.');
 });
@@ -921,6 +966,7 @@ async function init() {
     if(!Object.prototype.hasOwnProperty.call(saved.values||{},'shot-mode'))$('shot-mode').value='speed';
     if(hiveCellById(saved.hive))selectedHiveId=saved.hive;
     }else{$('source').value=examples['TeleOp · gamepad / teclado'];$('example').value='TeleOp · gamepad / teclado';$('match-mode').value='teleop';}
+    restoreRuleFields(saved?.values||{});
     $('walls').checked=true;refreshMatchLimit();selectHive(selectedHive(),false);
     $('field-description').textContent=$('arena').value==='biobuzz'?'BIOBUZZ · layout Desmos; paredes externas físicas, HIVE/FLOWERS livres':'Campo livre · grade cartesiana';
     try{const logo=localStorage.getItem(LOGO_KEY);if(logo?.startsWith('data:image/'))setTeamLogo(logo);}catch{}

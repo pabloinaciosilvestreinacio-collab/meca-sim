@@ -63,7 +63,7 @@ class BioBuzzRulesTests(unittest.TestCase):
         penalty = self.rules.record_flower_deposit(early, 100)
         self.assertEqual(penalty["code"], "G410")
         self.assertEqual(penalty["severity"], "major_foul")
-        self.assertIsNone(penalty["points_awarded"])
+        self.assertEqual(penalty["points_awarded"], 20)
         self.assertIsNone(self.rules.record_flower_deposit({"kind": "POLLEN"}, 100))
         self.assertIsNone(self.rules.record_flower_deposit(early, 60))
         self.assertEqual(len(self.rules.penalties), 1)
@@ -183,7 +183,7 @@ class BioBuzzRulesTests(unittest.TestCase):
         self.assertEqual(session.rules.penalties[-1]["code"], "G410")
         self.assertEqual(session.rules.penalties[-1]["team"], "red")
         self.assertEqual(session.rules.penalties[-1]["points_to_opponent"], 20)
-        self.assertIsNone(session.rules.penalties[-1]["points_awarded"])
+        self.assertEqual(session.rules.penalties[-1]["points_awarded"], 20)
         session.rpc("servo", "flower", "set", .5)
         second = next(piece for piece in session.world.elements
                       if piece.id == "nectar-alliance-red-1")

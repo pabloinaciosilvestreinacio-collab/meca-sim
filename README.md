@@ -1,5 +1,18 @@
 # Meca Sim 0.3-rc2 — laboratório FTC em duas vistas
 
+## Regras e fases de treino
+
+Na aba **Regras**, escolha **Oficial — regras implementadas** (padrão) ou **Personalizado** antes de INIT. O perfil oficial liga todos os grupos disponíveis; restaurar esse perfil não altera chassi, inventário, relógio ou calibração do HIVE. O personalizado permite desligar penalidades implementadas (atualmente G410), G410 individualmente, restrição de entrada G426 e pontuação de HIVE, FLOWER ou GARDEN. O perfil fica fixo durante INIT/execução; STOP permite configurar a próxima partida.
+
+Para treino sem limite, desmarque **Aplicar limite de tempo** em Chassi. Na aba Regras, escolha a fase inicial (Autônomo, TeleOp antes dos últimos 60 s ou Últimos 60 segundos). Após INIT, **Aplicar fase à sessão** troca somente a fase usada pelas regras. Não reinicia Java, relógio, replay ou peças; voltar a uma fase anterior não recolhe os NECTAR já introduzidos. Com cronômetro ativo, a fase vem do relógio, e o botão manual fica desabilitado.
+
+- Sem G426, ficam disponíveis somente os cinco NECTAR reservados da aliança. A entrada ainda ocorre pela Loading Zone, com os mesmos IDs.
+- Desligar penalidades não desliga G426; desligar pontos não impede depósitos, colisões nem tombamento/queda do HIVE.
+- G410 habilitada acrescenta 20 pontos estimados ao oponente por NECTAR antecipado na FLOWER. Penalidades desabilitadas ficam como eventos de treino sem pontos. O acumulado não se perde quando o histórico detalhado ultrapassa 100 registros.
+- Projetos JSON e preferências locais preservam as escolhas. Projetos antigos usam o perfil oficial implementado; não herdam flags do projeto anterior. Relatórios JSON/CSV incluem perfil, fase final e eventos de mudança de fase.
+
+Referência consultada em 16/10/2026: [manual oficial BIOBUZZ, TU05](https://ftc-resources.firstinspires.org/ftc/game/manual), G410, G426–G427 e seções 10.3.1, 10.5 e 10.6. **Cobertura parcial:** não há arbitragem completa, LEAVE/PARK, cartões ou ranking points. Pontos de peças são uma projeção do estado atual; não há acumulação de placares separados AUTO/TELEOP. Geometria das zonas, volume das FLOWERS e carga do HIVE continuam aproximações didáticas. O perfil Oficial não promete homologação nem precisão física oficial.
+
 O relatório de partida agora distingue acertos no HIVE, tiros que chegaram ao piso sem acerto, tentativas com estoque vazio e tiros ainda em voo no encerramento. Acertos são cumulativos e não desaparecem quando o HIVE descarrega. O CSV exporta também pontuação por categoria, penalidades, diagnósticos e logs, com campos hierárquicos. Peças sobrepostas ao chassi no reinício recebem correção integral de posição.
 
 

@@ -36,6 +36,9 @@ try:
             assert state['hives']['red']['NECTAR'] == 3
             assert state['hives']['red']['load'] == 4
             assert 'id="controls-panel"' in html and 'id="load-teleop"' in html
+            assert 'id="tab-rules"' in html and 'id="manual-phase"' in html
+            assert state['rules']['profile']['mode']=='official'
+            assert state['rules']['phase_source']=='clock'
             teleop = examples['TeleOp · gamepad / teclado']
             assert 'MI.setPower' in teleop and 'MS.setPower' in teleop
             assert 'gamepad1.left_bumper' in teleop and 'gamepad1.right_bumper' in teleop
