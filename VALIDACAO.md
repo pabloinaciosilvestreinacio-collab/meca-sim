@@ -8,7 +8,9 @@ Arquivos: `elements.py`, `physics.py`, `server.py`, `web/app.js`, novo `web/repo
 
 Os modos de regras, controle manual de fases e autocomplete avançado continuam pendentes. Física permanece simplificada; esta alteração não é um solver rígido geral.
 
-Validação deste bloco: 100 testes Python e 30 JavaScript passaram localmente, sem skips; sintaxe e diff passaram. Compatibilidade, cenários de falha e CI em andamento; conferir o resultado do commit correspondente. As pendências de relatório e sobreposição da auditoria abaixo descrevem o estado anterior.
+Validação concluída no commit `980f8e7c39b6deb19594ca0862efbe6bb7183592`: 100 testes Python e 30 JavaScript passaram localmente e em Windows/Linux, sem skips. Nove OpModes e três cenários de falha passaram localmente e no CI. Sintaxe e diff passaram. Chromium com JVM real aprovou a interface, partida, contadores do relatório, exportação CSV e persistência após recarregar em ambos os sistemas. O diagnóstico e smoke test do executável Windows passaram, incluindo o novo módulo `/report.mjs`.
+
+Evidência: [execução 38886267563](https://github.com/pabloinaciosilvestreinacio-collab/meca-sim/actions/runs/38886267563). [Pacote Windows deste bloco](https://github.com/pabloinaciosilvestreinacio-collab/meca-sim/actions/runs/38886267563/artifacts/12039788844). Nenhuma publicação na main ou alteração no Hub. As pendências de relatório e sobreposição da auditoria abaixo descrevem o estado anterior.
 
 ---
 
