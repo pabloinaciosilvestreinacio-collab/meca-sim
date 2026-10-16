@@ -572,9 +572,10 @@ function drawTop(now) {
   c.lineWidth=1;c.font='10px system-ui';
   for(let i=0;i<=6;i++){const p=i*3.66/6,[x,y]=project(p,p);c.strokeStyle='#242c37';c.beginPath();c.moveTo(x,g.oy);c.lineTo(x,g.oy-3.66*g.scale);c.moveTo(g.ox,y);c.lineTo(g.ox+3.66*g.scale,y);c.stroke();c.fillStyle='#627085';c.fillText(p.toFixed(2),x-9,g.oy+15);c.fillText(p.toFixed(2),g.ox-28,y+3);}
   c.strokeStyle='#536277';c.strokeRect(g.ox,g.oy-3.66*g.scale,3.66*g.scale,3.66*g.scale);
-  (state.elements||[]).filter(item=>['field','flower','hive','deposited','launched'].includes(item.status)).forEach(item=>{
+  (state.elements||[]).filter(item=>['field','flower','hive','deposited','launched','entering'].includes(item.status)).forEach(item=>{
     const q=project(item.x,item.y),radius=Math.max(3,item.radius*g.scale);
     const nectar=item.kind==='NECTAR',fill=nectar?(item.team==='red'?'#e34f5a':'#4c91e8'):'#f1ce54';
+    if(item.status==='entering'){c.beginPath();c.arc(q[0],q[1],radius+4,0,Math.PI*2);c.strokeStyle='#ffffffcc';c.lineWidth=1.5;c.stroke();}
     c.fillStyle=fill;c.strokeStyle=nectar?'#f7f8ff':'#80621f';c.lineWidth=1.3;
     c.beginPath();c.arc(q[0],q[1],item.status==='launched'?Math.max(4,radius):radius,0,Math.PI*2);c.fill();c.stroke();
     c.strokeStyle=nectar?'#ffffffaa':'#fff2ad';c.lineWidth=1;
@@ -718,6 +719,11 @@ function drawSide(now) {
   drawArenaSide(c,point,$('arena').value,along,v.th,sideCell,scoredShots,hiveStatus(sideCell?.team||'red',now));
   for(let i=0;i<=4;i++){const value=i*maxH/4,p=point(0,value);c.strokeStyle='#242c37';c.beginPath();c.moveTo(...p);c.lineTo(w-10,p[1]);c.stroke();c.fillStyle='#627085';c.fillText(value.toFixed(1)+'m',5,p[1]+3);}
   c.strokeStyle='#536277';c.beginPath();c.moveTo(...point(0,0));c.lineTo(...point(maxX,0));c.stroke();
+  (state.elements||[]).filter(item=>item.status==='entering'&&item.flight?.mode==='human_entry').forEach(item=>{
+    const sxWorld=(item.x-origin[0])*dir[0]+(item.y-origin[1])*dir[1],q=point(sxWorld,item.flight.z||0);
+    c.fillStyle=item.team==='blue'?'#72b4ff':'#ff7780';c.strokeStyle='#fff';c.lineWidth=1.5;
+    c.beginPath();c.arc(...q,5,0,Math.PI*2);c.fill();c.stroke();
+  });
   // Projeção do chassi no eixo do tiro; o lançador está em x=0.
   c.fillStyle='#ff852e20';c.strokeStyle='#ff852e';const p=point(left,.30);c.fillRect(p[0],p[1],(right-left)*sx,.30*sy);c.strokeRect(p[0],p[1],(right-left)*sx,.30*sy);
   c.strokeStyle='#f07a7b';c.lineWidth=2;c.setLineDash([7,4]);c.beginPath();

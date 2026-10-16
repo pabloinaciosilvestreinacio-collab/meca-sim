@@ -141,5 +141,6 @@ Regressões complementares: `tests/model.test.mjs` (captura e 8 POLLEN) e `tests
 ### Regras BIOBUZZ experimentais — entrada de NECTAR
 
 - O painel Driver Station permite ao Human Player introduzir manualmente NECTAR reservado na Loading Zone, após TIP do HIVE da aliança ou nos últimos 60 s. Cada TIP que libera entrada é derivado do HIVE didático por 8 POLLEN e não é um sensor/critério oficial.
+- A mesma peça cai visualmente cerca de 0,45 m na Loading Zone, depois interage com colisões e intake do piso; a queda representa a entrada do Human Player, não uma ejeção do HIVE.
 - Depósito de NECTAR em FLOWER antes dos últimos 60 s registra G410 no estado e no relatório. A penalidade é informativa: o simulador não soma pontos de falta nem substitui a arbitragem. Centros das Loading Zones e demais posições de campo continuam aproximados.
 - Referência consultada: FIRST BIOBUZZ Competition Manual TU05 (15/10/2026), Sections 10–11, G410 e G426. Implementação parcial; pontuação total, modo de regras customizado, GARDEN e demais regras ainda não estão completos.

@@ -239,6 +239,19 @@ def deposit_to_flower(world):
 
 def update_elements(world, dt, robot_velocity=(0.0, 0.0)):
     """Integra peças soltas, colisões e captura enquanto MI gira para intake."""
+    # NECTAR introduzido pelo Human Player cai no mesmo ponto da Loading Zone
+    # antes de entrar no conjunto de colisões e captura no piso.
+    for piece in world.elements:
+        if piece.status != "entering" or not piece.flight or piece.flight.get("mode") != "human_entry":
+            continue
+        t = max(0.0, world.elapsed - piece.flight["started_at"])
+        z = piece.flight["height"] - 4.905*t*t
+        piece.flight["z"] = max(0.0, z)
+        piece.flight["elapsed"] = t
+        if z <= 0:
+            piece.status, piece.location = "field", "field"
+            piece.flight = None
+
     # Avance os mesmos objetos que foram retirados do inventário. A UI só os
     # desenha; não cria uma segunda peça para representar o disparo.
     for piece in world.elements:

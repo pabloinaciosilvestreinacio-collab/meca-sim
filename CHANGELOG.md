@@ -149,3 +149,10 @@
 - Acerto previsto pelo modelo do HIVE resolve o objeto no estado pontuado. Um disparo que não acerta volta ao campo ao aterrissar e pode voltar a colidir/coletar.
 - Snapshot inclui IDs do inventário, estado de voo e ID do lançamento. A resolução confere o ID da trajetória para rejeitar respostas atrasadas de disparos anteriores. Adicionados testes de conservação, origem, trajetória analítica independente, acerto, erro e rota HTTP.
 - Aproximação: projétil ideal sem arrasto ou colisão 3D; impacto/pontuação ainda usa a previsão existente da interface.
+
+# 16/10/2026 — Entrada física de NECTAR pela Loading Zone
+
+- Um NECTAR reservado mantém o mesmo ID ao ser liberado por TIP/endgame e entra pelo estado transitório `entering`, com queda visual de 0,45 m na Loading Zone; depois passa a `field` e usa colisões/intake existentes.
+- A queda é uma aproximação visual vertical: o manual TU05 G426/G427 libera a entrada após TIP/último minuto e exige que o Human Player introduza o NECTAR pela Loading Zone; o elemento não é ejetado do HIVE.
+- Regressão verifica queda, conservação dos 16 NECTAR, IDs únicos e coleta de uma entrada anterior enquanto outra está entrando.
+- Suíte local: 88 testes aprovados, 14 testes de JVM ignorados por JDK ausente; JavaScript 28/28 aprovado. E2E Chromium e CI remota deste commit ainda pendentes.

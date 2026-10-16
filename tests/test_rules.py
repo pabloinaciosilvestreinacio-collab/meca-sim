@@ -6,6 +6,8 @@ from types import SimpleNamespace
 from urllib.request import Request, urlopen
 
 from elements import FLOWERS, starting_elements
+from elements import update_elements
+from physics import World
 from rules import BioBuzzRules
 from server import App, Session, handler_for
 
@@ -26,6 +28,8 @@ class BioBuzzRulesTests(unittest.TestCase):
         self.assertEqual(event["location"], "loading-zone-red")
         self.assertEqual(self.rules.nectar_entered["red"], 1)
         self.assertEqual(len(self.reserved_red()), 4)
+        piece = next(item for item in self.world.elements if item.id == event["element_id"])
+        self.assertEqual((piece.status, piece.flight["mode"]), ("entering", "human_entry"))
 
     def test_entry_without_tip_is_blocked_before_endgame(self):
         with self.assertRaisesRegex(ValueError, "Nenhum NECTAR disponível"):
@@ -72,7 +76,7 @@ class BioBuzzRulesTests(unittest.TestCase):
         session.register_hive_tip("red")
         first = session.introduce_nectar()
         first_piece = next(piece for piece in session.world.elements if piece.id == first["element_id"])
-        self.assertEqual(first_piece.status, "field")
+        self.assertEqual(first_piece.status, "entering")
         self.assertEqual(first_piece.location, "loading-zone-red")
         with self.assertRaisesRegex(ValueError, "Nenhum NECTAR disponível"):
             session.introduce_nectar()
@@ -81,6 +85,43 @@ class BioBuzzRulesTests(unittest.TestCase):
         for _ in range(4):
             session.introduce_nectar()
         self.assertEqual(session.rules.nectar_entered["red"], 5)
+
+    def test_entered_nectar_falls_then_remains_interactive_after_another_entry(self):
+        world = World()
+        # Libera os preloads do robô para o intake poder testar o NECTAR.
+        for piece in world.elements:
+            if piece.status == "robot":
+                piece.status, piece.location = "reserved", "test-preload"
+        world.inventory.clear()
+        rules = BioBuzzRules("red")
+        rules.register_hive_tip("red", 0)
+        rules.register_hive_tip("red", 1)
+        first = rules.enter_nectar("red", 100, 0, world)
+        first_piece = next(piece for piece in world.elements if piece.id == first["element_id"])
+
+        world.elapsed = .1
+        update_elements(world, .1)
+        self.assertEqual(first_piece.status, "entering")
+        self.assertGreater(first_piece.flight["z"], 0)
+        world.elapsed = .31
+        update_elements(world, .21)
+        self.assertEqual((first_piece.status, first_piece.location), ("field", "field"))
+        self.assertIsNone(first_piece.flight)
+
+        second = rules.enter_nectar("red", 100, .31, world)
+        second_piece = next(piece for piece in world.elements if piece.id == second["element_id"])
+        self.assertEqual(first_piece.status, "field")
+        self.assertEqual(second_piece.status, "entering")
+        self.assertEqual(sum(piece.kind == "NECTAR" for piece in world.elements), 16)
+        self.assertEqual(len({piece.id for piece in world.elements}), len(world.elements))
+
+        # MI coleta o ID que já estava no piso enquanto o outro NECTAR entra.
+        world.x, world.y, world.yaw = first_piece.x, first_piece.y - .28, 0
+        world.motors["MI"].power = 1
+        update_elements(world, .01)
+        self.assertEqual((first_piece.status, first_piece.location), ("robot", "inventory"))
+        self.assertIn(first_piece.id, world.inventory)
+        self.assertEqual(sum(piece.id == first_piece.id for piece in world.elements), 1)
 
     def test_session_records_g410_for_java_servo_deposit_outside_endgame(self):
         session = Session({"alliance": "red", "match-mode": "teleop"})

@@ -57,8 +57,13 @@ class BioBuzzRules:
         else:
             piece.x, piece.y = 3.52025, .91
         piece.vx = piece.vy = 0.0
-        piece.status = "field"
+        # G426 libera uma entrada e G427 exige que ela aconteça na Loading
+        # Zone. O estado transitório mantém o mesmo objeto visível enquanto
+        # cai até o piso; não é uma ejeção do HIVE.
+        piece.status = "entering"
         piece.location = f"loading-zone-{team}"
+        piece.flight = {"mode": "human_entry", "started_at": float(elapsed),
+                        "height": .45, "z": .45}
         self.nectar_entered[team] += 1
         event = {"type": "human_player_entry", "team": team, "element_id": piece.id,
                  "location": piece.location, "time": round(float(elapsed), 3)}
@@ -102,7 +107,7 @@ class BioBuzzRules:
             "penalties": [penalty.copy() for penalty in self.penalties],
             "limitations": [
                 "O TIP vem do modelo didático de 8 POLLEN; não representa critério físico oficial.",
-                "A entrada ocorre por botão explícito do Human Player e inicia na Loading Zone aproximada.",
+                "G426 libera a entrada e G427 exige a Loading Zone; o botão do Human Player inicia uma queda visual aproximada de 0,45 m.",
                 "Faltas são registradas para relatório, sem atribuição automática de pontos."
             ]
         }
