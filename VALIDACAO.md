@@ -114,7 +114,7 @@ O arquivo completo da revisão anterior foi restaurado e recebeu apenas a altera
 
 Na Action `38829590023`, o E2E passou pelo exemplo inicial, movimentos, shooter/HIVE, Java, replay, exportações, projetos ZIP, TeleOp, Autônomo 3.5, autocomplete e layout móvel. O teste final de remapeamento tentou clicar em um controle oculto enquanto permanecia na aba Código. O controle fica na configuração do robô; o teste agora abre essa aba antes do clique.
 
-Na Action `38830052723`, o E2E avançou além do teste anterior, mas falhou ao verificar a troca para outro OpMode depois de reabrir um projeto ZIP. Foi adicionada espera de atualização e diagnóstico da opção selecionada, lista de OpModes, código e mensagem. A validação Chromium completa aguarda nova execução.
+Na Action `38830052723`, o E2E avançou além do teste anterior, mas falhou ao verificar a troca para outro OpMode depois de reabrir um projeto ZIP. A Action `38830336229` confirmou a causa: o teste lia duas opções antigas enquanto o JSON ainda era restaurado; o carregamento terminou depois e selecionou novamente o OpMode principal salvo. O E2E agora espera a mensagem de conclusão e confirma o OpMode principal restaurado antes de trocar para o outro. A validação Chromium completa aguarda nova execução.
 
 `tests/browser_e2e.py` agora valida e descarta o relatório antes de cada partida seguinte. Os helpers de término também produzem status, telemetria, logs e aviso da interface caso o Java não alcance um estado terminal. Não houve alteração no comportamento do simulador.
 

@@ -241,6 +241,8 @@ public class ZipOutro extends LinearOpMode {
             saved_zip=Path(out.value.path())
             assert len(json.loads(saved_zip.read_text(encoding='utf-8'))['files'])==1
             page.locator('#load-project').set_input_files(str(saved_zip))
+            page.wait_for_function("document.querySelector('#message').textContent.includes('Projeto restaurado.')")
+            page.wait_for_function("document.querySelector('#opmode-choice').value.endsWith('ZipOutro.java') && document.querySelector('#source').value.includes('ZipOutro')")
             page.wait_for_function("document.querySelector('#opmode-choice').options.length===2")
             page.locator('#opmode-choice').select_option(label='ZipDemo — org/firstinspires/ftc/teamcode/ZipDemo.java')
             try:
