@@ -26,7 +26,7 @@ Simulador **local e independente** da Meca Tiger: cole uma classe Java `LinearOp
 ### Atualização rc2: física, shooter e configuração
 
 - **Parede física ativa por padrão:** somente as quatro paredes externas bloqueiam o chassi. FLOWERS, HIVE e marcações do campo continuam visuais, sem colisão.
-- **Shooter Java (modelo didático):** MS armado e MI alimentando consomem uma peça por intervalo configurável (0,8 s inicial). A trajetória usa a configuração balística atual; não há sensor de RPM nem calibração física. Prévia manual continua separada do comando Java. A telemetria é recolhível e inclui estado dos gamepads. O HIVE ainda usa transição didática por contagem de peças (8) e não arbitra pontuação oficial.
+- **Shooter Java (modelo didático):** MS armado e MI alimentando consomem uma peça por intervalo configurável (0,8 s inicial). A trajetória usa a configuração balística atual; não há sensor de RPM nem calibração física. Prévia manual continua separada do comando Java. A telemetria é recolhível e inclui estado dos gamepads. O HIVE usa carga de treino ponderada de POLLEN e NECTAR, com limiar configurável, e não substitui arbitragem oficial.
 - **Drivetrain selecionável:** diferencial é o perfil padrão da Mequinha (ME/MD). Mecanum é um modo alternativo, com FL/FR/BL/BR e cinemática ideal, para testar projetos de outras equipes.
 - **Escala e visual:** a arena é 3,66 × 3,66 m no modelo; a interface utiliza a marca vetorial Meca Tiger, cor de robô configurável e painéis Código/Chassi/Shooter.
 
@@ -144,20 +144,20 @@ Os commits são registrados diretamente neste repositório conforme solicitado. 
 
 - **HIVE lateral:** representa o A-frame triangular, pivô a 1,1165 m, barra articulada e duas CELLS com boca e contorno pentagonal. O desenho 2D é uma aproximação do corte de referência da equipe/Desmos, não o CAD completo do campo.
 - **POLLEN em continuidade:** uma única bolinha se desloca até o plano da abertura, desacelera ao entrar e segue até o lugar de repouso visual nas vistas superior e lateral; a trajetória verde de mira termina no plano do alvo. Acertos são decididos durante o voo, não ao fim da parábola.
-- **Tombamento didático:** oito POLLEN capturados no mesmo HIVE invertem a gangorra com animação; a contagem zera e o HIVE passa a aceitar lançamentos na outra CELL. O manual FIRST **não define oito como constante oficial**: depende de massa/posição dos elementos, amortecedores e da mecânica real. O protótipo não simula NECTAR, momento angular nem colisão rígida da gangorra.
+- **Tombamento didático:** a carga ponderada dos elementos reais da CELL inverte a gangorra quando alcança o limiar de treino. A CELL descarrega seus POLLEN/NECTAR e a outra passa a aceitar tiros. O modelo inclui NECTAR físico, mas não calcula momento angular nem colisão rígida da gangorra. Não há um número universal de POLLEN definido como limiar oficial.
 - **Editor grande:** o textarea mostra texto real com rolagem nativa, contador de linhas/bytes e aba Código em foco, eliminando a sobreposição transparente que deixava parte do código invisível. A compilação ainda usa um subconjunto das APIs do FTC SDK e os limites de importação informados acima.
 - **Autônomo 3.5:** durante INIT selecione Y/B/X/↑, confirme com A no Driver Station virtual, aguarde telemetria Confirmado:true e depois use START. O controle de pré-START é necessário para a execução; classes externas e câmera real continuam fora do SDK parcial.
 - **Identidade:** marca retirada do arquivo de imagem já utilizado no cabeçalho do site oficial da equipe no repositório `mecatiger-hub/public/Screenshot_20261004_131612_Instagram.jpg`, em vez de uma nova logomarca inventada.
 - **Navegação:** abas dedicadas Simulador, Código Java e Trajetórias/replay, sem remover os painéis existentes.
 
-Regressões complementares: `tests/model.test.mjs` (captura e 8 POLLEN) e `tests/browser_e2e.py` (8 tiros, Autonomo35 completo, confirmação Java, troca de abas, colagem de 35 kB). As regressões do navegador devem ser confirmadas no GitHub Actions; testes sem validação de hardware não comprovam fidelidade física.
+Regressões complementares: `tests/model.test.mjs` (geometria balística), `tests/browser_e2e.py` (prévia sem mutação, Autonomo35 completo, confirmação Java, troca de abas, colagem de 35 kB) e `tests/partida_e2e.py` (disparos e coleta reais via teclado/JVM). As regressões do navegador devem ser confirmadas no GitHub Actions; testes sem validação de hardware não comprovam fidelidade física.
 
 
 ### Regras BIOBUZZ experimentais — entrada de NECTAR
 
-- O painel Driver Station permite ao Human Player introduzir manualmente NECTAR reservado na Loading Zone, após TIP do HIVE da aliança ou nos últimos 60 s. Cada TIP que libera entrada é derivado do HIVE didático por 8 POLLEN e não é um sensor/critério oficial.
+- O painel Driver Station permite ao Human Player introduzir manualmente NECTAR reservado na Loading Zone, após TIP do HIVE da aliança ou nos últimos 60 s. Cada TIP que libera entrada é derivado da carga configurável de POLLEN + NECTAR do HIVE. A aproximação de carga não é um sensor nem um limiar oficial.
 - A mesma peça cai visualmente cerca de 0,45 m na Loading Zone, depois interage com colisões e intake do piso; a queda representa a entrada do Human Player, não uma ejeção do HIVE.
-- HIVE TIP libera no campo os mesmos objetos pontuados que estavam na CELL que virou para baixo; eles caem e voltam à física do piso. A origem do TIP continua sendo o limiar didático de oito elementos, não um critério oficial de tombamento.
+- HIVE TIP libera no campo os mesmos objetos pontuados que estavam na CELL que virou para baixo; eles caem e voltam à física do piso. A origem do TIP é a carga ponderada configurável de treino, sem alegação de um limiar físico oficial.
 - **Estimativa de pontuação:** inclui 20 pontos por HIVE TIP, 2 por peça em CELL voltada para cima, pontuação de FLOWER baseada na última NECTAR depositada e 5 pontos para a primeira NECTAR (aproximação do elemento inferior), 1 por elemento sobre GARDEN e 20 pontos recebidos por Major Foul G410. A posição/volume vertical da FLOWER, zonas GARDEN e HIVE são aproximados; não substitui arbitragem, placar oficial, ranking ou resultado da missão.
 - Depósito de NECTAR em FLOWER antes dos últimos 60 s registra G410 e atribui 20 pontos estimados à aliança adversária. Centros das Loading Zones e demais posições de campo continuam aproximados.
 - Referência consultada: FIRST BIOBUZZ Competition Manual TU05 (15/10/2026), Sections 10–11, G410 e G426. A implementação cobre somente as categorias descritas acima; não implementa todas as regras, ranking points, arbitragem ou pontuação vertical exata.

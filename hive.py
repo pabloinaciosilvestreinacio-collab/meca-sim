@@ -1,7 +1,7 @@
 """Geometria balística compartilhada com o corte 2D em web/arena.mjs.
 
 Carga é uma calibração de treino, NÃO massa/limiar oficial FIRST.
-O padrão reproduz o cenário solicitado: 3 NECTAR + 4 POLLEN.
+Calibração padrão: 3 NECTAR + 4 POLLEN; alterável para treino.
 """
 import math
 

@@ -22,11 +22,15 @@ def passed(message):
 def state(page): return page.request.get(URL+'/api/state').json()
 
 def wait_state(page, expression, timeout=15000):
-    try:
-        page.wait_for_function('async()=>{const s=await (await fetch("/api/state")).json();return '+expression+'}',timeout=timeout,polling=50)
-    except Exception as error:
-        raise AssertionError({'condition':expression,'state':state(page),'message':page.locator('#message').text_content()}) from error
-    return state(page)
+    deadline=time.monotonic()+timeout/1000
+    while time.monotonic()<deadline:
+        # evaluate aguarda a Promise e devolve exatamente o snapshot aprovado.
+        # wait_for_function com predicado async podia resolver antes da condição.
+        found=page.evaluate('async()=>{const s=await (await fetch("/api/state")).json();return ('+expression+') ? s : null;}')
+        if found is not None:
+            return found
+        page.wait_for_timeout(50)
+    raise AssertionError({'condition':expression,'state':state(page),'message':page.locator('#message').text_content()})
 
 def conservation(s):
     assert len(s['elements'])==len({p['id'] for p in s['elements']})==56
@@ -79,7 +83,7 @@ try:
         first=wait_state(page,"s.inventory.POLLEN===3 && s.launcher_status.launch_count===1")
         conservation(first)
         page.wait_for_function("document.querySelector('#inventory').textContent.includes('POLLEN 3')")
-        assert first['motors']['MI']['power']==first['motors']['MS']['power']==1
+        assert first['motors']['MI']['power']==first['motors']['MS']['power']==1, {'state':first,'errors':errors}
         assert first['launches'][0]['piece_id'] in preloads
         fell=wait_state(page,"s.hives.red.tips===1 && s.elements.filter(p=>p.status==='falling').length===7")
         assert {p['id'] for p in fell['elements'] if p['status']=='falling'}==preloads|nectar
