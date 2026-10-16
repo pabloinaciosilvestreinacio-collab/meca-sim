@@ -8,9 +8,25 @@ Agora o servidor decide trajetória, entrada, carga e descarga. Renderização u
 
 Validação local: `python -m unittest discover -s tests -v`: 97 casos, **83 passaram e 14 foram ignorados** por falta de javac. `node --test tests/model.test.mjs`: **28 passaram**. Sintaxe de app.js e scripts E2E passou. Compatibilidade de nove OpModes não executou por falta de JDK; cenários de falha foram tentados e interromperam pelo mesmo motivo. Instalação local de Chromium falhou (download truncado). Nenhum resultado local comprova JVM/navegador.
 
-CI acrescenta `tests/partida_e2e.py`: teclado real → Java → MI/MS, estoque 4→3→0, HIVE com 3 NECTAR + 4 POLLEN, sete IDs caindo e chegando ao piso, nenhum tiro vazio, coleta de FLOWER via W+Z, novo disparo do ID coletado e ausência de erros JavaScript. Evidências em `reports/partida-checks.json` e PNGs. Execução inicial `38840182312`: 97 testes Python, 28 JavaScript, nove OpModes, cenários de falha e a suíte de interface anterior passaram em Windows/Linux. O novo teste de partida falhou porque seu helper de espera assíncrona devolvia um snapshot antes de a condição ser atendida (Linux: motores ainda neutros; Windows: ainda sem lançamento). Helper corrigido para aguardar e devolver o mesmo snapshot validado. A execução corrigida permanece pendente neste commit; conferir antes de distribuir. O teste do EXE também passou a verificar build, inventário, HIVE e TeleOp MI/MS no bundle.
+CI acrescenta `tests/partida_e2e.py`: teclado real → Java → MI/MS, estoque 4→3→0, HIVE com 3 NECTAR + 4 POLLEN, sete IDs caindo e chegando ao piso, nenhum tiro vazio, coleta de FLOWER via W+Z, novo disparo do ID coletado e ausência de erros JavaScript. Evidências em `reports/partida-checks.json` e PNGs. Execução inicial `38840182312`: 97 testes Python, 28 JavaScript, nove OpModes, cenários de falha e a suíte de interface anterior passaram em Windows/Linux. O novo teste de partida falhou porque seu helper de espera assíncrona devolvia um snapshot antes de a condição ser atendida (Linux: motores ainda neutros; Windows: ainda sem lançamento). Helper corrigido para aguardar e devolver o mesmo snapshot validado. A execução corrigida está registrada na seção de resultado abaixo. O teste do EXE também passou a verificar build, inventário, HIVE e TeleOp MI/MS no bundle.
 
 Limites: física 2D leve, carga didática não calibrada com equipamento real, sem validação de gamepad físico. As seções abaixo são registros históricos e não substituem este estado atual.
+
+## Resultado confirmado da correção — commit `7444cf22`
+
+Execução: https://github.com/pabloinaciosilvestreinacio-collab/meca-sim/actions/runs/38880163800
+
+- Windows e Linux: 97 testes Python passaram sem skips; 28 testes JavaScript passaram; nove OpModes preservados compilaram contra o SDK parcial; cenários de encoder travado, IMU travada e motor sem resposta passaram.
+- Chromium + Java em ambos: suíte de interface anterior e nova partida passaram. O teste confirmou estoque 4→3→0; três NECTAR iniciais + quatro POLLEN provocam um TIP na calibração padrão; os mesmos sete IDs caem e chegam ao piso; estoque vazio não lança; W+Z coleta quatro POLLEN da FLOWER; deixam o campo e aparecem no armazenamento; C lança o mesmo ID e reduz o estoque. Nenhum erro JavaScript registrado nessas verificações.
+- Conservação e recaptura de NECTAR após queda também passaram no teste Python do ciclo, mantendo separadas as reservas do Human Player.
+- Evidências da partida: `reports/partida-checks.json`, `partida-01-preloads.png`, `partida-02-queda.png` e `partida-03-coleta.png` nos artefatos `evidencias-ubuntu-latest` e `evidencias-windows-latest` dessa execução.
+- Validação local adicional: os 97 testes Python, a compatibilidade e os cenários de falha passaram após usar o compilador Java 17 já presente no módulo `jdk.compiler` do ambiente, via wrapper temporário de desenvolvimento. Esse wrapper não faz parte do produto nem altera a exigência de JDK no computador do usuário.
+- Pacote Windows: job `116907046047` passou, incluindo diagnóstico do EXE e smoke test que confirma build, inventário de 4 peças/56 objetos, HIVE com 3 NECTAR e carga 4, painel Controles e TeleOp MI/MS efetivamente presentes nos recursos empacotados. Artefato `MecaSim-Windows-portatil` ID `12037004423`, 8.752.863 bytes. Download: https://github.com/pabloinaciosilvestreinacio-collab/meca-sim/actions/runs/38880163800/artifacts/12037004423 . A execução completa terminou com sucesso. Este registro final altera somente documentação; o código e o pacote testados são do commit `7444cf22b8575fba8e59107274904c07391fc90e`.
+
+Arquivos centrais: `hive.py`, `elements.py`, `rules.py`, `physics.py`, `server.py`, `web/app.js`, `web/arena.mjs`, `web/index.html`, `examples/TeleOpDemo.java` e `examples.json`. Regressões novas em `tests/test_hive_cycle.py` e `tests/partida_e2e.py`; fluxo anterior e smoke test do EXE atualizados. Documentação e workflow registram a validação. Fixtures históricas não foram editadas; main e Meca Tiger Hub permanecem preservados.
+
+Limites mantidos: carga/atrito/queda são aproximações didáticas, sem medição no robô real; controle físico não foi ensaiado; não equivale à validação completa de todas as regras FTC ou à conclusão de toda a Fase 1.
+
 
 ---
 
