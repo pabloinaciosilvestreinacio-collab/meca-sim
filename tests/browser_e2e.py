@@ -408,7 +408,7 @@ public class ZipOutro extends LinearOpMode {
         editor.get_by_role('button',name='Tecla para A').click()
         editor.keyboard.press('g')
         assert editor.get_by_role('button',name='Tecla para A').text_content()=='g'
-        editor.get_by_role('button',name='Tecla para B').click()
+        editor.get_by_role('button',name='Tecla para B',exact=True).click()
         editor.keyboard.press('g')
         assert 'já está atribuída' in editor.locator('#message').text_content()
         editor.locator('#reset-keymap').click()
