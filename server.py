@@ -222,7 +222,8 @@ class Session:
                                                % (2 * math.pi) - math.pi),
                           imu_frozen=self.world.imu_frozen,
                           rules=self.rules.snapshot(self.match_remaining_seconds(), self.match_mode,
-                                                    self.timer_enabled))
+                                                    self.timer_enabled),
+                          scoring=self.rules.score_snapshot(self.world))
             return result
 
     def match_remaining_seconds(self):
@@ -231,11 +232,11 @@ class Session:
         duration = 158.0 if self.match_mode == "auto" else 120.0
         return max(0.0, duration - self.world.elapsed)
 
-    def register_hive_tip(self, team):
+    def register_hive_tip(self, team, cell_id=None):
         with self.lock:
             if not self.started or self.status != "executando" or self.stop_event.is_set():
                 raise ValueError("O TIP só pode ser registrado durante uma simulação em execução")
-            return self.rules.register_hive_tip(team, self.world.elapsed)
+            return self.rules.register_hive_tip(team, self.world.elapsed, self.world, cell_id)
 
     def introduce_nectar(self):
         with self.lock:
@@ -326,7 +327,9 @@ class Session:
                         and previous < threshold <= self.servos[name]):
                     event = deposit_to_flower(self.world)
                     if event:
-                        penalty = self.rules.record_flower_deposit(event, self.match_remaining_seconds())
+                        event["robot_alliance"] = self.alliance
+                        penalty = self.rules.record_flower_deposit(
+                            event, self.match_remaining_seconds(), self.alliance)
                         self.log(f"\nFLOWER {event['flower']}: {event['kind']} depositado (#{event['sequence']}).\n")
                         if penalty:
                             self.log("G410 registrado: NECTAR depositado antes dos últimos 60 segundos; falta não arbitrada pelo simulador.\n")
@@ -529,7 +532,7 @@ def handler_for(app):
                     elif self.path == "/api/rules":
                         action = data.get("action")
                         if action == "hive_tip":
-                            event = session.register_hive_tip(data.get("team"))
+                            event = session.register_hive_tip(data.get("team"), data.get("cell_id"))
                             session.log(f"\nTIP de HIVE simulado para {event['team']} (contagem didática).\n")
                         elif action == "nectar_entry":
                             event = session.introduce_nectar()

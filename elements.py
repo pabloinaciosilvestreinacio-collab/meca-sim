@@ -31,13 +31,16 @@ class ScoringElement:
     vy: float = 0.0
     flight: dict | None = None
     launch_id: int | None = None
+    score_zone: str | None = None
+    deposit_sequence: int | None = None
 
     def snapshot(self):
         return {"id": self.id, "kind": self.kind, "team": self.team,
                 "x": self.x, "y": self.y, "status": self.status,
                 "location": self.location, "radius": self.radius,
                 "flight": self.flight.copy() if self.flight else None,
-                "launch_id": self.launch_id}
+                "launch_id": self.launch_id, "score_zone": self.score_zone,
+                "deposit_sequence": self.deposit_sequence}
 
 
 def starting_elements(alliance="red"):
@@ -186,8 +189,8 @@ def resolve_launch(world, element_id, launch_id, result, x=None, y=None):
     if result not in ("scored", "missed"):
         raise ValueError("Resultado de lançamento inválido")
     piece = next((item for item in world.elements if item.id == element_id), None)
-    if piece is None or piece.kind != "POLLEN" or piece.launch_id is None:
-        raise ValueError("POLLEN lançado não encontrado")
+    if piece is None or piece.kind not in ("POLLEN", "NECTAR") or piece.launch_id is None:
+        raise ValueError("Elemento lançado não encontrado")
     if not isinstance(launch_id, int) or isinstance(launch_id, bool) or piece.launch_id != launch_id:
         raise ValueError("ID da trajetória não corresponde ao lançamento atual")
     if piece.status == "scored" or (piece.status == "field" and result == "missed"):
@@ -197,8 +200,13 @@ def resolve_launch(world, element_id, launch_id, result, x=None, y=None):
     if result == "scored":
         if x is None or y is None or not all(math.isfinite(v) for v in (x, y)):
             raise ValueError("Posição de pontuação inválida")
+        launch = next((event for event in world.launches if event["id"] == launch_id
+                       and event["piece_id"] == piece.id), None)
+        if launch is None:
+            raise ValueError("Registro do lançamento não encontrado")
         piece.x, piece.y = x, y
         piece.status, piece.location = "scored", "hive"
+        piece.score_zone = launch.get("hive")
         piece.vx = piece.vy = 0.0
     else:
         piece.status, piece.location = "field", "field"
@@ -209,8 +217,8 @@ def resolve_launch(world, element_id, launch_id, result, x=None, y=None):
 def deposit_to_flower(world):
     """Move uma peça do inventário ao FLOWER mais próximo, se houver alcance.
 
-    A ação é didática: regras de sequência e pontuação oficial são arbitradas
-    separadamente e ainda não fazem parte deste bloco.
+    O servo escolhe a FLOWER mais próxima dentro do alcance configurado. A
+    sequência persistida permite calcular dono e bônus do modelo de pontuação.
     """
     if not world.inventory:
         return None
@@ -227,11 +235,14 @@ def deposit_to_flower(world):
     x, y = FLOWERS[index]
     piece.status = "deposited"
     piece.location = f"flower-{index}"
+    piece.score_zone = piece.location
     piece.x, piece.y = x, y
     piece.vx = piece.vy = 0.0
     world.flower_sequence += 1
+    piece.deposit_sequence = world.flower_sequence
     event = {"sequence": world.flower_sequence, "element_id": piece.id,
-             "kind": piece.kind, "flower": index + 1, "time": world.elapsed}
+             "kind": piece.kind, "team": piece.team, "flower": index + 1,
+             "time": world.elapsed}
     world.flower_events.append(event)
     world.flower_events = world.flower_events[-32:]
     return event
@@ -239,10 +250,11 @@ def deposit_to_flower(world):
 
 def update_elements(world, dt, robot_velocity=(0.0, 0.0)):
     """Integra peças soltas, colisões e captura enquanto MI gira para intake."""
-    # NECTAR introduzido pelo Human Player cai no mesmo ponto da Loading Zone
-    # antes de entrar no conjunto de colisões e captura no piso.
+    # NECTAR da Loading Zone e peças liberadas por um HIVE tipped caem antes
+    # de entrar no conjunto de colisões e captura no piso.
     for piece in world.elements:
-        if piece.status != "entering" or not piece.flight or piece.flight.get("mode") != "human_entry":
+        if piece.status not in ("entering", "falling") or not piece.flight or piece.flight.get(
+                "mode") not in ("human_entry", "hive_release"):
             continue
         t = max(0.0, world.elapsed - piece.flight["started_at"])
         z = piece.flight["height"] - 4.905*t*t

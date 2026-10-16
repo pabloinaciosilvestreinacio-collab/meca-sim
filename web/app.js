@@ -78,18 +78,25 @@ function recordImpact(shot,now){
   const result=registerPollen(hiveCounts[cell.team],SIM_TIP_POLLS);
   hiveCounts[cell.team]=result.count;
   shot.registered=true;shot.tipped=result.tipped;
-  if(shot.pieceId)api('element-result',{element_id:shot.pieceId,launch_id:shot.launchId,result:'scored',x:shot.impact.x,y:shot.impact.y}).catch(error=>notice(error.message));
+  const resolved=shot.pieceId
+    ?api('element-result',{element_id:shot.pieceId,launch_id:shot.launchId,result:'scored',x:shot.impact.x,y:shot.impact.y})
+    :Promise.resolve();
   if(result.tipped){
     if(matchStarted&&state.status==='executando')
-      api('rules',{action:'hive_tip',team:cell.team}).catch(error=>notice(error.message));
+      resolved.then(()=>api('rules',{action:'hive_tip',team:cell.team,cell_id:cell.id}))
+        .catch(error=>notice(error.message));
+    else resolved.catch(error=>notice(error.message));
     const previous=hiveOrientation(cell.team)*HIVE_SIDE.angleDeg;
     hiveFlips[cell.team]++;
     hiveMotion[cell.team]={start:now,from:previous,to:-previous};
     tippedHives.add(cell.id);
     // Ao virar, a CELL anterior descarrega as bolas acumuladas.
     scoredShots=scoredShots.filter(b=>b.cellId!==cell.id);
-    setShotResult('HIVE TOMBOU · '+SIM_TIP_POLLS+' POLLEN na '+cell.name+'; gangorra invertida.','hit');
-  }else setShotResult('POLLEN CAPTURADO · '+hiveCounts[cell.team]+'/'+SIM_TIP_POLLS+' na '+cell.name+'.','hit');
+    setShotResult('HIVE TOMBOU · limiar didático de '+SIM_TIP_POLLS+' peças na '+cell.name+'; elementos liberados.','hit');
+  }else{
+    resolved.catch(error=>notice(error.message));
+    setShotResult((shot.kind||'POLLEN')+' CAPTURADO · '+hiveCounts[cell.team]+'/'+SIM_TIP_POLLS+' peças na '+cell.name+'.','hit');
+  }
 }
 function currentShotBall(now,candidate=shot){
   if(!candidate)return null;
@@ -297,22 +304,22 @@ $('finish-match').addEventListener('click',async()=>{
   catch(error){notice(error.message);}
 });
 function reportData(){
-  const team=$('alliance').value,tips=hiveFlips[team]||0;
-  const retained=scoredShots.filter(item=>(item.kind==='POLLEN'||item.kind==='NECTAR')&&hiveCellById(item.cellId)?.team===team).length;
+  const team=$('alliance').value,score=state.scoring?.by_alliance||{},teamScore=score[team]||{};
+  const tips=(state.rules?.hive_tips_didactic||{})[team]||hiveFlips[team]||0;
   const result=state.status==='concluído'?'Java terminou normalmente (isso não comprova sucesso da missão).':
     state.status==='erro'?'Execução Java terminou com erro.':'Simulação encerrada antes do fim normal do Java.';
   return {format:'meca-sim-match-report',version:1,endedAt:new Date().toISOString(),
     javaResult:result,missionSuccess:'não avaliada',durationSeconds:Number(state.time||0),
-    alliance:$('alliance').value,estimatedPoints:{hiveTipsDidactic:tips*20,
-      elementsRetainedInHive:retained,retainedElementPoints:retained*2,
-      partialTotal:tips*20+retained*2,scope:'estimativa parcial; não é placar oficial'},
+    alliance:team,estimatedPoints:{...teamScore,hiveTipsDidactic:tips,
+      partialTotal:teamScore.total||0,byAlliance:score,
+      scope:'estimativa baseada nos estados; HIVE usa limiar didático'},
     activity:{collected:(state.intake||{}).collected||0,launched:(state.launcher_status||{}).launch_count||0,
-      successfulHiveElements:retained,emptyFeedAttempts:(state.launcher_status||{}).empty_feed_attempts||0,
+      successfulHiveElements:(state.elements||[]).filter(item=>/^(red|blue)-(lower|upper)$/.test(item.score_zone||'')).length,
       hiveTipsDidactic:tips,diagnostics:(state.diagnostics||[]).length},
     diagnostics:state.diagnostics||[],javaLogs:state.logs||'',telemetry:state.telemetry||'',
-    ruleStatus:state.rules||null,
-    limitations:['FLOWER/GARDEN scoring and ranking points are not calculated.',
-      'Hive tipping still uses the didactic element-count approximation; it is not official rule adjudication.',
+    ruleStatus:state.rules||null,scoring:state.scoring||null,
+    limitations:[...(state.scoring?.limitations||[]),
+      'Ranking points, vitória/empate e decisão de missão não são calculados.',
       'Physical robot validation is not included.']};
 }
 function renderFinalReport(){
@@ -324,7 +331,10 @@ function renderFinalReport(){
   const fields=[
     ['Resultado Java',r.javaResult],['Missão','Não avaliada pelo simulador'],
     ['Duração',Number(r.durationSeconds).toFixed(2)+' s'],
-    ['Estimativa parcial',r.estimatedPoints.partialTotal+' pts (não oficial)'],
+    ['Pontuação estimada',r.estimatedPoints.partialTotal+' pts'],
+    ['HIVE · TIPs',r.estimatedPoints.hiveTipsDidactic+' simulado(s) · '+(r.estimatedPoints.hive_tips||0)+' pts'],
+    ['FLOWER · GARDEN',((r.estimatedPoints.flowers||0)+(r.estimatedPoints.bottom_nectar_bonus||0)+(r.estimatedPoints.gardens||0))+' pts'],
+    ['Penalidades ao oponente',(r.estimatedPoints.penalties_received||0)+' pts'],
     ['POLLEN/NECTAR coletados',r.activity.collected],
     ['Elementos lançados',r.activity.launched],
     ['Lançamentos vazios',r.activity.emptyFeedAttempts],
@@ -572,10 +582,10 @@ function drawTop(now) {
   c.lineWidth=1;c.font='10px system-ui';
   for(let i=0;i<=6;i++){const p=i*3.66/6,[x,y]=project(p,p);c.strokeStyle='#242c37';c.beginPath();c.moveTo(x,g.oy);c.lineTo(x,g.oy-3.66*g.scale);c.moveTo(g.ox,y);c.lineTo(g.ox+3.66*g.scale,y);c.stroke();c.fillStyle='#627085';c.fillText(p.toFixed(2),x-9,g.oy+15);c.fillText(p.toFixed(2),g.ox-28,y+3);}
   c.strokeStyle='#536277';c.strokeRect(g.ox,g.oy-3.66*g.scale,3.66*g.scale,3.66*g.scale);
-  (state.elements||[]).filter(item=>['field','flower','hive','deposited','launched','entering'].includes(item.status)).forEach(item=>{
+  (state.elements||[]).filter(item=>['field','flower','hive','deposited','launched','entering','falling'].includes(item.status)).forEach(item=>{
     const q=project(item.x,item.y),radius=Math.max(3,item.radius*g.scale);
     const nectar=item.kind==='NECTAR',fill=nectar?(item.team==='red'?'#e34f5a':'#4c91e8'):'#f1ce54';
-    if(item.status==='entering'){c.beginPath();c.arc(q[0],q[1],radius+4,0,Math.PI*2);c.strokeStyle='#ffffffcc';c.lineWidth=1.5;c.stroke();}
+    if(item.status==='entering'||item.status==='falling'){c.beginPath();c.arc(q[0],q[1],radius+4,0,Math.PI*2);c.strokeStyle='#ffffffcc';c.lineWidth=1.5;c.stroke();}
     c.fillStyle=fill;c.strokeStyle=nectar?'#f7f8ff':'#80621f';c.lineWidth=1.3;
     c.beginPath();c.arc(q[0],q[1],item.status==='launched'?Math.max(4,radius):radius,0,Math.PI*2);c.fill();c.stroke();
     c.strokeStyle=nectar?'#ffffffaa':'#fff2ad';c.lineWidth=1;
@@ -719,7 +729,8 @@ function drawSide(now) {
   drawArenaSide(c,point,$('arena').value,along,v.th,sideCell,scoredShots,hiveStatus(sideCell?.team||'red',now));
   for(let i=0;i<=4;i++){const value=i*maxH/4,p=point(0,value);c.strokeStyle='#242c37';c.beginPath();c.moveTo(...p);c.lineTo(w-10,p[1]);c.stroke();c.fillStyle='#627085';c.fillText(value.toFixed(1)+'m',5,p[1]+3);}
   c.strokeStyle='#536277';c.beginPath();c.moveTo(...point(0,0));c.lineTo(...point(maxX,0));c.stroke();
-  (state.elements||[]).filter(item=>item.status==='entering'&&item.flight?.mode==='human_entry').forEach(item=>{
+  (state.elements||[]).filter(item=>['entering','falling'].includes(item.status)&&
+      ['human_entry','hive_release'].includes(item.flight?.mode)).forEach(item=>{
     const sxWorld=(item.x-origin[0])*dir[0]+(item.y-origin[1])*dir[1],q=point(sxWorld,item.flight.z||0);
     c.fillStyle=item.team==='blue'?'#72b4ff':'#ff7780';c.strokeStyle='#fff';c.lineWidth=1.5;
     c.beginPath();c.arc(...q,5,0,Math.PI*2);c.fill();c.stroke();

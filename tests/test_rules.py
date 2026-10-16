@@ -123,17 +123,66 @@ class BioBuzzRulesTests(unittest.TestCase):
         self.assertIn(first_piece.id, world.inventory)
         self.assertEqual(sum(piece.id == first_piece.id for piece in world.elements), 1)
 
+    def test_scoring_uses_flower_order_hive_state_garden_overlap_and_foul_points(self):
+        world = World()
+        rules = BioBuzzRules("red")
+        nectar_red = next(piece for piece in world.elements if piece.id == "nectar-alliance-red-0")
+        nectar_blue = next(piece for piece in world.elements if piece.id == "nectar-alliance-blue-0")
+        pollen = [piece for piece in world.elements if piece.kind == "POLLEN" and piece.status == "reserved"][:2]
+        for piece, order in ((nectar_red, 1), (pollen[0], 2), (nectar_blue, 3), (pollen[1], 4)):
+            piece.status, piece.location = "deposited", "flower-0"
+            piece.deposit_sequence = order
+        garden_piece = next(piece for piece in world.elements if piece.status == "field")
+        garden_piece.x, garden_piece.y = .1, .02
+
+        # Cada TIP vale 20; o HIVE azul ainda tem três NECTAR na CELL ascendente.
+        rules.hive_tips["red"] = 1
+        early_nectar = {"kind": "NECTAR", "element_id": "nectar-alliance-blue-1",
+                        "team": "blue", "time": 10}
+        rules.record_flower_deposit(early_nectar, 100)
+        score = rules.score_snapshot(world)["by_alliance"]
+
+        self.assertEqual(score["blue"]["flowers"], 8)  # dono é o último NECTAR
+        self.assertEqual(score["red"]["bottom_nectar_bonus"], 5)
+        self.assertEqual(score["red"]["hive_tips"], 20)
+        self.assertEqual(score["blue"]["hive_elements"], 6)
+        self.assertGreaterEqual(score["red"]["gardens"], 1)
+        self.assertEqual(score["red"]["penalties_received"], 20)
+        self.assertEqual(score["blue"]["penalties_received"], 0)
+
+    def test_hive_tip_releases_same_cell_elements_to_physical_fall(self):
+        world = World()
+        rules = BioBuzzRules("red")
+        nectar = next(piece for piece in world.elements if piece.id == "nectar-hive-red-0")
+        event = rules.register_hive_tip("red", 1.0, world, "red-lower")
+        self.assertEqual(event["cell_id"], "red-lower")
+        self.assertEqual((nectar.status, nectar.location), ("falling", "hive-release"))
+        self.assertEqual(nectar.flight["mode"], "hive_release")
+        self.assertEqual(sum(piece.id == nectar.id for piece in world.elements), 1)
+        world.elapsed = 1.4
+        update_elements(world, .4)
+        self.assertEqual((nectar.status, nectar.location), ("field", "field"))
+        self.assertIsNone(nectar.flight)
+
+    def test_hive_tip_rejects_cell_not_currently_up(self):
+        rules = BioBuzzRules("red")
+        with self.assertRaisesRegex(ValueError, "CELL atualmente"):
+            rules.register_hive_tip("red", 1.0, cell_id="red-upper")
+        self.assertEqual(rules.hive_tips["red"], 0)
+
     def test_session_records_g410_for_java_servo_deposit_outside_endgame(self):
         session = Session({"alliance": "red", "match-mode": "teleop"})
         session.started, session.status = True, "executando"
         nectar = next(piece for piece in session.world.elements
-                      if piece.id == "nectar-alliance-red-0")
+                      if piece.id == "nectar-alliance-blue-0")
         nectar.status = "robot"
         session.world.inventory = [nectar.id]
         session.world.x, session.world.y = FLOWERS[0]
         session.rpc("servo", "flower", "set", .8)
         self.assertEqual(session.world.flower_events[-1]["kind"], "NECTAR")
         self.assertEqual(session.rules.penalties[-1]["code"], "G410")
+        self.assertEqual(session.rules.penalties[-1]["team"], "red")
+        self.assertEqual(session.rules.penalties[-1]["points_to_opponent"], 20)
         self.assertIsNone(session.rules.penalties[-1]["points_awarded"])
         session.rpc("servo", "flower", "set", .5)
         second = next(piece for piece in session.world.elements

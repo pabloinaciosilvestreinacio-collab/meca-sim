@@ -155,4 +155,12 @@
 - Um NECTAR reservado mantém o mesmo ID ao ser liberado por TIP/endgame e entra pelo estado transitório `entering`, com queda visual de 0,45 m na Loading Zone; depois passa a `field` e usa colisões/intake existentes.
 - A queda é uma aproximação visual vertical: o manual TU05 G426/G427 libera a entrada após TIP/último minuto e exige que o Human Player introduza o NECTAR pela Loading Zone; o elemento não é ejetado do HIVE.
 - Regressão verifica queda, conservação dos 16 NECTAR, IDs únicos e coleta de uma entrada anterior enquanto outra está entrando.
-- Suíte local: 88 testes aprovados, 14 testes de JVM ignorados por JDK ausente; JavaScript 28/28 aprovado. E2E Chromium e CI remota deste commit ainda pendentes.
+- Suíte local após a etapa HIVE/FLOWER: 92 testes aprovados, 14 testes de JVM ignorados por JDK ausente; JavaScript, checagem sintática, compilação Python e diff ainda precisam ser repetidos antes do fechamento deste bloco. E2E Chromium e CI remota deste commit ainda pendentes.
+
+# 16/10/2026 — Estado do HIVE, FLOWER e pontuação estimada
+
+- Cada elemento que pontuou em HIVE mantém o ID e a CELL de destino. Um TIP valida a CELL voltada para cima, transfere os mesmos elementos para `falling` e depois `field`; não cria cópias.
+- A pontuação agora é calculada a partir dos estados dos elementos: HIVE TIP (20), elementos na CELL atualmente voltada para cima (2 cada), FLOWER (2 por elemento na sequência cujo dono é determinado pela última NECTAR; bônus estimado de 5 à primeira NECTAR), GARDEN (1 por peça em zona esquemática) e Major Foul G410 (20 pontos para o adversário).
+- O relatório final usa a mesma fotografia de pontuação do servidor para ambas as alianças, separa categorias e explicita limitações. G410 é atribuído à aliança do robô que depositou, não à cor da NECTAR.
+- A ordem de depósito é somente uma aproximação do empilhamento vertical na FLOWER; zonas GARDEN e conteúdo de CELL são simplificados. O TIP após oito elementos é didático e não uma constante oficial. Não há ranking points ou arbitragem completa.
+- Suíte Python local: 92 testes aprovados, 14 testes de JVM ignorados por falta de JDK. Validação de JavaScript e CI desta revisão pendente.

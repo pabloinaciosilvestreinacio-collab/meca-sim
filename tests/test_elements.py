@@ -8,6 +8,7 @@ from urllib.request import Request, urlopen
 from elements import inventory_counts, starting_elements, starting_inventory, update_elements, deposit_to_flower, resolve_launch
 from server import App, Session, handler_for
 from physics import World
+from rules import BioBuzzRules
 
 
 class ElementSimulationTests(unittest.TestCase):
@@ -198,6 +199,25 @@ class ElementSimulationTests(unittest.TestCase):
         self.assertFalse(resolve_launch(world, launched_id, 1, "scored", 1.2, 1.3)["changed"])
         self.assertEqual(sum(item.kind == "POLLEN" for item in world.elements), 40)
         self.assertEqual(len({item.id for item in world.elements}), len(world.elements))
+
+    def test_nectar_launch_keeps_identity_and_counts_in_hive_cell(self):
+        world = World()
+        nectar = next(item for item in world.elements
+                      if item.id == "nectar-alliance-red-0")
+        nectar.status, nectar.location = "robot", "inventory"
+        world.inventory = [nectar.id]
+        world.motors["MS"].power = world.motors["MI"].power = 1
+        world.elapsed = .8
+        update_elements(world, .01)
+        self.assertEqual((nectar.status, nectar.location), ("launched", "projectile"))
+        result = resolve_launch(world, nectar.id, 1, "scored", 1.4, 1.5)
+        self.assertEqual(result["status"], "scored")
+        self.assertEqual(nectar.score_zone, "red-lower")
+        self.assertEqual(sum(item.id == nectar.id for item in world.elements), 1)
+
+        score = BioBuzzRules("red").score_snapshot(world)["by_alliance"]
+        # Três NECTAR iniciais mais o NECTAR lançado permanecem na CELL ativa.
+        self.assertEqual(score["red"]["hive_elements"], 8)
 
     def test_missed_projectile_returns_to_field_as_the_same_element(self):
         world = World()

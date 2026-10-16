@@ -6,10 +6,20 @@ HIVE vem do modelo didático do simulador e não é uma decisão oficial de árb
 from __future__ import annotations
 
 from dataclasses import dataclass
+import math
 
 MAX_ALLIANCE_NECTAR = 5
 ENDGAME_REMAINING_SECONDS = 60.0
 ALLIANCES = ("red", "blue")
+FIELD_SIZE = 3.66
+HIVE_CELLS = {"red": {"lower": "red-lower", "upper": "red-upper"},
+              "blue": {"lower": "blue-lower", "upper": "blue-upper"}}
+# Coordenadas esquemáticas alinhadas às zonas desenhadas em web/arena.mjs.
+GARDEN_ZONES = {
+    "red": ((0.0, 2.43, .29, .62), (0.0, 0.0, .584, .051)),
+    "blue": ((FIELD_SIZE-.28, .6, .28, .62),
+             (FIELD_SIZE-.584, FIELD_SIZE-.051, .584, .051)),
+}
 
 
 @dataclass
@@ -24,14 +34,98 @@ class BioBuzzRules:
         self.events = []
         self.penalties = []
 
-    def register_hive_tip(self, team, elapsed):
+    def register_hive_tip(self, team, elapsed, world=None, cell_id=None):
         if team not in ALLIANCES:
             raise ValueError("Aliança do HIVE inválida")
+        expected = self.active_hive_cell(team)
+        if cell_id is not None and cell_id != expected:
+            raise ValueError("O TIP não corresponde à CELL atualmente voltada para cima")
+        cell_id = expected
         self.hive_tips[team] += 1
-        event = {"type": "hive_tip", "team": team, "time": round(float(elapsed), 3),
+        # A CELL que estava para cima passa a apontar para baixo; as peças que
+        # ficaram nela são liberadas como os mesmos objetos, em queda até o piso.
+        if world is not None:
+            for piece in world.elements:
+                zone = piece.score_zone or (piece.location if piece.location in
+                                             (*HIVE_CELLS[team].values(),) else None)
+                if zone != cell_id or piece.status not in ("hive", "scored"):
+                    continue
+                piece.status, piece.location = "falling", "hive-release"
+                piece.flight = {"mode": "hive_release", "started_at": float(elapsed),
+                                "height": .75, "z": .75, "cell_id": cell_id}
+        event = {"type": "hive_tip", "team": team, "cell_id": cell_id,
+                 "time": round(float(elapsed), 3),
                  "source": "simulated_hive_tip"}
         self._append(self.events, event)
         return event
+
+    def active_hive_cell(self, team):
+        if team not in ALLIANCES:
+            raise ValueError("Aliança inválida")
+        initial = "lower" if team == "red" else "upper"
+        if self.hive_tips[team] % 2:
+            initial = "upper" if initial == "lower" else "lower"
+        return HIVE_CELLS[team][initial]
+
+    def score_snapshot(self, world):
+        """Calcula uma estimativa por estado de peça e regras BIOBUZZ TU05."""
+        points = {team: {"hive_tips": 20*self.hive_tips[team],
+                         "hive_elements": 0, "flowers": 0, "bottom_nectar_bonus": 0,
+                         "gardens": 0, "penalties_received": 0, "total": 0}
+                  for team in ALLIANCES}
+
+        for piece in world.elements:
+            zone = piece.score_zone or piece.location
+            if piece.status in ("hive", "scored") and zone == self.active_hive_cell(
+                    "red" if zone.startswith("red-") else "blue"):
+                alliance = "red" if zone.startswith("red-") else "blue"
+                points[alliance]["hive_elements"] += 2
+
+        deposited = [piece for piece in world.elements if piece.status == "deposited"
+                     and piece.location.startswith("flower-")]
+        flower_points, bonus_points = {team: 0 for team in ALLIANCES}, {team: 0 for team in ALLIANCES}
+        for flower_index in range(4):
+            contents = sorted((piece for piece in deposited
+                               if piece.location == f"flower-{flower_index}"),
+                              key=lambda piece: piece.deposit_sequence or 0)
+            nectars = [piece for piece in contents if piece.kind == "NECTAR"
+                       and piece.team in ALLIANCES]
+            if not nectars:
+                continue
+            owner = nectars[-1].team
+            flower_points[owner] += 2*len(contents)
+            bonus_points[nectars[0].team] += 5
+        for team in ALLIANCES:
+            points[team]["flowers"] = flower_points[team]
+            points[team]["bottom_nectar_bonus"] = bonus_points[team]
+
+        for piece in world.elements:
+            if piece.status != "field":
+                continue
+            radius = piece.radius
+            for team in ALLIANCES:
+                if any(_circle_intersects_rect(piece.x, piece.y, radius, zone)
+                       for zone in GARDEN_ZONES[team]):
+                    points[team]["gardens"] += 1
+                    break
+
+        for penalty in self.penalties:
+            penalized = penalty.get("team")
+            if penalized not in ALLIANCES:
+                continue
+            recipient = "blue" if penalized == "red" else "red"
+            points[recipient]["penalties_received"] += int(penalty.get("points_to_opponent", 20))
+
+        for team in ALLIANCES:
+            points[team]["total"] = sum(value for category, value in points[team].items()
+                                         if category != "total")
+        return {"by_alliance": points,
+                "limitations": [
+                    "HIVE TIP pontua 20, mas o evento é gerado pelo limiar didático de 8 POLLEN.",
+                    "FLOWER usa a ordem dos depósitos do OpMode como aproximação vertical do volume.",
+                    "GARDEN usa círculos e zonas 2D esquemáticas; zonas oficiais/CAD e arbitragem não são reproduzidas.",
+                    "Pontos por peças em CELL são uma projeção do estado atual da CELL voltada para cima."
+                ]}
 
     def available_nectar(self, team, remaining_seconds):
         if team not in ALLIANCES:
@@ -70,11 +164,13 @@ class BioBuzzRules:
         self._append(self.events, event)
         return event
 
-    def record_flower_deposit(self, event, remaining_seconds):
+    def record_flower_deposit(self, event, remaining_seconds, robot_alliance=None):
         if not event or event.get("kind") != "NECTAR" or remaining_seconds <= ENDGAME_REMAINING_SECONDS:
             return None
+        penalized_team = robot_alliance or event.get("robot_alliance") or event.get("team")
         penalty = {"code": "G410", "severity": "major_foul",
                    "element_id": event.get("element_id"),
+                   "team": penalized_team, "points_to_opponent": 20,
                    "time": round(float(event.get("time", 0)), 3),
                    "description": "NECTAR entrou no volume de pontuação da FLOWER antes dos últimos 60 segundos.",
                    "points_awarded": None, "adjudication": "recorded_not_awarded"}
@@ -108,6 +204,13 @@ class BioBuzzRules:
             "limitations": [
                 "O TIP vem do modelo didático de 8 POLLEN; não representa critério físico oficial.",
                 "G426 libera a entrada e G427 exige a Loading Zone; o botão do Human Player inicia uma queda visual aproximada de 0,45 m.",
-                "Faltas são registradas para relatório, sem atribuição automática de pontos."
+                "Pontos BIOBUZZ são estimados de estados 2D; áreas verticais e julgamento de falta continuam aproximados."
             ]
         }
+
+
+def _circle_intersects_rect(x, y, radius, rect):
+    rx, ry, width, height = rect
+    closest_x = max(rx, min(rx+width, x))
+    closest_y = max(ry, min(ry+height, y))
+    return math.hypot(x-closest_x, y-closest_y) <= radius
