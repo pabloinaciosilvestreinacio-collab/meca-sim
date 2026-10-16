@@ -52,10 +52,23 @@ try:
     with sync_playwright() as p:
         browser=p.chromium.launch()
         page=browser.new_page(viewport={'width':1440,'height':1100})
-        errors=[];page.on('pageerror',lambda error:errors.append(str(error)))
+        errors=[];console_errors=[];failed_requests=[]
+        page.on('pageerror',lambda error:errors.append(str(error)))
+        page.on('console',lambda message:console_errors.append(message.text) if message.type=='error' else None)
+        page.on('requestfailed',lambda request:failed_requests.append({
+            'url':request.url,'error':request.failure}))
         page.goto(f'http://127.0.0.1:{port}')
         page.locator('#source').wait_for()
-        page.wait_for_function("document.querySelector('#source').value.includes('LinearOpMode')")
+        try:
+            page.wait_for_function("document.querySelector('#source').value.includes('LinearOpMode')")
+        except Exception as error:
+            raise AssertionError(
+                'O exemplo Java não foi carregado: '
+                f'page_errors={errors!r}; console_errors={console_errors!r}; '
+                f'failed_requests={failed_requests!r}; '
+                f'example_status={page.request.get(f"http://127.0.0.1:{port}/examples").status}; '
+                f'body={page.locator("body").inner_text()[:1200]!r}'
+            ) from error
         assert page.locator('#top').evaluate('(e)=>e.width>0 && e.height>0')
         assert page.locator('#diagnostic-panel').count()==1
         page.locator('[data-tab="robot"]').click()
