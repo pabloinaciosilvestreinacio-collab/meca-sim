@@ -141,3 +141,11 @@
 
 - Depois de gerar o relatório final de uma partida, a interface deixa de tratar a partida como ativa; descartar o relatório agora continua descartando-o nos ciclos seguintes de telemetria.
 - O E2E espera mais de dois ciclos de polling após o descarte para detectar eventual reaparecimento.
+
+# 16/10/2026 — Identidade e trajetória do POLLEN
+
+- Os quatro preloads agora são desenhados dentro do robô a partir dos mesmos IDs presentes no inventário.
+- Intake conserva o objeto existente; o shooter posiciona esse mesmo ID na origem configurada e atualiza sua posição/altura durante o voo.
+- Acerto previsto pelo modelo do HIVE resolve o objeto no estado pontuado. Um disparo que não acerta volta ao campo ao aterrissar e pode voltar a colidir/coletar.
+- Snapshot inclui IDs do inventário, estado de voo e ID do lançamento. A resolução confere o ID da trajetória para rejeitar respostas atrasadas de disparos anteriores. Adicionados testes de conservação, origem, trajetória analítica independente, acerto, erro e rota HTTP.
+- Aproximação: projétil ideal sem arrasto ou colisão 3D; impacto/pontuação ainda usa a previsão existente da interface.

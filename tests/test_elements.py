@@ -1,7 +1,12 @@
 import unittest
+import math
+import json
+import threading
+from http.server import ThreadingHTTPServer
+from urllib.request import Request, urlopen
 
-from elements import inventory_counts, starting_elements, starting_inventory, update_elements, deposit_to_flower
-from server import Session
+from elements import inventory_counts, starting_elements, starting_inventory, update_elements, deposit_to_flower, resolve_launch
+from server import App, Session, handler_for
 from physics import World
 
 
@@ -114,6 +119,10 @@ class ElementSimulationTests(unittest.TestCase):
         self.assertEqual(len(world.inventory), 3)
         self.assertEqual(world.launches[-1]["kind"], "POLLEN")
         self.assertEqual(world.launches[-1]["hive"], "red-lower")
+        launched = next(piece for piece in world.elements if piece.id == world.launches[-1]["piece_id"])
+        self.assertEqual((launched.status, launched.location), ("launched", "projectile"))
+        self.assertAlmostEqual(launched.x, world.launches[-1]["x"])
+        self.assertAlmostEqual(launched.y, world.launches[-1]["y"])
         world.elapsed = 1.59
         update_elements(world, .01)
         self.assertEqual(world.launch_count, 1)
@@ -131,6 +140,112 @@ class ElementSimulationTests(unittest.TestCase):
         self.assertEqual(world.launches, [])
         self.assertEqual(world.launch_count, 0)
         self.assertEqual(world.empty_feed_attempts, 1)
+
+    def test_preload_ids_are_renderable_inventory_elements(self):
+        world = World()
+        world.inventory = starting_inventory(world.elements)
+        preload_ids = [piece.id for piece in world.elements if piece.status == "robot"]
+        self.assertEqual(len(preload_ids), 4)
+        self.assertEqual(set(preload_ids), set(world.inventory))
+        self.assertEqual(set(world.snapshot()["inventory_ids"]), set(preload_ids))
+        self.assertTrue(all(next(p for p in world.elements if p.id == piece_id).x == -1 for piece_id in preload_ids))
+
+    def test_same_pollen_id_moves_inventory_to_shooter_flight_and_scored_state(self):
+        world = World()
+        # Libera o teste de ciclo completo, mantendo os quatro elementos
+        # preloaded rastreados em estado reservado.
+        for item in world.elements:
+            if item.status == "robot":
+                item.status, item.location = "reserved", "test-preload"
+        world.inventory = []
+        captured = next(item for item in world.elements if item.status == "field")
+        captured.x, captured.y = world.x, world.y + world.length/2 + .10
+        world.motors["MI"].power = 1
+        update_elements(world, .01)
+        launched_id = captured.id
+        self.assertEqual((captured.status, captured.location), ("robot", "inventory"))
+        self.assertEqual(world.inventory, [launched_id])
+
+        world.motors["MS"].power = world.motors["MI"].power = 1
+        world.elapsed = .8
+        update_elements(world, .01)
+        piece = next(item for item in world.elements if item.id == launched_id)
+        self.assertNotIn(launched_id, world.inventory)
+        self.assertEqual((piece.status, piece.location, piece.launch_id), ("launched", "projectile", 1))
+        self.assertEqual(sum(item.id == launched_id for item in world.elements), 1)
+        origin = (world.x + .1125, world.y + .225)
+        self.assertAlmostEqual(piece.x, origin[0])
+        self.assertAlmostEqual(piece.y, origin[1])
+        with self.assertRaisesRegex(ValueError, "não corresponde"):
+            resolve_launch(world, launched_id, 0, "scored", 1.2, 1.3)
+        self.assertEqual(piece.status, "launched")
+
+        # Solução cinemática independente para t=0,1 s: x/y seguem a velocidade
+        # horizontal e z usa z0 + v*sin(a)*t - g*t²/2.
+        world.elapsed += .1
+        update_elements(world, .1)
+        angle = math.radians(78)
+        speed = 5.0
+        expected_distance = speed * math.cos(angle) * .1
+        self.assertAlmostEqual(piece.x, origin[0], places=6)
+        self.assertAlmostEqual(piece.y, origin[1] + expected_distance, places=6)
+        self.assertAlmostEqual(piece.flight["z"], .30 + speed*math.sin(angle)*.1 - 9.81*.1**2/2, places=6)
+
+        result = resolve_launch(world, launched_id, 1, "scored", 1.2, 1.3)
+        self.assertTrue(result["changed"])
+        self.assertEqual((piece.status, piece.location, piece.x, piece.y), ("scored", "hive", 1.2, 1.3))
+        self.assertIsNone(piece.flight)
+        self.assertFalse(resolve_launch(world, launched_id, 1, "scored", 1.2, 1.3)["changed"])
+        self.assertEqual(sum(item.kind == "POLLEN" for item in world.elements), 40)
+        self.assertEqual(len({item.id for item in world.elements}), len(world.elements))
+
+    def test_missed_projectile_returns_to_field_as_the_same_element(self):
+        world = World()
+        world.inventory = starting_inventory(world.elements)
+        piece_id = world.inventory[0]
+        world.motors["MS"].power = world.motors["MI"].power = 1
+        world.elapsed = .8
+        update_elements(world, .01)
+        piece = next(item for item in world.elements if item.id == piece_id)
+        world.elapsed += 1.2
+        update_elements(world, 1.2)
+        self.assertEqual((piece.status, piece.location), ("field", "field"))
+        self.assertGreaterEqual(piece.x, piece.radius)
+        self.assertLessEqual(piece.x, world.field_size-piece.radius)
+        self.assertIsNone(piece.flight)
+        # A previsão do HIVE pode finalizar no polling após o instante de pouso;
+        # o mesmo ID segue resolvível sem criar um segundo objeto.
+        late_result = resolve_launch(world, piece_id, 1, "scored", 1.2, 1.3)
+        self.assertTrue(late_result["changed"])
+        self.assertEqual((piece.status, piece.location), ("scored", "hive"))
+
+
+class ElementResultHttpTests(unittest.TestCase):
+    def test_scoring_endpoint_resolves_the_launched_element_id(self):
+        app = App()
+        app.session = Session()
+        world = app.session.world
+        piece_id = world.inventory[0]
+        world.motors["MS"].power = world.motors["MI"].power = 1
+        world.elapsed = .8
+        update_elements(world, .01)
+        httpd = ThreadingHTTPServer(("127.0.0.1", 0), handler_for(app))
+        thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+        thread.start()
+        try:
+            body = json.dumps({"element_id": piece_id, "launch_id": 1, "result": "scored", "x": 1.2, "y": 1.3}).encode()
+            request = Request(f"http://127.0.0.1:{httpd.server_port}/api/element-result", data=body,
+                              headers={"Content-Type": "application/json", "X-Sim-Token": app.token})
+            with urlopen(request) as response:
+                result = json.loads(response.read())
+            self.assertEqual(result, {"element_id": piece_id, "status": "scored", "changed": True})
+            piece = next(item for item in world.elements if item.id == piece_id)
+            self.assertEqual((piece.status, piece.location), ("scored", "hive"))
+            self.assertNotIn(piece_id, world.inventory)
+        finally:
+            httpd.shutdown()
+            httpd.server_close()
+            thread.join(timeout=2)
 
 
 if __name__ == "__main__":

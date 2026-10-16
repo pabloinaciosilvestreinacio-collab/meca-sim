@@ -190,6 +190,7 @@ class World:
                 "motors": {name: {"power": m.power, "encoder": m.position(), "direction": m.direction,
                                   "mount": m.mount, "side": m.side, "mode": m.mode} for name, m in self.motors.items()},
                 "elements": [piece.snapshot() for piece in self.elements],
+                "inventory_ids": self.inventory[:],
                 "inventory": inventory_counts(self.elements, self.inventory),
                 "launches": [event.copy() for event in self.launches],
                 "flower_events": [event.copy() for event in self.flower_events],

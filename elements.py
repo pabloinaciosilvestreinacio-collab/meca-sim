@@ -29,11 +29,15 @@ class ScoringElement:
     radius: float
     vx: float = 0.0
     vy: float = 0.0
+    flight: dict | None = None
+    launch_id: int | None = None
 
     def snapshot(self):
         return {"id": self.id, "kind": self.kind, "team": self.team,
                 "x": self.x, "y": self.y, "status": self.status,
-                "location": self.location, "radius": self.radius}
+                "location": self.location, "radius": self.radius,
+                "flight": self.flight.copy() if self.flight else None,
+                "launch_id": self.launch_id}
 
 
 def starting_elements(alliance="red"):
@@ -149,21 +153,57 @@ def _try_launch(world):
         world.empty_feed_attempts += 1
         return
     piece.status = "launched"
-    piece.location = "shooter"
+    piece.location = "projectile"
     dx, dy = _world(settings["lateral"], settings["forward"], world.yaw)
+    origin_x, origin_y = world.x+dx, world.y+dy
+    angle = math.radians(settings["elevation"])
+    direction = math.radians(world.yaw + settings["azimuth"])
     world.launch_sequence += 1
     world.launch_count += 1
     event = {
         "id": world.launch_sequence, "piece_id": piece.id, "kind": piece.kind,
         "team": piece.team, "time": world.elapsed,
-        "x": world.x+dx, "y": world.y+dy, "yaw": math.degrees(world.yaw),
+        "x": origin_x, "y": origin_y, "yaw": math.degrees(world.yaw),
         "hive": settings["hive"], "lateral": settings["lateral"],
         "forward": settings["forward"], "height": settings["height"],
         "speed": settings["speed"], "elevation": settings["elevation"],
         "azimuth": settings["azimuth"]
     }
+    piece.x, piece.y = origin_x, origin_y
+    piece.vx = -settings["speed"] * math.cos(angle) * math.sin(direction)
+    piece.vy = settings["speed"] * math.cos(angle) * math.cos(direction)
+    piece.flight = {"started_at": world.elapsed, "x": origin_x, "y": origin_y,
+                    "height": settings["height"], "speed": settings["speed"],
+                    "elevation": settings["elevation"], "direction": direction,
+                    "launch_id": world.launch_sequence}
+    piece.launch_id = world.launch_sequence
     world.launches.append(event)
     world.launches = world.launches[-32:]
+
+
+def resolve_launch(world, element_id, launch_id, result, x=None, y=None):
+    """Resolve a launched element by its stable ID; repeated results are harmless."""
+    if result not in ("scored", "missed"):
+        raise ValueError("Resultado de lançamento inválido")
+    piece = next((item for item in world.elements if item.id == element_id), None)
+    if piece is None or piece.kind != "POLLEN" or piece.launch_id is None:
+        raise ValueError("POLLEN lançado não encontrado")
+    if not isinstance(launch_id, int) or isinstance(launch_id, bool) or piece.launch_id != launch_id:
+        raise ValueError("ID da trajetória não corresponde ao lançamento atual")
+    if piece.status == "scored" or (piece.status == "field" and result == "missed"):
+        return {"element_id": piece.id, "status": piece.status, "changed": False}
+    if piece.status not in ("launched", "field"):
+        raise ValueError("POLLEN não está em trajetória")
+    if result == "scored":
+        if x is None or y is None or not all(math.isfinite(v) for v in (x, y)):
+            raise ValueError("Posição de pontuação inválida")
+        piece.x, piece.y = x, y
+        piece.status, piece.location = "scored", "hive"
+        piece.vx = piece.vy = 0.0
+    else:
+        piece.status, piece.location = "field", "field"
+    piece.flight = None
+    return {"element_id": piece.id, "status": piece.status, "changed": True}
 
 
 def deposit_to_flower(world):
@@ -199,6 +239,29 @@ def deposit_to_flower(world):
 
 def update_elements(world, dt, robot_velocity=(0.0, 0.0)):
     """Integra peças soltas, colisões e captura enquanto MI gira para intake."""
+    # Avance os mesmos objetos que foram retirados do inventário. A UI só os
+    # desenha; não cria uma segunda peça para representar o disparo.
+    for piece in world.elements:
+        if piece.status != "launched" or not piece.flight:
+            continue
+        data = piece.flight
+        t = max(0.0, world.elapsed - data["started_at"])
+        angle = math.radians(data["elevation"])
+        horizontal_speed = data["speed"] * math.cos(angle)
+        distance = horizontal_speed * t
+        piece.x = data["x"] - distance * math.sin(data["direction"])
+        piece.y = data["y"] + distance * math.cos(data["direction"])
+        z = data["height"] + data["speed"] * math.sin(angle) * t - 4.905*t*t
+        data["z"] = max(0.0, z)
+        data["elapsed"] = t
+        if z <= 0 and t > 0:
+            piece.status, piece.location = "field", "field"
+            piece.flight = None
+            piece.vx = -horizontal_speed * math.sin(data["direction"])
+            piece.vy = horizontal_speed * math.cos(data["direction"])
+            piece.x = min(FIELD_SIZE-piece.radius, max(piece.radius, piece.x))
+            piece.y = min(FIELD_SIZE-piece.radius, max(piece.radius, piece.y))
+
     active = [p for p in world.elements if p.status == "field"]
     drag = math.exp(-3.0*dt)
     for piece in active:

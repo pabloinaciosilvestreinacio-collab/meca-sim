@@ -15,7 +15,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 
 from physics import World, Motor
-from elements import starting_elements, starting_inventory, deposit_to_flower
+from elements import starting_elements, starting_inventory, deposit_to_flower, resolve_launch
 from rules import BioBuzzRules
 from sdk import write_sdk
 from project_import import import_ftc_zip
@@ -536,6 +536,16 @@ def handler_for(app):
                         else:
                             raise ValueError("Ação de regra desconhecida")
                         self.send({"ok": True, "event": event})
+                        return
+                    elif self.path == "/api/element-result":
+                        element_id = data.get("element_id")
+                        result = data.get("result")
+                        if not isinstance(element_id, str) or len(element_id) > 120:
+                            raise ValueError("ID de elemento inválido")
+                        with session.lock:
+                            event = resolve_launch(session.world, element_id, data.get("launch_id"), result,
+                                                  data.get("x"), data.get("y"))
+                        self.send(event)
                         return
                     elif self.path == "/api/stop": session.stop()
                     elif self.path == "/api/reset":

@@ -78,6 +78,7 @@ function recordImpact(shot,now){
   const result=registerPollen(hiveCounts[cell.team],SIM_TIP_POLLS);
   hiveCounts[cell.team]=result.count;
   shot.registered=true;shot.tipped=result.tipped;
+  if(shot.pieceId)api('element-result',{element_id:shot.pieceId,launch_id:shot.launchId,result:'scored',x:shot.impact.x,y:shot.impact.y}).catch(error=>notice(error.message));
   if(result.tipped){
     if(matchStarted&&state.status==='executando')
       api('rules',{action:'hive_tip',team:cell.team}).catch(error=>notice(error.message));
@@ -571,11 +572,11 @@ function drawTop(now) {
   c.lineWidth=1;c.font='10px system-ui';
   for(let i=0;i<=6;i++){const p=i*3.66/6,[x,y]=project(p,p);c.strokeStyle='#242c37';c.beginPath();c.moveTo(x,g.oy);c.lineTo(x,g.oy-3.66*g.scale);c.moveTo(g.ox,y);c.lineTo(g.ox+3.66*g.scale,y);c.stroke();c.fillStyle='#627085';c.fillText(p.toFixed(2),x-9,g.oy+15);c.fillText(p.toFixed(2),g.ox-28,y+3);}
   c.strokeStyle='#536277';c.strokeRect(g.ox,g.oy-3.66*g.scale,3.66*g.scale,3.66*g.scale);
-  (state.elements||[]).filter(item=>['field','flower','hive','deposited'].includes(item.status)).forEach(item=>{
+  (state.elements||[]).filter(item=>['field','flower','hive','deposited','launched'].includes(item.status)).forEach(item=>{
     const q=project(item.x,item.y),radius=Math.max(3,item.radius*g.scale);
     const nectar=item.kind==='NECTAR',fill=nectar?(item.team==='red'?'#e34f5a':'#4c91e8'):'#f1ce54';
     c.fillStyle=fill;c.strokeStyle=nectar?'#f7f8ff':'#80621f';c.lineWidth=1.3;
-    c.beginPath();c.arc(q[0],q[1],radius,0,Math.PI*2);c.fill();c.stroke();
+    c.beginPath();c.arc(q[0],q[1],item.status==='launched'?Math.max(4,radius):radius,0,Math.PI*2);c.fill();c.stroke();
     c.strokeStyle=nectar?'#ffffffaa':'#fff2ad';c.lineWidth=1;
     c.beginPath();c.moveTo(q[0]-radius*.55,q[1]);c.lineTo(q[0]+radius*.55,q[1]);c.stroke();
   });
@@ -589,6 +590,13 @@ function drawTop(now) {
   const shown=replayIndex>=0?{...state,x:replayRows[replayIndex][1],y:replayRows[replayIndex][2],yaw:replayRows[replayIndex][3]}:state;
   const corner=(x,y)=>{const r=rotate(x,y,shown.yaw);return project(shown.x+r[0],shown.y+r[1]);};
   c.beginPath();[[-1,-1],[1,-1],[1,1],[-1,1]].forEach(([x,y],i)=>{const p=corner(x*state.width/2,y*state.length/2);i?c.lineTo(...p):c.moveTo(...p);});c.closePath();const robotColor=$('robot-color').value||'#ff7a1a';c.fillStyle=robotColor+'33';c.fill();c.strokeStyle=robotColor;c.stroke();
+  const elementsById=new Map((state.elements||[]).map(item=>[item.id,item]));
+  const preloads=(state.inventory_ids||[]).map(id=>elementsById.get(id)).filter(item=>item?.status==='robot');
+  preloads.forEach((item,index)=>{
+    const slots=[[-.10,-.11],[-.035,-.11],[.035,-.11],[.10,-.11]],local=slots[index%slots.length];
+    const p=corner(local[0],local[1]);c.fillStyle='#f1ce54';c.strokeStyle='#fff2ad';c.lineWidth=1.2;
+    c.beginPath();c.arc(...p,Math.max(4,item.radius*g.scale),0,Math.PI*2);c.fill();c.stroke();
+  });
   const intakeReach=Number.isFinite(state.intake?.reach)?state.intake.reach:num('intake_reach');
   const intakeCorners=[[-shown.width/2,shown.length/2],[shown.width/2,shown.length/2],[shown.width/2,shown.length/2+intakeReach],[-shown.width/2,shown.length/2+intakeReach]].map(([x,y])=>{const r=rotate(x,y,shown.yaw);return project(shown.x+r[0],shown.y+r[1]);});
   c.beginPath();intakeCorners.forEach((p,i)=>i?c.lineTo(...p):c.moveTo(...p));c.closePath();c.fillStyle=state.intake?.active?'#51d1bb55':'#51d1bb12';c.fill();c.strokeStyle=state.intake?.active?'#51d1bb':'#51d1bb66';c.setLineDash([4,3]);c.stroke();c.setLineDash([]);
@@ -603,7 +611,7 @@ function drawTop(now) {
   c.lineWidth=1;c.setLineDash([5,5]);c.strokeStyle='#6b7584';c.beginPath();c.moveTo(...start);c.lineTo(...target);c.stroke();c.strokeStyle='#51d1bb';c.beginPath();c.moveTo(...start);c.lineTo(...end);c.stroke();c.setLineDash([]);
   c.fillStyle='#51d1bb';c.beginPath();c.arc(...start,4,0,Math.PI*2);c.fill();c.strokeStyle=(gateHit?gateHit.hit:check.possible)?'#55d9ab':'#ef727c';c.lineWidth=2;c.beginPath();c.arc(...target,9,0,Math.PI*2);c.moveTo(target[0]-14,target[1]);c.lineTo(target[0]+14,target[1]);c.moveTo(target[0],target[1]-14);c.lineTo(target[0],target[1]+14);c.stroke();
   if(impactPoint&&Number.isFinite(impactPoint.x)&&Number.isFinite(impactPoint.y)){const q=project(impactPoint.x,impactPoint.y);c.fillStyle='#ffe66d';c.strokeStyle=gateHit?.hit?'#fff7bd':'#ef727c';c.lineWidth=2;c.beginPath();c.arc(...q,6,0,Math.PI*2);c.fill();c.stroke();c.fillStyle='#1c2028';c.font='bold 9px system-ui';c.textAlign='center';c.fillText(gateHit?.hit?'ENTROU':'IMPACTO',q[0],q[1]-10);}
-  for(const ballShot of [...javaShots,...(shot?[shot]:[])]){
+  for(const ballShot of shot?[shot]:[]){
     const q=currentShotBall(now,ballShot);if(q&&q.fall<1){const pos=project(q.x,q.y);c.fillStyle=ballShot.kind==='NECTAR'?(ballShot.team==='blue'?'#4c91e8':'#e34f5a'):'#fff4a9';c.beginPath();c.arc(...pos,ballShot.kind==='NECTAR'?6:5,0,Math.PI*2);c.fill();c.strokeStyle='#bd924e';c.stroke();}
   }
   $('bounds').textContent=state.collision?'Contato com parede · rodas podem patinar':'Paredes externas físicas · frente +Y · yaw positivo ↶';
@@ -824,7 +832,7 @@ function receiveJavaLaunches(){
     const impact=hiveShotImpact({...v,origin,yaw,hiveAngle},cell);
     javaShots.push({...v,origin,yaw,start:performance.now()-Math.max(0,(state.time-event.time)*1000),
       impact,cellId:cell.id,hiveAngle,restIndex:scoredShots.filter(ball=>ball.cellId===cell.id).length,
-      kind:event.kind,team:event.team||cell.team,pieceId:event.piece_id});
+      kind:event.kind,team:event.team||cell.team,pieceId:event.piece_id,launchId:event.id});
     setShotResult('JAVA LANÇOU '+event.kind+' · '+(impact.hit?'trajetória prevista para a CELL.':'não atinge: '+impact.reason+'.'),'info');
   }
 }
@@ -868,7 +876,8 @@ function frame(now){
     const elapsed=shotElapsed(now,candidate.start),impact=candidate.impact?.hit?candidate.impact:null;
     if(impact&&!candidate.registered&&elapsed>=impact.time)recordImpact(candidate,now);
     if(impact&&elapsed>=impact.time+.42){
-      if(!candidate.tipped){const cell=hiveCellById(candidate.cellId);scoredShots.push({cellId:cell.id,x:impact.x,y:impact.y,height:impact.height,kind:candidate.kind});}
+      if(!candidate.tipped){const cell=hiveCellById(candidate.cellId);scoredShots.push({cellId:cell.id,x:impact.x,y:impact.y,height:impact.height,kind:candidate.kind});
+      }
       if(candidate.tipped)selectHive(hiveCellById(activeCellId(impact.team)),false);
       return false;
     }

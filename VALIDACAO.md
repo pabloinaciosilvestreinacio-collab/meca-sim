@@ -243,3 +243,9 @@ Testes em `tests/test_elements.py`: 12/12 passaram em execução Python em memó
 ## Validação Chromium da branch experimental (16/10/2026)
 
 Na Action `38830725490`, os testes de Python/JVM, JavaScript, nove OpModes e cenários de falha passaram no Linux e Windows. O Chromium passou por partida, Java, replay, exportação, ZIP, TeleOp, editor e layout responsivo; o teste final falhou pois não expandia “Personalizar teclas”. Na Action `38831238464`, após abrir o painel, o E2E avançou pelo remapeamento A e detectou ambiguidade no seletor de B (também correspondia a “Back”). O teste agora usa correspondência exata. O simulador não foi alterado nesses ajustes; a validação integral deve ser repetida antes de considerar este bloco fechado.
+
+## Ciclo do POLLEN — validação em andamento (16/10/2026)
+
+O mesmo ID acompanha inventário, origem do shooter, trajetória, acerto previsto ou aterrissagem no campo. A trajetória balística foi comparada com as equações independentes de movimento uniforme horizontal e queda sob gravidade. A vista de cima desenha os quatro elementos do inventário dentro do robô e os disparos a partir do estado do mundo.
+
+Resultados locais: `python -m unittest discover -s tests -v` executou 87 testes, todos passaram; 14 testes Java foram ignorados porque `javac` não está instalado neste ambiente. `node --test tests/model.test.mjs` passou 28/28; `node --check web/app.js`, `python -m py_compile elements.py physics.py server.py tests/test_elements.py` e `git diff --check` passaram. `tests/repository_compatibility.py` e `tests/fault_scenarios.py` não puderam executar porque falta o JDK; `tests/browser_e2e.py` parou antes dos testes pois o Chromium do Playwright não está instalado. A execução CI em Windows/Linux/Chromium continua necessária para fechar a validação. Limites: voo ideal sem arrasto/colisão 3D e avaliação do HIVE permanece didática.
