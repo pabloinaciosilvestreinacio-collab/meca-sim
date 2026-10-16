@@ -164,3 +164,10 @@
 - O relatório final usa a mesma fotografia de pontuação do servidor para ambas as alianças, separa categorias e explicita limitações. G410 é atribuído à aliança do robô que depositou, não à cor da NECTAR.
 - A ordem de depósito é somente uma aproximação do empilhamento vertical na FLOWER; zonas GARDEN e conteúdo de CELL são simplificados. O TIP após oito elementos é didático e não uma constante oficial. Não há ranking points ou arbitragem completa.
 - Suíte Python local: 92 testes aprovados, 14 testes de JVM ignorados por falta de JDK. Validação de JavaScript e CI desta revisão pendente.
+
+# 16/10/2026 — Personalização visual do robô e rastro
+
+- A aba Chassi agora permite alterar cor principal, cor dos detalhes e quatro decorações simples (sem detalhes, faixa central, faixas laterais ou painel frontal). Os desenhos respeitam largura e comprimento configurados sem alterar hitbox, mecanismos ou motores.
+- O rastro laranja tem controle visual independente; desligá-lo apenas pula o desenho. O histórico `state.trail` continua recebendo posições e permanece disponível ao replay/diagnóstico.
+- Preferências visuais são armazenadas localmente e no JSON do projeto, mas são filtradas antes de enviar configuração física ao servidor.
+- Validação local: 28/28 testes do modelo JS, `node --check`, checagem de IDs HTML, `py_compile` e `git diff --check` passaram. E2E visual deste bloco aguarda CI.

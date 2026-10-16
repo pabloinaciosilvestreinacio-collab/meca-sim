@@ -44,6 +44,7 @@ function renderKeymap(){
 $('reset-keymap').addEventListener('click',()=>{keyMap={...DEFAULT_KEYMAP};capturingKey=null;keys.clear();localStorage.removeItem(KEYMAP_KEY);renderKeymap();notice('Mapa padrão restaurado.');});
 
 const configIds = ['arena','drivetrain','robot-color','left','right','front_left','front_right','back_left','back_right','width','length','track','max_speed','ticks_per_m','duration','match-mode','timer-enabled','x','y','initial-yaw','invert_left','invert_right','acceleration','left_gain','right_gain','left_slip','right_slip','imu_delay','imu_drift','walls','alliance','intake_reach','intake_capacity','imu_frozen','left_encoder_frozen','right_encoder_frozen','flower-servo-name','flower-deploy-position','flower-range'];
+const visualIds=['robot-detail-color','robot-style','show-trail'];
 const launchIds = ['offset-x','offset-y','height','shot-mode','force','speed','projectile-mass','acceleration-stroke','shot-efficiency','target-radius','target-tolerance','elevation','azimuth','target-x','target-y','target-h','feed-interval'];
 function config() {
   const data = {};
@@ -52,8 +53,9 @@ function config() {
   data.launcher.hive=selectedHiveId;
   return data;
 }
+function visualConfig(){return Object.fromEntries(visualIds.map(id=>[id,$(id).type==='checkbox'?$(id).checked:$(id).value]));}
 function persist() {
-  try { const values={}; [...configIds,...launchIds].forEach(id=>values[id]=$(id).type==='checkbox'?$(id).checked:$(id).value);
+  try { const values={}; [...configIds,...visualIds,...launchIds].forEach(id=>values[id]=$(id).type==='checkbox'?$(id).checked:$(id).value);
     localStorage.setItem('meca-sim-v02',JSON.stringify({source:$('source').value,files:javaFiles,values,route:routePoints,hive:selectedHiveId})); } catch {}
 }
 function notice(text) {$('message').textContent=text;}
@@ -134,7 +136,7 @@ function refreshMatchLimit(){
 }
 function setTeamLogo(url){$('team-logo').src=url;$('team-logo').hidden=false;}
 function library(){try{const items=JSON.parse(localStorage.getItem(LIBRARY_KEY)||'[]');return Array.isArray(items)?items.filter(x=>x&&typeof x.name==='string'&&x.project?.version===2).slice(0,12):[];}catch{return [];}}
-function projectData(){return {format:'meca-sim-project',version:2,source:$('source').value,files:{...javaFiles},config:config(),launcher:Object.fromEntries(launchIds.map(id=>[id,id==='shot-mode'?$(id).value:num(id)])),route:routePoints.slice(),hive:selectedHiveId};}
+function projectData(){return {format:'meca-sim-project',version:2,source:$('source').value,files:{...javaFiles},config:{...config(),...visualConfig()},launcher:Object.fromEntries(launchIds.map(id=>[id,id==='shot-mode'?$(id).value:num(id)])),route:routePoints.slice(),hive:selectedHiveId};}
 function refreshExamples(selected=''){
   const menu=$('example');menu.replaceChildren();
   const blank=document.createElement('option');blank.value='';blank.textContent='Selecione…';menu.append(blank);
@@ -157,9 +159,12 @@ function saveInLibrary(name){
 async function loadProjectData(data){
   if(!data||data.format!=='meca-sim-project'||data.version!==2||typeof data.source!=='string')throw Error('Projeto salvo inválido.');
   if(['compilando','inicializando','executando'].includes(state.status))throw Error('Clique em STOP antes de trocar de projeto.');
-  await api('reset',{config:data.config||{}});
+  const resetConfig={};
+  for(const id of configIds){const key=id==='initial-yaw'?'yaw':id;if(!(key in (data.config||{})))continue;
+    resetConfig[key]=$(id).type==='checkbox'?Boolean(data.config[key]):data.config[key];}
+  await api('reset',{config:resetConfig});
   $('source').value=data.source;javaFiles={...(data.files||{})};restoreOpModeChoices();updateJavaFilesLabel();
-  for(const id of configIds){const key=id==='initial-yaw'?'yaw':id;if(key in (data.config||{}))$(id).type==='checkbox'?$(id).checked=Boolean(data.config[key]):$(id).value=data.config[key];}
+  for(const id of [...configIds,...visualIds]){const key=id==='initial-yaw'?'yaw':id;if(key in (data.config||{}))$(id).type==='checkbox'?$(id).checked=Boolean(data.config[key]):$(id).value=data.config[key];}
   for(const id of launchIds)if(id in (data.launcher||{}))$(id).value=data.launcher[id];
   if(!Object.prototype.hasOwnProperty.call(data.launcher||{},'shot-mode'))$('shot-mode').value='speed'; // projeto v2 antigo
   routePoints=Array.isArray(data.route)?data.route.slice(0,MAX_WAYPOINTS).filter(p=>p&&Number.isFinite(p.x)&&Number.isFinite(p.y)):[];if(hiveCellById(data.hive))selectedHiveId=data.hive;$('walls').checked=true;refreshMatchLimit();selectHive(selectedHive(),false);updateRoute();
@@ -505,7 +510,7 @@ function insertCompletion(term){
 }
 $('source').addEventListener('click',()=>showSuggestions());
 $('source').addEventListener('keyup',()=>showSuggestions());
-[...configIds,...launchIds].forEach(id=>$(id).addEventListener('change',()=>{if(launchIds.includes(id))refreshShot();persist();}));
+[...configIds,...visualIds,...launchIds].forEach(id=>$(id).addEventListener('change',()=>{if(launchIds.includes(id))refreshShot();persist();}));
 launchIds.forEach(id=>$(id).addEventListener('input',()=>{refreshLauncherReadouts();refreshShot();persist();}));
 $('example').addEventListener('change',async()=>{
   try{const choice=$('example').value;
@@ -591,7 +596,7 @@ function drawTop(now) {
     c.strokeStyle=nectar?'#ffffffaa':'#fff2ad';c.lineWidth=1;
     c.beginPath();c.moveTo(q[0]-radius*.55,q[1]);c.lineTo(q[0]+radius*.55,q[1]);c.stroke();
   });
-  c.strokeStyle='#ff852e80';c.lineWidth=2;c.beginPath();state.trail.forEach((p,i)=>{const q=project(...p);i?c.lineTo(...q):c.moveTo(...q);});c.stroke();
+  if($('show-trail').checked&&state.trail.length>1){c.strokeStyle='#ff852e80';c.lineWidth=2;c.beginPath();state.trail.forEach((p,i)=>{const q=project(...p);i?c.lineTo(...q):c.moveTo(...q);});c.stroke();}
   if(replayIndex>=0){const row=replayRows[replayIndex];if(row){c.strokeStyle='#56e4bd';c.beginPath();replayRows.slice(0,replayIndex+1).forEach((r,i)=>{const q=project(r[1],r[2]);i?c.lineTo(...q):c.moveTo(...q);});c.stroke();}}
   if(routePoints.length){c.setLineDash([5,4]);c.strokeStyle='#ffcc67';c.lineWidth=2;c.beginPath();
     const first=project(num('x'),num('y'));c.moveTo(...first);
@@ -601,6 +606,11 @@ function drawTop(now) {
   const shown=replayIndex>=0?{...state,x:replayRows[replayIndex][1],y:replayRows[replayIndex][2],yaw:replayRows[replayIndex][3]}:state;
   const corner=(x,y)=>{const r=rotate(x,y,shown.yaw);return project(shown.x+r[0],shown.y+r[1]);};
   c.beginPath();[[-1,-1],[1,-1],[1,1],[-1,1]].forEach(([x,y],i)=>{const p=corner(x*state.width/2,y*state.length/2);i?c.lineTo(...p):c.moveTo(...p);});c.closePath();const robotColor=$('robot-color').value||'#ff7a1a';c.fillStyle=robotColor+'33';c.fill();c.strokeStyle=robotColor;c.stroke();
+  const detailColor=$('robot-detail-color').value||'#f2eee8',style=$('robot-style').value;
+  const detail=(x0,y0,x1,y1)=>{c.beginPath();[[x0,y0],[x1,y0],[x1,y1],[x0,y1]].forEach(([x,y],i)=>{const p=corner(x,y);i?c.lineTo(...p):c.moveTo(...p);});c.closePath();c.fillStyle=detailColor+'cc';c.fill();};
+  if(style==='stripe')detail(-Math.min(.035,state.width*.12),-state.length*.36,Math.min(.035,state.width*.12),state.length*.36);
+  else if(style==='double')for(const sideSign of [-1,1]){const x=sideSign*state.width*.27;detail(x-.014,-state.length*.34,x+.014,state.length*.34);}
+  else if(style==='front')detail(-state.width*.30,state.length*.08,state.width*.30,state.length*.43);
   const elementsById=new Map((state.elements||[]).map(item=>[item.id,item]));
   const preloads=(state.inventory_ids||[]).map(id=>elementsById.get(id)).filter(item=>item?.status==='robot');
   preloads.forEach((item,index)=>{
