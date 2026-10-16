@@ -1,3 +1,13 @@
+## Bloco: relatório e sobreposição inicial — 16/10/2026
+
+Correções autorizadas após a auditoria: contador de tentativas vazias conectado ao relatório; contadores cumulativos de acertos, erros e tiros ainda em voo preservados após TIP/recaptura; categorias e registros completos no CSV; relatórios antigos exibem campos ausentes como não registrados; rótulo de pontos recebidos por penalidades corrigido. JSON e persistência mantidos.
+
+Peças inicialmente dentro do chassi agora saem integralmente pela face viável mais próxima, incluindo a profundidade e o raio, sem escolher uma saída através da parede externa. Testes confrontam a distância ao retângulo com solução independente em quatro orientações e repetem o reinício sobre GARDEN da auditoria.
+
+Arquivos: `elements.py`, `physics.py`, `server.py`, `web/app.js`, novo `web/report.mjs`; regressões em `tests/test_report_collision.py`, `tests/test_hive_cycle.py`, `tests/model.test.mjs`, `tests/partida_e2e.py` e `tests/packaged_smoke.py`.
+
+Os modos de regras, controle manual de fases e autocomplete avançado continuam pendentes. Física permanece simplificada; esta alteração não é um solver rígido geral.
+
 ## Correção integrada da partida — 16/10/2026
 
 - Interseção balística e tombamento passam a ser resolvidos no servidor, sem depender de callbacks/animação do navegador.

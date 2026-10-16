@@ -246,3 +246,27 @@ test('Bordas, profundidade e subida exibem impacto mas não capturam POLLEN',()=
   assert.ok(risingImpact.impactPoint,'erro na subida ainda precisa localizar o impacto');
   assert.ok(risingImpact.reason,'entrada na subida ou pelo lado inferior precisa ser rejeitada com motivo');
 });
+import {buildMatchReport,reportCsv} from '../web/report.mjs';
+test('Relatório conserva tentativas vazias e resultados cumulativos após liberar HIVE',()=>{
+  const state={status:'concluído',time:15,launcher_status:{launch_count:6,empty_feed_attempts:5,hits:4,misses:1,pending:1},
+    elements:[],intake:{collected:4},rules:{hive_tips_didactic:{red:1},penalties:[{code:'G410',points_to_opponent:20}]},
+    scoring:{by_alliance:{red:{hive_tips:20,hive_elements:0,flowers:8,bottom_nectar_bonus:5,gardens:2,penalties_received:20,total:55}}},
+    logs:'erro "teste"\nlinha 2',diagnostics:[{message:'=teste'}]};
+  const r=buildMatchReport(state,'red');
+  assert.deepEqual([r.activity.launched,r.activity.emptyFeedAttempts,r.activity.hits,r.activity.misses,r.activity.pending],[6,5,4,1,1]);
+  assert.equal(r.missionSuccess,'não avaliada');
+  assert.ok(r.javaResult.includes('não comprova sucesso'));
+  const csv=reportCsv(r);
+  for(const key of ['hive_tips','hive_elements','flowers','bottom_nectar_bonus','gardens','penalties_received','total'])
+    assert.ok(csv.includes('estimatedPoints.'+key));
+  assert.ok(csv.includes('ruleStatus.penalties.0.code'));
+  assert.ok(csv.includes('erro ""teste""\nlinha 2'));
+  assert.ok(!csv.includes('undefined'));
+  assert.ok(csv.includes("'=teste"));
+});
+test('Relatório vazio é exportável e versões antigas não produzem undefined',()=>{
+  const r=buildMatchReport({},'red');
+  assert.equal(r.activity.emptyFeedAttempts,0);
+  assert.equal(r.activity.pending,0);
+  assert.ok(!reportCsv({version:1,activity:{emptyFeedAttempts:undefined}}).includes('undefined'));
+});

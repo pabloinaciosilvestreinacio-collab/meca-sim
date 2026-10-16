@@ -65,6 +65,7 @@ class HiveCycleTests(unittest.TestCase):
         self.assertTrue(saw_falling)
         self.assertEqual(saw_stock, {0,1,2,3,4})
         self.assertEqual(w.launch_count, 4)
+        self.assertEqual((w.launch_hits,w.launch_misses),(4,0))
         self.assertEqual(s.rules.hive_tips['red'], 1)
         self.assertEqual(w.hive_active_cells['red'], 'red-upper')
         self.assertEqual(s.rules.available_nectar('red', 100), 1)

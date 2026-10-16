@@ -1,3 +1,17 @@
+## Bloco: relatório e sobreposição inicial — 16/10/2026
+
+Correções autorizadas após a auditoria: contador de tentativas vazias conectado ao relatório; contadores cumulativos de acertos, erros e tiros ainda em voo preservados após TIP/recaptura; categorias e registros completos no CSV; relatórios antigos exibem campos ausentes como não registrados; rótulo de pontos recebidos por penalidades corrigido. JSON e persistência mantidos.
+
+Peças inicialmente dentro do chassi agora saem integralmente pela face viável mais próxima, incluindo a profundidade e o raio, sem escolher uma saída através da parede externa. Testes confrontam a distância ao retângulo com solução independente em quatro orientações e repetem o reinício sobre GARDEN da auditoria.
+
+Arquivos: `elements.py`, `physics.py`, `server.py`, `web/app.js`, novo `web/report.mjs`; regressões em `tests/test_report_collision.py`, `tests/test_hive_cycle.py`, `tests/model.test.mjs`, `tests/partida_e2e.py` e `tests/packaged_smoke.py`.
+
+Os modos de regras, controle manual de fases e autocomplete avançado continuam pendentes. Física permanece simplificada; esta alteração não é um solver rígido geral.
+
+Validação deste bloco: 100 testes Python e 30 JavaScript passaram localmente, sem skips; sintaxe e diff passaram. Compatibilidade, cenários de falha e CI em andamento; conferir o resultado do commit correspondente. As pendências de relatório e sobreposição da auditoria abaixo descrevem o estado anterior.
+
+---
+
 # Auditoria de aderência aos pedidos — 16/10/2026
 
 **Conclusão: o ciclo básico da partida está validado nos cenários ensaiados; o conjunto completo de pedidos da Fase 1 ainda não está concluído.** Aprovação dos testes existentes não representa cobertura de todos os requisitos.

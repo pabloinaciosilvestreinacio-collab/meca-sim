@@ -25,7 +25,7 @@ try:
                 html = response.read().decode("utf-8")
             with urlopen("http://127.0.0.1:8893/examples", timeout=.7) as response:
                 examples = json.load(response)
-            for resource in ('/arena.mjs','/editor.mjs','/route.mjs'):
+            for resource in ('/arena.mjs','/editor.mjs','/route.mjs','/report.mjs'):
                 with urlopen("http://127.0.0.1:8893"+resource,timeout=.7) as response:
                     assert response.status==200
             assert state['status'] == 'pronto'

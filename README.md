@@ -1,5 +1,8 @@
 # Meca Sim 0.3-rc2 — laboratório FTC em duas vistas
 
+O relatório de partida agora distingue acertos no HIVE, tiros que chegaram ao piso sem acerto, tentativas com estoque vazio e tiros ainda em voo no encerramento. Acertos são cumulativos e não desaparecem quando o HIVE descarrega. O CSV exporta também pontuação por categoria, penalidades, diagnósticos e logs, com campos hierárquicos. Peças sobrepostas ao chassi no reinício recebem correção integral de posição.
+
+
 ## Correção de partida — build `partida-integrada-20261016`
 
 Use a branch experimental `fix/pollen-lifecycle-20261016` e o artefato Windows de uma execução verde desta correção. A branch principal continua preservada. A identificação do build aparece na Driver Station.

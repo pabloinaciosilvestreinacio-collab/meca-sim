@@ -46,10 +46,23 @@ def start(page):
     wait_state(page,"s.status==='executando'")
     page.locator('#top').focus()
 
-def stop(page):
+def stop(page, report_check=False):
     page.locator('#ds-stop').click()
     wait_state(page,"s.status==='parado'")
     page.wait_for_function("!document.querySelector('#final-report').hidden")
+    if report_check:
+        report=page.evaluate("JSON.parse(localStorage.getItem('meca-sim-final-report-v1'))")
+        assert report['activity']['hits']==4 and report['activity']['misses']==0
+        assert report['activity']['pending']==0 and report['activity']['emptyFeedAttempts']>0
+        assert 'undefined' not in page.locator('#report-summary').text_content()
+        with page.expect_download() as download: page.locator('#report-csv').click()
+        csv=Path(download.value.path()).read_text(encoding='utf-8')
+        assert 'activity.emptyFeedAttempts' in csv and 'estimatedPoints.hive_elements' in csv
+        assert 'undefined' not in csv
+        page.reload()
+        page.wait_for_function("!document.querySelector('#final-report').hidden")
+        assert 'Acertos no HIVE: 4' in page.locator('#report-summary').text_content()
+        passed('Relatório: contadores reais, categorias no CSV e persistência após recarregar')
     page.locator('#dismiss-report').click()
 
 try:
@@ -100,7 +113,7 @@ try:
         assert page.locator('#inventory-pieces').text_content()=='Armazenamento: vazio'
         assert not errors,errors
         passed('Java/teclado: 4 preloads diminuem 4→3→0; 3 NECTAR + 4 POLLEN tombam e os mesmos 7 IDs caem; estoque vazio não lança')
-        stop(page)
+        stop(page, report_check=True)
         # Coletar as quatro peças de FLOWER usando deslocamento Java e MI.
         page.locator('[data-tab="robot"]').click()
         for key,value in {'x':'0.8','y':'1.82','initial-yaw':'90','max_speed':'0.4'}.items():page.locator('#'+key).fill(value)

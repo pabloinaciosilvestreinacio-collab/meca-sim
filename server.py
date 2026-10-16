@@ -499,6 +499,7 @@ def handler_for(app):
                      "/app.js": ("web/app.js", "text/javascript; charset=utf-8"),
                      "/model.mjs": ("web/model.mjs", "text/javascript; charset=utf-8"),
                      "/arena.mjs": ("web/arena.mjs", "text/javascript; charset=utf-8"),
+                     "/report.mjs": ("web/report.mjs", "text/javascript; charset=utf-8"),
                      "/editor.mjs": ("web/editor.mjs", "text/javascript; charset=utf-8"),
                      "/route.mjs": ("web/route.mjs", "text/javascript; charset=utf-8"),
                      "/meca-tiger-mark.svg": ("web/meca-tiger-mark.svg", "image/svg+xml"),

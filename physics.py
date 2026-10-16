@@ -97,6 +97,8 @@ class World:
     last_feed_time: float = 0.0
     launch_sequence: int = 0
     launch_count: int = 0
+    launch_hits: int = 0
+    launch_misses: int = 0
     empty_feed_attempts: int = 0
     launches: list = field(default_factory=list)
     hive_active_cells: dict = field(default_factory=lambda: {"red": "red-lower", "blue": "blue-upper"})
@@ -199,7 +201,9 @@ class World:
                 "launches": [event.copy() for event in self.launches],
                 "flower_events": [event.copy() for event in self.flower_events],
                 "launcher_status": {"launch_count": self.launch_count,
-                                    "empty_feed_attempts": self.empty_feed_attempts},
+                                    "empty_feed_attempts": self.empty_feed_attempts,
+                                    "hits": self.launch_hits, "misses": self.launch_misses,
+                                    "pending": self.launch_count-self.launch_hits-self.launch_misses},
                 "intake": {"active": bool(self.motors.get("MI") and self.motors["MI"].power*self.motors["MI"].direction > .25),
                            "capacity": self.intake_capacity, "reach": self.intake_reach,
                            "collected": self.collection_events}}

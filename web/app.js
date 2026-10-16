@@ -1,3 +1,4 @@
+import {buildMatchReport, reportCsv} from './report.mjs';
 import {rotate, launcher, heightAt, flight, gamepadValues, keyboardGamepadValues, DEFAULT_KEYMAP, targetSolution, encoderScale, connectedPlayers, speedFromForce, forceFromSpeed, shotFeasibility, shotElapsed, hiveShotImpact} from './model.mjs';
 import {FIELD_METERS, ARENAS, validStart, drawArenaTop, drawArenaSide, hiveCellAt, hiveCellById, hiveSideGeometry, HIVE_SIDE} from './arena.mjs';
 import {candidates, diagnostics, highlightJava} from './editor.mjs';
@@ -310,25 +311,7 @@ $('finish-match').addEventListener('click',async()=>{
   try{await api('stop');await poll();if(!finalReport)buildFinalReport('manual_finish');}
   catch(error){notice(error.message);}
 });
-function reportData(){
-  const team=$('alliance').value,score=state.scoring?.by_alliance||{},teamScore=score[team]||{};
-  const tips=(state.rules?.hive_tips_didactic||{})[team]||hiveFlips[team]||0;
-  const result=state.status==='concluído'?'Java terminou normalmente (isso não comprova sucesso da missão).':
-    state.status==='erro'?'Execução Java terminou com erro.':'Simulação encerrada antes do fim normal do Java.';
-  return {format:'meca-sim-match-report',version:1,endedAt:new Date().toISOString(),
-    javaResult:result,missionSuccess:'não avaliada',durationSeconds:Number(state.time||0),
-    alliance:team,estimatedPoints:{...teamScore,hiveTipsDidactic:tips,
-      partialTotal:teamScore.total||0,byAlliance:score,
-      scope:'estimativa baseada nos estados; HIVE usa limiar didático'},
-    activity:{collected:(state.intake||{}).collected||0,launched:(state.launcher_status||{}).launch_count||0,
-      successfulHiveElements:(state.elements||[]).filter(item=>/^(red|blue)-(lower|upper)$/.test(item.score_zone||'')).length,
-      hiveTipsDidactic:tips,diagnostics:(state.diagnostics||[]).length},
-    diagnostics:state.diagnostics||[],javaLogs:state.logs||'',telemetry:state.telemetry||'',
-    ruleStatus:state.rules||null,scoring:state.scoring||null,
-    limitations:[...(state.scoring?.limitations||[]),
-      'Ranking points, vitória/empate e decisão de missão não são calculados.',
-      'Physical robot validation is not included.']};
-}
+function reportData(){return buildMatchReport(state,$('alliance').value);}
 function renderFinalReport(){
   const root=$('final-report');if(!root)return;
   root.hidden=!finalReport;
@@ -340,11 +323,17 @@ function renderFinalReport(){
     ['Duração',Number(r.durationSeconds).toFixed(2)+' s'],
     ['Pontuação estimada',r.estimatedPoints.partialTotal+' pts'],
     ['HIVE · TIPs',r.estimatedPoints.hiveTipsDidactic+' simulado(s) · '+(r.estimatedPoints.hive_tips||0)+' pts'],
-    ['FLOWER · GARDEN',((r.estimatedPoints.flowers||0)+(r.estimatedPoints.bottom_nectar_bonus||0)+(r.estimatedPoints.gardens||0))+' pts'],
-    ['Penalidades ao oponente',(r.estimatedPoints.penalties_received||0)+' pts'],
+    ['Peças na CELL',(r.estimatedPoints.hive_elements||0)+' pts'],
+    ['FLOWERS',(r.estimatedPoints.flowers||0)+' pts'],
+    ['Bônus NECTAR inferior',(r.estimatedPoints.bottom_nectar_bonus||0)+' pts'],
+    ['GARDENS',(r.estimatedPoints.gardens||0)+' pts'],
+    ['Pontos recebidos por penalidades',(r.estimatedPoints.penalties_received||0)+' pts'],
     ['POLLEN/NECTAR coletados',r.activity.collected],
     ['Elementos lançados',r.activity.launched],
-    ['Lançamentos vazios',r.activity.emptyFeedAttempts],
+    ['Tentativas com estoque vazio',r.activity.emptyFeedAttempts??'não registrado'],
+    ['Acertos no HIVE',r.activity.hits??'não registrado'],
+    ['Tiros que chegaram ao piso sem acerto',r.activity.misses??'não registrado'],
+    ['Tiros ainda sem resultado',r.activity.pending??'não registrado'],
     ['Avisos de diagnóstico',r.activity.diagnostics],
     ['Penalidades registradas',r.ruleStatus?.penalties?.length||0]
   ];
@@ -359,12 +348,7 @@ function buildFinalReport(reason){
 $('report-json').addEventListener('click',()=>{if(finalReport)download(JSON.stringify(finalReport,null,2),'meca-sim-relatorio.json');});
 $('report-csv').addEventListener('click',()=>{
   if(!finalReport)return;
-  const r=finalReport,rows=[['campo','valor'],['resultado_java',r.javaResult],['missao','nao avaliada'],
-    ['duracao_s',r.durationSeconds],['estimativa_parcial_nao_oficial',r.estimatedPoints.partialTotal],
-    ['coletados',r.activity.collected],['lancados',r.activity.launched],
-    ['lancamentos_vazios',r.activity.emptyFeedAttempts],['diagnosticos',r.activity.diagnostics]];
-  download(rows.map(row=>row.map(value=>'"'+String(value).replaceAll('"','""')+'"').join(',')).join('\r\n'),
-    'meca-sim-relatorio.csv','text/csv;charset=utf-8');
+  download(reportCsv(finalReport),'meca-sim-relatorio.csv','text/csv;charset=utf-8');
 });
 $('dismiss-report').addEventListener('click',()=>{
   finalReport=null;try{localStorage.removeItem(REPORT_KEY);}catch{}renderFinalReport();notice('Relatório descartado.');

@@ -32,6 +32,7 @@ class ScoringElement:
     vy: float = 0.0
     flight: dict | None = None
     launch_id: int | None = None
+    launch_result: str | None = None
     score_zone: str | None = None
     deposit_sequence: int | None = None
 
@@ -121,17 +122,21 @@ def _robot_collision(world, piece, robot_velocity):
     if distance >= piece.radius:
         return
     if distance < 1e-9:
-        # Centro dentro do chassi: expulsa pela face mais próxima.
-        gaps = (hx-abs(lx), hy-abs(ly))
-        if gaps[0] < gaps[1]:
-            dx, dy = math.copysign(1, lx or 1), 0
-        else:
-            dx, dy = 0, math.copysign(1, ly or 1)
-        distance = 0
-    nx, ny = dx/math.hypot(dx, dy), dy/math.hypot(dx, dy)
-    push = piece.radius-distance
-    lx += nx*push
-    ly += ny*push
+        # Projeção completa até uma face, incluindo raio. Preferir a saída
+        # mais curta que mantém a peça dentro do campo (não empurrar pela parede).
+        r = piece.radius
+        exits = [(hx+r, ly), (-hx-r, ly), (lx, hy+r), (lx, -hy-r)]
+        candidates = []
+        for ex, ey in exits:
+            wx, wy = _world(ex, ey, world.yaw)
+            if r <= world.x+wx <= world.field_size-r and r <= world.y+wy <= world.field_size-r:
+                candidates.append((ex, ey))
+        lx, ly = min(candidates or exits, key=lambda point: (point[0]-lx)**2+(point[1]-ly)**2)
+    else:
+        nx, ny = dx/distance, dy/distance
+        push = piece.radius-distance
+        lx += nx*push
+        ly += ny*push
     ox, oy = _world(lx, ly, world.yaw)
     piece.x, piece.y = world.x+ox, world.y+oy
     rvx, rvy = robot_velocity
@@ -156,6 +161,7 @@ def _try_launch(world):
     if piece is None:
         world.empty_feed_attempts += 1
         return
+    piece.launch_result = None
     piece.status = "launched"
     piece.location = "projectile"
     piece.score_zone = None
@@ -215,6 +221,15 @@ def resolve_launch(world, element_id, launch_id, result, x=None, y=None):
         piece.vx = piece.vy = 0.0
     else:
         piece.status, piece.location = "field", "field"
+    if piece.launch_result == "missed":
+        world.launch_misses -= 1
+    elif piece.launch_result == "scored":
+        world.launch_hits -= 1
+    piece.launch_result = result
+    if result == "scored":
+        world.launch_hits += 1
+    else:
+        world.launch_misses += 1
     piece.flight = None
     return {"element_id": piece.id, "status": piece.status, "changed": True}
 
@@ -297,8 +312,7 @@ def update_elements(world, dt, robot_velocity=(0.0, 0.0)):
         data["z"] = max(0.0, z)
         data["elapsed"] = t
         if z <= 0 and t > 0:
-            piece.status, piece.location = "field", "field"
-            piece.flight = None
+            resolve_launch(world, piece.id, piece.launch_id, "missed")
             piece.vx = -horizontal_speed * math.sin(data["direction"])
             piece.vy = horizontal_speed * math.cos(data["direction"])
             piece.x = min(FIELD_SIZE-piece.radius, max(piece.radius, piece.x))
