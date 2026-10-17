@@ -12,7 +12,7 @@ A estratégia proposta está em [DEMO_PUBLICA.md](DEMO_PUBLICA.md). O recorte de
 
 ### Superfície atual que não pode ir para o host público
 
-server.py escuta em 127.0.0.1. No código atual, GET /api/state e GET /api/recording expõem estado/gravação locais; POSTs em /api/import-zip, /api/run, /api/start, /api/stop, /api/reset, /api/heartbeat e /api/gamepad controlam importação, compilação/execução e a simulação. Não publicar o servidor, nem permitir que um proxy público encaminhe essas rotas. Validação de Host/Origin, token e limites de processo não são uma fronteira suficiente para execução de código arbitrário.
+server.py escuta em 127.0.0.1. No código atual, GET /api/state e GET /api/recording expõem estado/gravação locais; POSTs em /api/import-zip, /api/run, /api/start, /api/stop, /api/reset, /api/heartbeat e /api/gamepad controlam importação, compilação/execução e a simulação. Não publicar o servidor, nem permitir que um proxy público encaminhe essas rotas. Validação de Host/Origin, token e limites de processo não impedem sozinhos que páginas externas tentem alcançar um serviço local e não são uma fronteira suficiente para execução de código arbitrário.
 
 
 ## Correções solicitadas: parede, HIVE e tempo
