@@ -28,7 +28,7 @@ A interface precisa informar de forma visível: “Replay de sessão gravada —
 
 A aplicação completa usa web/index.html e web/app.js com chamadas ao servidor. server.py atende conteúdo web e exemplos, além de GET /api/state, GET /api/recording e POSTs em /api/import-zip, /api/run, /api/start, /api/stop, /api/reset, /api/heartbeat e /api/gamepad. A rota /api/run compila com javac e cria processo JVM; /api/import-zip processa ZIP. O processo local tem acesso às permissões do usuário que o iniciou.
 
-O servidor hoje faz bind em 127.0.0.1; verifica Host e, nos POSTs, token e Origin. Esses controles protegem a integração local contra algumas classes de erro, mas não devem ser tratados como autenticação pública, isolamento de processo, proteção contra SSRF/CSRF entre origens ou contenção de código. Nenhum reverse proxy, túnel, port-forward ou hospedagem de server.py faz parte desta proposta.
+O servidor hoje faz bind em 127.0.0.1; verifica Host e, nos POSTs, token e Origin. Esses controles protegem a integração local contra algumas classes de erro, mas não devem ser tratados como autenticação pública, isolamento de processo, proteção completa contra requisições de navegador a serviços locais ou contenção de código. Nenhum reverse proxy, túnel, port-forward ou hospedagem de server.py faz parte desta proposta.
 
 ## Threat model da demo
 
