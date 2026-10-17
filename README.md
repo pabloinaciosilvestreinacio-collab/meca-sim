@@ -1,4 +1,11 @@
-# Meca Sim 0.3-rc2 — laboratório FTC em duas vistas
+# Meca Sim 0.3-rc3 — laboratório FTC em duas vistas
+
+
+## Demo pública segura — planejada, ainda não publicada
+
+A proposta e o recorte estão em [DEMO_PUBLICA.md](DEMO_PUBLICA.md). A demo será uma página estática de replay de uma sessão gravada e versionada, com controles de reprodução, pausa e busca na linha do tempo. Ela não aceitará código, arquivos ou comandos, e não terá backend. A versão local completa continua sendo a experiência para editar, importar, compilar e executar Java.
+
+O repositório atualmente é público; isso não significa que a aplicação local esteja hospedada. A demo ainda não foi implementada nem publicada. As rotas do servidor local não devem ser encaminhadas por proxy, túnel ou serviço público.
 
 Simulador **local e independente** da Meca Tiger: cole uma classe Java `LinearOpMode`, configure o chassi diferencial, execute INIT/START e observe encoders, IMU, telemetria e trajetória. Inclui controles USB e teclado, vista de cima e estudo balístico lateral.
 
@@ -31,7 +38,7 @@ Simulador **local e independente** da Meca Tiger: cole uma classe Java `LinearOp
 
 Os projetos da biblioteca e a logo ficam apenas no **navegador usado**, podendo ser perdidos ao limpar os dados do site; exporte JSON para backup.
 
-**Candidato de lançamento técnico, ainda sujeito a validação física e testes de uso no computador da equipe.** SDK parcial; não substitui o robô. Modelos de falha são sintéticos e não são calibração. Repositório privado, ainda sem licença de distribuição definida.
+**Candidato de lançamento técnico, ainda sujeito a validação física e testes de uso no computador da equipe.** SDK parcial; não substitui o robô. Modelos de falha são sintéticos e não são calibração. O repositório é público; a licença de distribuição ainda não foi definida.
 
 **Interpretação dos resultados:** o estado `concluído` indica apenas que o programa Java terminou normalmente; uma sequência autônoma também pode terminar por timeout ou falha controlada. Confira sempre a telemetria. A interface mostra separadamente o **yaw real** da pose simulada e o **yaw IMU** que o Java recebe (relativo ao último `resetYaw()`), além de indicar quando a opção de IMU travado está ativa.
 
