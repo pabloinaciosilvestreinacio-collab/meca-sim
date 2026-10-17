@@ -1,3 +1,9 @@
+## Planejamento da demo pública segura — 17/10/2026
+
+- Registrado o recorte de demo como página estática de replay com sessão gravada e controles de reprodução, sem backend, uploads, editor Java, javac ou JVM.
+- A versão local completa permanece separada. Nenhum runner público foi implementado e nenhuma publicação foi feita.
+- Ver [DEMO_PUBLICA.md](DEMO_PUBLICA.md) para arquitetura, threat model, critérios de aceite e etapas futuras.
+
 ## 0.3-rc3 — HIVE selecionável e regras de partida
 
 - Parede externa agora é obrigatória no servidor, evitando que preferências antigas do navegador desliguem a colisão.
