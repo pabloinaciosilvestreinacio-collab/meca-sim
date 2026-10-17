@@ -139,8 +139,10 @@ function syncLauncher(){
 function scheduleLauncherSync(){
   clearTimeout(launcherSyncTimer);
   launcherSyncTimer=setTimeout(()=>{
-    // Durante a edição, o campo pode ficar temporariamente vazio/inválido.
-    if(launchIds.some(id=>!$(id).checkValidity()))return;
+    // Um campo pode ficar temporariamente vazio durante a edição. Não use
+    // checkValidity global: o passo HTML de outros campos pode rejeitar um
+    // valor físico válido e impedir a sincronização de toda a mira.
+    if(launchIds.some(id=>id!=='shot-mode'&&(!$(id).value.trim()||!Number.isFinite(num(id)))))return;
     syncLauncher();
   },150);
 }

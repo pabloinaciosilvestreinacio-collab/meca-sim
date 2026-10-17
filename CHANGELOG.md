@@ -215,3 +215,4 @@ Os modos de regras, controle manual de fases e autocomplete avançado continuam 
 - INIT imediatamente após STOP aguarda até dois segundos pela limpeza do processo Java anterior antes de responder que a execução ainda está ocupada.
 - O teste de partida no Chromium inclui reinício com relatório salvo após recarregar a página.
 - Ajustes numéricos do shooter passam ao Java após 150 ms de edição válida; não precisam esperar que o campo perca o foco.
+- Corrigidos os passos HTML dos valores decimais padrão da mira e a validação que bloqueava a sincronização de um azimute digitado.
