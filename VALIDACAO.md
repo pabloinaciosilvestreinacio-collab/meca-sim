@@ -1,5 +1,20 @@
 # Validação — candidato 0.3-rc3
 
+## Planejamento da demo pública — documentação, sem deploy
+
+A estratégia proposta está em [DEMO_PUBLICA.md](DEMO_PUBLICA.md). O recorte deliberado é replay estático de uma sessão produzida pela versão local: sem servidor Meca Sim, sem /api/*, editor ou upload, sem compilação (javac) e sem execução de Java. Nenhum runner público foi criado. A configuração de hospedagem e o deploy continuam pendentes e exigem revisão antes de publicar.
+
+### Baseline observado antes desta alteração
+
+- main em bb7857a2f6821b35a48da93bd76770d28c6ae50d (2026-10-17): Actions [Validar Meca Sim](https://github.com/pabloinaciosilvestreinacio-collab/meca-sim/actions/runs/38466750307) aprovado em Ubuntu, Windows e empacotamento Windows; [Regression Hive & Java 3.5](https://github.com/pabloinaciosilvestreinacio-collab/meca-sim/actions/runs/38466750300) aprovado com teste de modelo/browser.
+- O workspace desta execução não contém clone Git; portanto, não executei novamente a suíte local. Os resultados acima são os workflows do GitHub para o mesmo SHA do baseline.
+- O baseline não prova segurança de uma demo ainda inexistente nem fidelidade física do simulador.
+
+### Superfície atual que não pode ir para o host público
+
+server.py escuta em 127.0.0.1. No código atual, GET /api/state e GET /api/recording expõem estado/gravação locais; POSTs em /api/import-zip, /api/run, /api/start, /api/stop, /api/reset, /api/heartbeat e /api/gamepad controlam importação, compilação/execução e a simulação. Não publicar o servidor, nem permitir que um proxy público encaminhe essas rotas. Validação de Host/Origin, token e limites de processo não impedem sozinhos que páginas externas tentem alcançar um serviço local e não são uma fronteira suficiente para execução de código arbitrário.
+
+
 ## Correções solicitadas: parede, HIVE e tempo
 
 A colisão com a parede externa é agora imposta pelo servidor, portanto um valor antigo salvo no navegador não pode desligá-la. FLOWERS, HIVE e desenhos de campo seguem sem colisão, conforme o escopo solicitado.
