@@ -46,7 +46,7 @@ def start(page):
     wait_state(page,"s.status==='executando'")
     page.locator('#top').focus()
 
-def stop(page, report_check=False, rules_check=False):
+def stop(page, report_check=False, rules_check=False, dismiss=True):
     page.locator('#ds-stop').click()
     wait_state(page,"s.status==='parado'")
     page.wait_for_function("!document.querySelector('#final-report').hidden")
@@ -70,7 +70,9 @@ def stop(page, report_check=False, rules_check=False):
         page.wait_for_function("!document.querySelector('#final-report').hidden")
         assert 'Acertos no HIVE: 4' in page.locator('#report-summary').text_content()
         passed('Relatório: contadores reais, categorias no CSV e persistência após recarregar')
-    page.locator('#dismiss-report').click()
+    result=page.evaluate("JSON.parse(localStorage.getItem('meca-sim-final-report-v1'))")
+    if dismiss: page.locator('#dismiss-report').click()
+    return result
 
 try:
     deadline=time.monotonic()+20
@@ -103,7 +105,16 @@ try:
         page.screenshot(path=str(REPORTS/'partida-00-padrao-hive-tombado.png'),full_page=True)
         page.keyboard.up('c')
         passed('Sem ajustar a mira: TeleOp inicial lança os 4 preloads, HIVE tomba e os mesmos 7 IDs caem')
-        stop(page)
+        stop(page,dismiss=False)
+        previous=page.evaluate("JSON.parse(localStorage.getItem('meca-sim-final-report-v1')).endedAt")
+        page.reload()
+        page.wait_for_function("!document.querySelector('#final-report').hidden")
+        start(page)
+        page.wait_for_timeout(300)
+        next_report=stop(page)
+        assert next_report['endedAt']!=previous
+        assert page.evaluate("localStorage.getItem('meca-sim-final-report-v1')") is None
+        passed('Relatório salvo não bloqueia INIT/START; nova execução substitui o relatório ao terminar')
         page.locator('#solve-shot').click()
         page.wait_for_function("document.querySelector('#shot-verdict').dataset.possible==='yes'")
         start(page)

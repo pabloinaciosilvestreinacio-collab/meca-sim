@@ -353,14 +353,13 @@ $('auto35-confirm').addEventListener('click',async()=>{
 });
 for(const [id,target] of [['ds-init','compile'],['ds-start','start'],['ds-stop','stop']])$(id).addEventListener('click',()=>$(target).click());
 action('start',async()=>{
-  if(finalReport)throw Error('Exporte ou descarte o relatório anterior antes de iniciar outra partida.');
   auto35StartPose=/class\s+Autonomo35\b/.test($('source').value)?{x:state.x,y:state.y,yaw:state.yaw}:null;
   auto35Moved=false;
   await api('heartbeat');await api('start');matchStarted=true;top.focus();
 });
 action('stop',()=>api('stop'));
 $('finish-match').addEventListener('click',async()=>{
-  try{await api('stop');await poll();if(!finalReport)buildFinalReport('manual_finish');}
+  try{await api('stop');await poll();if(matchStarted)buildFinalReport('manual_finish');}
   catch(error){notice(error.message);}
 });
 function reportData(){return buildMatchReport(state,$('alliance').value);}
@@ -834,7 +833,7 @@ function drawSide(now) {
 function readouts() {
   $('status').textContent=state.status;$('clock').textContent=state.time.toFixed(2).padStart(5,'0')+' s';
   $('finish-match').disabled=state.status!=='executando';
-  if(matchStarted&&!finalReport&&['parado','concluído','erro'].includes(state.status))buildFinalReport(state.status==='concluído'?'java_finished':state.status==='erro'?'java_error':'stopped');
+  if(matchStarted&&['parado','concluído','erro'].includes(state.status))buildFinalReport(state.status==='concluído'?'java_finished':state.status==='erro'?'java_error':'stopped');
   const visible=replayIndex>=0&&replayRows[replayIndex]?{x:replayRows[replayIndex][1],y:replayRows[replayIndex][2],yaw:replayRows[replayIndex][3]}:state;
   const shotPoseKey=visible.x+','+visible.y+','+visible.yaw;
   if(lastShotPoseKey!==shotPoseKey){lastShotPoseKey=shotPoseKey;refreshShot();}

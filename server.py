@@ -574,6 +574,11 @@ def handler_for(app):
                     if self.path == "/api/import-zip":
                         return self.send(import_ftc_zip(data.get("zip_base64")))
                     if self.path == "/api/run":
+                        # STOP marca a sessão como encerrada antes de a thread da JVM
+                        # completar a limpeza; um novo INIT imediato pode esperar.
+                        if (session.worker and session.worker.is_alive() and
+                                session.status in ("parado", "concluído", "erro")):
+                            session.worker.join(timeout=2)
                         if session.worker and session.worker.is_alive():
                             return self.send({"error": "Pare a execução atual antes de compilar outra"}, 409)
                         source = data.get("source", "")

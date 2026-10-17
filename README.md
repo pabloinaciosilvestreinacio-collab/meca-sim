@@ -181,3 +181,5 @@ Regressões complementares: `tests/model.test.mjs` (geometria balística), `test
 ### Teste rápido da partida padrão
 
 Abra o simulador, carregue o TeleOp de demonstração, use INIT → START, clique na arena e mantenha `c` (RB) pressionado. Os quatro POLLEN iniciais devem sair do armazenamento um por vez; na mira padrão, eles entram no HIVE vermelho, que vira e devolve ao campo os mesmos sete elementos (quatro POLLEN e três NECTAR). Soltar a tecla para os motores. A tecla `z` (LB) aciona o intake sem o shooter; a capacidade padrão de oito permite recolher quatro elementos além dos quatro pré-carregados. Alterar a mira durante a partida aplica o ajuste aos próximos disparos Java; acertar depende da trajetória e de entrar na abertura da CELL. Verifique o painel Controles se tiver personalizado as teclas.
+
+Após terminar uma execução, o relatório permanece acessível para exportação. É possível iniciar outro OpMode sem descartar o relatório anterior; ao terminar a nova partida, o relatório exibido passa a ser o da partida mais recente. Exporte o anterior antes de iniciar outra partida se quiser guardá-lo.

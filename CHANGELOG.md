@@ -208,3 +208,9 @@ Os modos de regras, controle manual de fases e autocomplete avançado continuam 
 - POLLEN inicialmente em FLOWER reage ao contato fora do intake; mira alterada durante a partida passa ao servidor para tiros posteriores sem reescrever projéteis em voo.
 - Corrigida a alternância da aba Regras; POLLEN e NECTAR têm desenho distinto no campo e no estoque; a vista lateral desenha as peças liberadas em queda.
 - Regressões adicionais de partida padrão, erro de tiro, alteração de mira e colisão; resultado local documentado em VALIDACAO.md.
+
+# 16/10/2026 — Reiniciar Java após relatório e STOP
+
+- START não exige mais descartar o relatório de uma partida anterior. A nova execução produz um novo relatório ao terminar, mesmo que o anterior esteja salvo.
+- INIT imediatamente após STOP aguarda até dois segundos pela limpeza do processo Java anterior antes de responder que a execução ainda está ocupada.
+- O teste de partida no Chromium inclui reinício com relatório salvo após recarregar a página.
