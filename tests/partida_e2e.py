@@ -93,6 +93,18 @@ try:
         assert 'z (LB)' in page.locator('#control-actions').text_content()
         assert 'c (RB)' in page.locator('#control-actions').text_content()
         assert 'partida-integrada-20261016' in page.locator('#build-id').text_content()
+        # Configuração Mecanum persistida não pode quebrar o TeleOp inicial ME/MD.
+        page.locator('[data-tab="robot"]').click()
+        page.locator('#drivetrain').select_option('mecanum')
+        page.reload()
+        page.wait_for_function("document.querySelector('#source').value.includes('MI.setPower')")
+        page.locator('#ds-init').click()
+        configured=wait_state(page,"s.status==='inicializando'",45000)
+        assert {'ME','MD','MI','MS'}<=set(configured['motors'])
+        assert 'Diferencial, ME/MD' in page.locator('#message').text_content()
+        page.locator('#ds-stop').click()
+        wait_state(page,"s.status==='parado'")
+        passed('TeleOp inicial recupera chassi ME/MD mesmo com Mecanum salvo no navegador')
         page.locator('[data-tab="launcher"]').click()
         # Cenário do usuário: nenhum ajuste de mira; o pacote abre e o Java dispara.
         page.wait_for_function("document.querySelector('#shot-verdict').dataset.possible==='yes'")

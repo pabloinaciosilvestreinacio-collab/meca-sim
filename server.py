@@ -357,7 +357,11 @@ class Session:
                     self.servos.setdefault(name, .5)
                     return ""
                 valid = (kind in ("DcMotor", "DcMotorEx") and name in w.motors) or kind == "IMU"
-                if not valid: raise ValueError(f"Hardware não configurado: {kind} '{name}'")
+                if not valid:
+                    available = ", ".join(w.motors) if kind in ("DcMotor", "DcMotorEx") else "IMU, Servo"
+                    raise ValueError(f"Hardware não configurado: {kind} '{name}'. "
+                                     f"Disponíveis nesta partida: {available}. "
+                                     "Confira o tipo de chassi e os nomes dos motores na aba Chassi.")
                 return ""
             if op == "gamepad":
                 return ",".join(str(x) for x in self.gamepads[int(args[0])-1])

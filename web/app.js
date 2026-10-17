@@ -339,7 +339,14 @@ action('introduce-nectar',async()=>{
   const result=await api('rules',{action:'nectar_entry'});
   notice('Human Player introduziu '+result.event.element_id+' pela Loading Zone. Confira a entrada no campo.');
 });
-action('compile',async()=>{resetReplay();persist();shot=null;javaShots=[];lastJavaLaunchId=0;matchStarted=false;activeSource=$('source').value;await api('run',{source:$('source').value,files:javaFiles,config:config()});});
+function alignTeleOpDemoHardware(){
+  const demo=examples['TeleOp · gamepad / teclado'];
+  if(!demo||$('source').value.trim()!==demo.trim())return false;
+  const changed=$('drivetrain').value!=='differential'||$('left').value!=='ME'||$('right').value!=='MD';
+  if(changed){$('drivetrain').value='differential';$('left').value='ME';$('right').value='MD';refreshDriveMode();}
+  return changed;
+}
+action('compile',async()=>{const aligned=alignTeleOpDemoHardware();resetReplay();persist();shot=null;javaShots=[];lastJavaLaunchId=0;matchStarted=false;activeSource=$('source').value;await api('run',{source:$('source').value,files:javaFiles,config:config()});if(aligned)notice('TeleOp de demonstração: chassi ajustado para Diferencial, ME/MD, MI/MS.');});
 // O Autônomo 3.5 espera seleção (B/X/Y/↑) e confirmação A ANTES de START.
 // Envia pulsos no mesmo canal gamepad do Java, sem alterar o código original.
 $('auto35-confirm').addEventListener('click',async()=>{
@@ -997,6 +1004,7 @@ action('load-teleop',()=>{
   $('source').value=examples['TeleOp · gamepad / teclado'];javaFiles={};zipOpModes=[];selectedJavaPath='';activeSource='';restoreOpModeChoices();
   $('example').value='TeleOp · gamepad / teclado';$('match-mode').value='teleop';
   $('manual-phase').value='teleop';refreshRulesControls();
+  alignTeleOpDemoHardware();
   refreshMatchLimit();refreshHighlight();updateJavaFilesLabel();persist();renderControlGuide();
   notice('TeleOp carregado: INIT → START → clique na arena. LB coleta; RB lança com MI + MS.');
 });

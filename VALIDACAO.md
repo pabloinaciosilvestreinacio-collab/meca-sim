@@ -374,3 +374,9 @@ Verificação local: duas sequências HTTP reais INIT → START → STOP com o T
 A integração Chromium identificou que `fill()` disparava `input`, mas a atualização do servidor dependia de `change` (perda de foco). A prévia exibia o novo azimute enquanto o Java mantinha o anterior. A interface agora agenda a atualização 150 ms depois de uma entrada válida; o teste da partida consulta `launcher_config` na execução para verificar o valor aplicado. O ciclo de CI desta correção ainda precisa concluir.
 
 A primeira tentativa de sincronização em `input` falhou no Chromium porque `checkValidity()` de todos os controles considerou inválidos os padrões decimais (`force=7.921` e `azimuth=29.82`) diante do `step=0.1` do HTML. O sincronizador agora ignora apenas campos vazios ou não numéricos durante digitação; o servidor valida faixas e valores finitos. Os dois campos aceitam passo decimal livre. Reteste Chromium/Windows pendente.
+
+## Erro de hardware no TeleOp inicial (16/10/2026, horário de Brasília)
+
+A captura de console enviada pelo usuário mostra `Hardware não configurado: DcMotor 'ME'` em `TeleOpDemo.java:11`. Reprodução: `Session({'drivetrain':'mecanum'})` cria FL/FR/BL/BR e o TeleOp incluído pede ME/MD; a JVM encerra com código 1. O TeleOp de demonstração passa a alinhar automaticamente o próprio chassi para diferencial ME/MD antes do INIT, inclusive após restaurar configuração antiga do navegador. Um código diferente não é alterado; quando pede hardware inexistente, o erro mostra os nomes disponíveis.
+
+`python -m unittest tests.test_simulator -q` passou 24/24 com JDK 17; `node --check web/app.js`, `py_compile` e `git diff --check` passaram. O cenário de navegador com Mecanum salvo foi incluído em `tests/partida_e2e.py`; a Action desta alteração ainda precisa terminar antes de indicar um novo pacote Windows.

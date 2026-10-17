@@ -214,6 +214,11 @@ public class CodigoNovo extends LinearOpMode {
         s=Session();s.run(source);s.worker.join(10)
         self.assertEqual(s.status,'erro');self.assertIn('Hardware não configurado',s.logs)
 
+    def test_mecanum_reports_available_names_when_demo_requests_me(self):
+        s=Session({'drivetrain':'mecanum'})
+        with self.assertRaisesRegex(ValueError, "Hardware não configurado: DcMotor 'ME'.*FL, FR, BL, BR, MS, MI"):
+            s.rpc('device','DcMotor','ME')
+
     def test_sleep_during_init(self):
         source='import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode; public class InitSleep extends LinearOpMode {public void runOpMode(){sleep(100);telemetry.addLine("init completo");telemetry.update();waitForStart();}}'
         s=Session();s.run(source)

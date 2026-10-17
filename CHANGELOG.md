@@ -216,3 +216,9 @@ Os modos de regras, controle manual de fases e autocomplete avançado continuam 
 - O teste de partida no Chromium inclui reinício com relatório salvo após recarregar a página.
 - Ajustes numéricos do shooter passam ao Java após 150 ms de edição válida; não precisam esperar que o campo perca o foco.
 - Corrigidos os passos HTML dos valores decimais padrão da mira e a validação que bloqueava a sincronização de um azimute digitado.
+
+# 16/10/2026 — TeleOp inicial e nomes de hardware
+
+- O TeleOp de demonstração configura o chassi diferencial com ME/MD ao ser carregado ou iniciado, mesmo quando o navegador restaurou uma configuração Mecanum anterior. MI/MS continuam como mecanismos auxiliares.
+- Uma busca por hardware ausente no Java agora lista os nomes de motores presentes na partida e aponta para a aba Chassi.
+- Teste de navegador reproduz a configuração Mecanum persistida, recarrega a página e verifica INIT com ME/MD; código próprio continua respeitando os nomes escolhidos pelo usuário.
