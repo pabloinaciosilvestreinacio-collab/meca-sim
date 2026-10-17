@@ -8,6 +8,7 @@ const num = id => Number($(id).value);
 let state = {x:1.83,y:.65,yaw:0,width:.45,length:.45,trail:[],motors:{},time:0,status:'pronto'};
 let matchStarted=false,finalReport=null,activeSource='',controlSignature='';
 let launcherUpdate=Promise.resolve();
+let launcherSyncTimer=null;
 const REPORT_KEY='meca-sim-final-report-v1';
 let focused = document.hasFocus();
 let shot = null, javaShots = [], lastJavaLaunchId = 0, examples = {}, javaFiles = {}, zipOpModes = [], selectedJavaPath = '', lastPad = 0, polling = false, padBusy = false, pickingStart = false;
@@ -134,6 +135,14 @@ function syncLauncher(){
   });
   launcherUpdate.catch(error=>{$('launcher-applied').textContent='Ajuste não aplicado: '+error.message;notice(error.message);});
   return launcherUpdate;
+}
+function scheduleLauncherSync(){
+  clearTimeout(launcherSyncTimer);
+  launcherSyncTimer=setTimeout(()=>{
+    // Durante a edição, o campo pode ficar temporariamente vazio/inválido.
+    if(launchIds.some(id=>!$(id).checkValidity()))return;
+    syncLauncher();
+  },150);
 }
 function selectHive(cell,announce=true){
   if(!cell)return;
@@ -550,8 +559,8 @@ function insertCompletion(term){
 }
 $('source').addEventListener('click',()=>showSuggestions());
 $('source').addEventListener('keyup',()=>showSuggestions());
-[...configIds,...visualIds,...launchIds].forEach(id=>$(id).addEventListener('change',()=>{if(launchIds.includes(id)){refreshShot();syncLauncher();}persist();}));
-launchIds.forEach(id=>$(id).addEventListener('input',()=>{refreshLauncherReadouts();refreshShot();persist();}));
+[...configIds,...visualIds,...launchIds].forEach(id=>$(id).addEventListener('change',()=>{if(launchIds.includes(id)){refreshShot();clearTimeout(launcherSyncTimer);syncLauncher();}persist();}));
+launchIds.forEach(id=>$(id).addEventListener('input',()=>{refreshLauncherReadouts();refreshShot();scheduleLauncherSync();persist();}));
 $('example').addEventListener('change',async()=>{
   try{const choice=$('example').value;
     if(choice.startsWith('saved:')){const item=library().find(x=>x.name===choice.slice(6));if(item)await loadProjectData(item.project);}
