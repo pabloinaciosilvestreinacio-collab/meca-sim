@@ -115,6 +115,7 @@ try:
         assert next_report['endedAt']!=previous
         assert page.evaluate("localStorage.getItem('meca-sim-final-report-v1')") is None
         passed('Relatório salvo não bloqueia INIT/START; nova execução substitui o relatório ao terminar')
+        page.locator('[data-tab="launcher"]').click()
         page.locator('#solve-shot').click()
         page.wait_for_function("document.querySelector('#shot-verdict').dataset.possible==='yes'")
         start(page)
