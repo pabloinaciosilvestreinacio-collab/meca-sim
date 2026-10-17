@@ -46,10 +46,12 @@ def start(page):
     wait_state(page,"s.status==='executando'")
     page.locator('#top').focus()
 
-def stop(page, report_check=False, rules_check=False, dismiss=True):
+def stop(page, report_check=False, rules_check=False, dismiss=True, previous_report=None):
     page.locator('#ds-stop').click()
     wait_state(page,"s.status==='parado'")
     page.wait_for_function("!document.querySelector('#final-report').hidden")
+    if previous_report is not None:
+        page.wait_for_function("previous=>JSON.parse(localStorage.getItem('meca-sim-final-report-v1'))?.endedAt!==previous",arg=previous_report)
     if rules_check:
         report=page.evaluate("JSON.parse(localStorage.getItem('meca-sim-final-report-v1'))")
         assert report['ruleStatus']['profile']['mode']=='custom'
@@ -111,7 +113,7 @@ try:
         page.wait_for_function("!document.querySelector('#final-report').hidden")
         start(page)
         page.wait_for_timeout(300)
-        next_report=stop(page)
+        next_report=stop(page,previous_report=previous)
         assert next_report['endedAt']!=previous
         assert page.evaluate("localStorage.getItem('meca-sim-final-report-v1')") is None
         passed('Relatório salvo não bloqueia INIT/START; nova execução substitui o relatório ao terminar')
