@@ -50,6 +50,43 @@ def executable(name):
     return str(candidate) if candidate and candidate.is_file() else shutil.which(name)
 
 
+def normalize_launcher(launcher):
+    if not isinstance(launcher, dict):
+        raise ValueError("Configuração do lançador inválida")
+    launcher_defaults = {"shot-mode": "force", "force": 7.921, "speed": 5.0,
+                         "projectile-mass": .05, "acceleration-stroke": .15,
+                         "shot-efficiency": .65, "offset-x": .1125,
+                         "offset-y": .225, "height": .30, "elevation": 78.0,
+                         "azimuth": 29.82, "feed-interval": .8}
+    launcher_ranges = {"force": (.01, 150), "speed": (.1, 30),
+                       "projectile-mass": (.001, 2), "acceleration-stroke": (.01, 2),
+                       "shot-efficiency": (.01, 1), "offset-x": (-.6, .6),
+                       "offset-y": (-.6, .6), "height": (.05, 1.5),
+                       "elevation": (0, 89), "azimuth": (-180, 180),
+                       "feed-interval": (.1, 5)}
+    if launcher.get("shot-mode", "force") not in ("force", "speed"):
+        raise ValueError("Modo do lançador inválido")
+    values = {"shot-mode": launcher.get("shot-mode", "force")}
+    for key, (low, high) in launcher_ranges.items():
+        value = float(launcher.get(key, launcher_defaults[key]))
+        if not math.isfinite(value) or not low <= value <= high:
+            raise ValueError(f"Parâmetro do lançador {key} fora do limite")
+        values[key] = value
+    if values["shot-mode"] == "force":
+        f, m, stroke, eta = (values[k] for k in
+                             ("force", "projectile-mass", "acceleration-stroke", "shot-efficiency"))
+        values["speed"] = math.sqrt(2*eta*f*stroke/m)
+        if values["speed"] > 30:
+            raise ValueError("Velocidade calculada acima de 30 m/s")
+    values["interval"] = values.pop("feed-interval")
+    values["lateral"] = values.pop("offset-x")
+    values["forward"] = values.pop("offset-y")
+    values["hive"] = str(launcher.get("hive", "red-lower"))
+    if values["hive"] not in ("red-lower", "red-upper", "blue-lower", "blue-upper"):
+        raise ValueError("CELL do lançador inválida")
+    return values
+
+
 def build_world(config):
     if not isinstance(config, dict): raise ValueError("Configuração deve ser um objeto")
     world = World()
@@ -67,7 +104,7 @@ def build_world(config):
         if not math.isfinite(value) or not low <= value <= high:
             raise ValueError(f"{key}: valor deve estar entre {low} e {high}")
         setattr(world, key, value)
-    capacity = config.get("intake_capacity", 4)
+    capacity = config.get("intake_capacity", 8)
     if isinstance(capacity, bool) or not isinstance(capacity, int) or not 1 <= capacity <= 20:
         raise ValueError("Capacidade do intake deve ser um inteiro entre 1 e 20")
     world.intake_capacity = capacity
@@ -90,40 +127,7 @@ def build_world(config):
     if not math.isfinite(flower_range) or not .15 <= flower_range <= 1.5:
         raise ValueError("Alcance do FLOWER deve estar entre 0,15 e 1,5 m")
     world.flower_range = flower_range
-    launcher = config.get("launcher", {})
-    if not isinstance(launcher, dict):
-        raise ValueError("Configuração do lançador inválida")
-    launcher_defaults = {"shot-mode": "force", "force": 8.0, "speed": 5.0,
-                         "projectile-mass": .05, "acceleration-stroke": .15,
-                         "shot-efficiency": .65, "offset-x": .1125,
-                         "offset-y": .225, "height": .30, "elevation": 78.0,
-                         "azimuth": 0.0, "feed-interval": .8}
-    launcher_ranges = {"force": (.01, 150), "speed": (.1, 30),
-                       "projectile-mass": (.001, 2), "acceleration-stroke": (.01, 2),
-                       "shot-efficiency": (.01, 1), "offset-x": (-.6, .6),
-                       "offset-y": (-.6, .6), "height": (.05, 1.5),
-                       "elevation": (0, 89), "azimuth": (-180, 180),
-                       "feed-interval": (.1, 5)}
-    if launcher.get("shot-mode", "force") not in ("force", "speed"):
-        raise ValueError("Modo do lançador inválido")
-    world.launcher = {"shot-mode": launcher.get("shot-mode", "force")}
-    for key, (low, high) in launcher_ranges.items():
-        value = float(launcher.get(key, launcher_defaults[key]))
-        if not math.isfinite(value) or not low <= value <= high:
-            raise ValueError(f"Parâmetro do lançador {key} fora do limite")
-        world.launcher[key] = value
-    if world.launcher["shot-mode"] == "force":
-        f, m, stroke, eta = (world.launcher[k] for k in
-                             ("force", "projectile-mass", "acceleration-stroke", "shot-efficiency"))
-        world.launcher["speed"] = math.sqrt(2*eta*f*stroke/m)
-        if world.launcher["speed"] > 30:
-            raise ValueError("Velocidade calculada acima de 30 m/s")
-    world.launcher["interval"] = world.launcher.pop("feed-interval")
-    world.launcher["lateral"] = world.launcher.pop("offset-x")
-    world.launcher["forward"] = world.launcher.pop("offset-y")
-    world.launcher["hive"] = str(launcher.get("hive", "red-lower"))
-    if world.launcher["hive"] not in ("red-lower", "red-upper", "blue-lower", "blue-upper"):
-        raise ValueError("CELL do lançador inválida")
+    world.launcher = normalize_launcher(config.get("launcher", {}))
     drivetrain = str(config.get("drivetrain", "differential"))
     if drivetrain not in ("differential", "mecanum"):
         raise ValueError("Drivetrain deve ser diferencial ou mecanum")
@@ -271,6 +275,16 @@ class Session:
         # TeleOp começa após Auto + transição e usa seu próprio relógio de 120 s.
         duration = 158.0 if self.match_mode == "auto" else 120.0
         return max(0.0, duration - self.world.elapsed)
+
+    def update_launcher(self, launcher):
+        # Valide antes da atribuição para manter configuração anterior após erro.
+        values = normalize_launcher(launcher)
+        with self.lock:
+            if not self.started or self.status not in ("inicializando", "executando") or self.stop_event.is_set():
+                raise ValueError("Inicialize o Java antes de alterar o shooter da partida")
+            self.world.launcher = values
+            return {"speed": values["speed"], "azimuth": values["azimuth"],
+                    "elevation": values["elevation"], "hive": values["hive"]}
 
     def register_hive_tip(self, team, cell_id=None):
         with self.lock:
@@ -572,6 +586,10 @@ def handler_for(app):
                             if session.status != "inicializando": raise ValueError("Aguarde a inicialização Java")
                             session.started = True
                             session.status = "executando"
+                    elif self.path == "/api/launcher":
+                        result = session.update_launcher(data.get("launcher"))
+                        self.send({"ok": True, "launcher": result})
+                        return
                     elif self.path == "/api/rules":
                         action = data.get("action")
                         if action == "hive_tip":

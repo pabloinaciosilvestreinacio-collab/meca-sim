@@ -35,6 +35,7 @@ class ElementSimulationTests(unittest.TestCase):
 
     def test_full_capacity_does_not_capture_piece(self):
         world = World()
+        world.intake_capacity = 4
         world.inventory = starting_inventory(world.elements)
         piece = next(item for item in world.elements if item.status == "field")
         piece.x, piece.y = world.x, world.y + world.length/2 + .10
@@ -153,6 +154,7 @@ class ElementSimulationTests(unittest.TestCase):
 
     def test_same_pollen_id_moves_inventory_to_shooter_flight_and_scored_state(self):
         world = World()
+        world.launcher.update(speed=5.0, azimuth=0)
         # Libera o teste de ciclo completo, mantendo os quatro elementos
         # preloaded rastreados em estado reservado.
         for item in world.elements:
@@ -221,6 +223,7 @@ class ElementSimulationTests(unittest.TestCase):
 
     def test_missed_projectile_returns_to_field_as_the_same_element(self):
         world = World()
+        world.launcher.update(speed=5.0, azimuth=0)
         world.inventory = starting_inventory(world.elements)
         piece_id = world.inventory[0]
         world.motors["MS"].power = world.motors["MI"].power = 1

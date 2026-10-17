@@ -90,6 +90,20 @@ try:
         assert 'c (RB)' in page.locator('#control-actions').text_content()
         assert 'partida-integrada-20261016' in page.locator('#build-id').text_content()
         page.locator('[data-tab="launcher"]').click()
+        # Cenário do usuário: nenhum ajuste de mira; o pacote abre e o Java dispara.
+        page.wait_for_function("document.querySelector('#shot-verdict').dataset.possible==='yes'")
+        start(page)
+        page.keyboard.down('c')
+        default_tip=wait_state(page,"s.hives.red.tips===1 && s.elements.filter(p=>p.status==='falling').length===7")
+        conservation(default_tip)
+        assert default_tip['launcher_status']['hits']==4
+        assert default_tip['inventory']=={'POLLEN':0,'NECTAR':0}
+        assert default_tip['launcher_config']['azimuth']==29.82
+        assert all(entry['azimuth']==29.82 for entry in default_tip['launches'])
+        page.screenshot(path=str(REPORTS/'partida-00-padrao-hive-tombado.png'),full_page=True)
+        page.keyboard.up('c')
+        passed('Sem ajustar a mira: TeleOp inicial lança os 4 preloads, HIVE tomba e os mesmos 7 IDs caem')
+        stop(page)
         page.locator('#solve-shot').click()
         page.wait_for_function("document.querySelector('#shot-verdict').dataset.possible==='yes'")
         start(page)
@@ -149,6 +163,29 @@ try:
         conservation(fired)
         assert not errors,errors
         passed('W+Z move e coleta 4 POLLEN da FLOWER via Java; deixam a arena e entram no robô; C lança o mesmo ID e reduz estoque')
+        stop(page)
+        # Com oito vagas, os quatro preloads não bloqueiam a coleta inicial.
+        start(page)
+        initial_loaded=state(page)
+        assert len(initial_loaded['inventory_ids'])==4 and initial_loaded['intake']['capacity']==8
+        page.keyboard.down('z');page.keyboard.down('w')
+        with_preloads=wait_state(page,"s.intake.collected>=4 && s.inventory.POLLEN===8")
+        page.keyboard.up('w');page.keyboard.up('z')
+        conservation(with_preloads)
+        assert all(p['status']=='robot' for p in with_preloads['elements'] if p['id'].startswith('pollen-flower-0-'))
+        page.locator('[data-tab="launcher"]').click()
+        page.locator('#azimuth').fill('0')
+        updated=wait_state(page,"s.launcher_config.azimuth===0")
+        assert updated['inventory']['POLLEN']==8
+        page.locator('#top').focus();page.keyboard.down('c')
+        fired=wait_state(page,"s.launcher_status.launch_count===1 && s.inventory.POLLEN===7")
+        page.keyboard.up('c')
+        assert fired['launches'][0]['azimuth']==0
+        page.locator('#azimuth').fill('30')
+        changed=wait_state(page,"s.launcher_config.azimuth===30")
+        assert changed['inventory']['POLLEN']==7
+        conservation(changed)
+        passed('MI coleta com 4 preloads: 4→8; ajuste da mira durante Java altera os próximos tiros e não repõe estoque')
         stop(page)
         # Perfil personalizado: todos os pontos desligados, G426 ainda ativo.
         page.locator('[data-tab="robot"]').click()

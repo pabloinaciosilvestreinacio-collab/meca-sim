@@ -83,7 +83,7 @@ class World:
     elements: list = field(default_factory=starting_elements)
     inventory: list = field(default_factory=list)
     intake_reach: float = .15
-    intake_capacity: int = 4
+    intake_capacity: int = 8
     collection_events: int = 0
     flower_range: float = .65
     flower_servo_name: str = "flower"
@@ -92,7 +92,7 @@ class World:
     flower_sequence: int = 0
     launcher: dict = field(default_factory=lambda: {
         "interval": .8, "lateral": .1125, "forward": .225, "height": .30,
-        "speed": 5.0, "elevation": 78.0, "azimuth": 0.0, "hive": "red-lower"
+        "speed": 5.558, "elevation": 78.0, "azimuth": 29.82, "hive": "red-lower"
     })
     last_feed_time: float = 0.0
     launch_sequence: int = 0
@@ -199,6 +199,7 @@ class World:
                 "inventory_ids": self.inventory[:],
                 "inventory": inventory_counts(self.elements, self.inventory),
                 "launches": [event.copy() for event in self.launches],
+                "launcher_config": self.launcher.copy(),
                 "flower_events": [event.copy() for event in self.flower_events],
                 "launcher_status": {"launch_count": self.launch_count,
                                     "empty_feed_attempts": self.empty_feed_attempts,

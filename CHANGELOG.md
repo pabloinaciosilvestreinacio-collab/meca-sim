@@ -200,3 +200,11 @@ Os modos de regras, controle manual de fases e autocomplete avançado continuam 
 - O rastro laranja tem controle visual independente; desligá-lo apenas pula o desenho. O histórico `state.trail` continua recebendo posições e permanece disponível ao replay/diagnóstico.
 - Preferências visuais são armazenadas localmente e no JSON do projeto, mas são filtradas antes de enviar configuração física ao servidor.
 - Validação local: 28/28 testes do modelo JS, `node --check`, checagem de IDs HTML, `py_compile` e `git diff --check` passaram. E2E visual deste bloco aguarda CI.
+
+# 17/10/2026 — Regressão do percurso padrão de partida
+
+- Calibrada a mira inicial para acertar a CELL vermelha a partir da posição inicial; tiros com mira errada continuam errando e voltam ao campo.
+- Capacidade inicial de oito peças permite coletar quatro POLLEN sem descarregar os quatro pré-carregados. Preset antigo não modificado salvo no navegador migra para os padrões corrigidos.
+- POLLEN inicialmente em FLOWER reage ao contato fora do intake; mira alterada durante a partida passa ao servidor para tiros posteriores sem reescrever projéteis em voo.
+- Corrigida a alternância da aba Regras; POLLEN e NECTAR têm desenho distinto no campo e no estoque; a vista lateral desenha as peças liberadas em queda.
+- Regressões adicionais de partida padrão, erro de tiro, alteração de mira e colisão; resultado local documentado em VALIDACAO.md.

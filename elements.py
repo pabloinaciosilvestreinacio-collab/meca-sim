@@ -120,7 +120,7 @@ def _robot_collision(world, piece, robot_velocity):
     dx, dy = lx-qx, ly-qy
     distance = math.hypot(dx, dy)
     if distance >= piece.radius:
-        return
+        return False
     if distance < 1e-9:
         # Projeção completa até uma face, incluindo raio. Preferir a saída
         # mais curta que mantém a peça dentro do campo (não empurrar pela parede).
@@ -143,6 +143,7 @@ def _robot_collision(world, piece, robot_velocity):
     # Velocidade transferida no referencial do campo; o impulso físico detalhado
     # não é calibrado, mas a peça não some nem atravessa o chassi.
     piece.vx, piece.vy = rvx, rvy
+    return True
 
 
 def _try_launch(world):
@@ -376,6 +377,7 @@ def update_elements(world, dt, robot_velocity=(0.0, 0.0)):
             world.inventory.append(piece.id)
             world.collection_events += 1
             continue
-        if piece.status == "field":
-            _robot_collision(world, piece, robot_velocity)
+        if _robot_collision(world, piece, robot_velocity) and piece.status == "flower":
+            # Contato fora do intake retira a peça da FLOWER e a mantém no campo.
+            piece.status, piece.location = "field", "field"
     _try_launch(world)

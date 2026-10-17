@@ -7,6 +7,7 @@ const $ = id => document.getElementById(id);
 const num = id => Number($(id).value);
 let state = {x:1.83,y:.65,yaw:0,width:.45,length:.45,trail:[],motors:{},time:0,status:'pronto'};
 let matchStarted=false,finalReport=null,activeSource='',controlSignature='';
+let launcherUpdate=Promise.resolve();
 const REPORT_KEY='meca-sim-final-report-v1';
 let focused = document.hasFocus();
 let shot = null, javaShots = [], lastJavaLaunchId = 0, examples = {}, javaFiles = {}, zipOpModes = [], selectedJavaPath = '', lastPad = 0, polling = false, padBusy = false, pickingStart = false;
@@ -124,6 +125,16 @@ function currentShotBall(now,candidate=shot){
   return {x:ix+(landingX-ix)*eased,y:iy+(landingY-iy)*eased,
     z,along:along+(-.075+(index%4)*.05)*eased,fall};
 }
+function syncLauncher(){
+  if(!['inicializando','executando'].includes(state.status))return launcherUpdate;
+  const launcherConfig=config().launcher;
+  launcherUpdate=launcherUpdate.catch(()=>{}).then(async()=>{
+    const result=await api('launcher',{launcher:launcherConfig});
+    $('launcher-applied').textContent=`Java: ${result.launcher.speed.toFixed(2)} m/s · rampa ${result.launcher.elevation.toFixed(1)}° · azimute ${result.launcher.azimuth.toFixed(1)}°. Próximos tiros usam este ajuste.`;
+  });
+  launcherUpdate.catch(error=>{$('launcher-applied').textContent='Ajuste não aplicado: '+error.message;notice(error.message);});
+  return launcherUpdate;
+}
 function selectHive(cell,announce=true){
   if(!cell)return;
   selectedHiveId=cell.id;
@@ -132,7 +143,7 @@ function selectHive(cell,announce=true){
   // A boca muda de altura quando a gangorra troca de lado.
   const angle=hiveOrientation(cell.team)*HIVE_SIDE.angleDeg;
   $('target-h').value=hiveSideGeometry(cell,angle).openingHeight.toFixed(4);
-  refreshShot();if(announce)setShotResult('MIRA SELECIONADA · '+cell.name+'. A linha pontilhada termina nesta CELL.','selected');
+  refreshShot();if(announce)syncLauncher();if(announce)setShotResult('MIRA SELECIONADA · '+cell.name+'. A linha pontilhada termina nesta CELL.','selected');
 }
 function refreshMatchLimit(){
   const mode=$('match-mode').value==='teleop'?'teleop':'auto';
@@ -427,13 +438,13 @@ $('load-project').addEventListener('change',async e=>{
 });
 action('csv',async()=>{const response=await fetch('/api/recording');if(!response.ok)throw Error('Falha ao exportar');const data=await response.json();download([data.columns.join(','),...data.rows.map(row=>row.join(','))].join('\n'),'meca-sim-trajetoria.csv','text/csv');});
 action('calc-encoder',()=>{$('ticks_per_m').value=encoderScale(num('encoder-ticks'),num('gear-ratio'),num('wheel-diameter')/1000).toFixed(6);persist();notice('Conversão calculada; aplicada no próximo INIT ou Reiniciar posição.');});
-action('solve-shot',()=>{
+action('solve-shot',async()=>{
   const v=launchValues();if(!v.valid)throw Error('Confira os dados do shooter.');
   const result=targetSolution(state,v.lateral,v.forward,v.height,v.elevation,v.tx,v.ty,v.th);
   if(result.speed>30)throw Error('Velocidade necessária acima de 30 m/s; altere a elevação ou a posição.');
   if($('shot-mode').value==='force')$('force').value=forceFromSpeed(result.speed,v.mass,v.stroke,v.efficiency).toFixed(4);
   $('speed').value=result.speed.toFixed(6);$('azimuth').value=result.azimuth.toFixed(6);
-  shot=null;refreshShot();persist();notice('Mira e energia ideais calculadas. Confira o resultado e valide no robô real.');
+  shot=null;refreshShot();persist();await syncLauncher();notice('Mira e energia ideais calculadas. Confira o resultado e valide no robô real.');
 });
 action('shoot',async()=>{
   const values=launchValues(),cell=$('arena').value==='biobuzz'?selectedHive():null;
@@ -457,6 +468,7 @@ $('elevation-preview').addEventListener('input',()=>{
   $('elevation').value=$('elevation-preview').value;
   refreshLauncherReadouts();refreshShot();persist();
 });
+$('elevation-preview').addEventListener('change',syncLauncher);
 function refreshDriveMode(){const mecanum=$('drivetrain').value==='mecanum';$('mecanum-names').hidden=!mecanum;$('route-panel').hidden=mecanum;}
 $('drivetrain').addEventListener('change',()=>{refreshDriveMode();persist();notice($('drivetrain').value==='mecanum'?'Mecanum configurado: use FL, FR, BL e BR no Java.':'Diferencial configurado: Mequinha usa ME e MD.');});
 $('match-mode').addEventListener('change',()=>{$('manual-phase').value=$('match-mode').value;refreshMatchLimit();refreshRulesControls();persist();notice($('match-mode').value==='auto'?'Autônomo limitado a 30 s.':'TeleOp limitado a 2 min.');});
@@ -487,7 +499,7 @@ document.querySelectorAll('[data-workspace]').forEach(button=>button.addEventLis
 $('editor-full').addEventListener('click',()=>switchWorkspace(document.querySelector('main').classList.contains('mode-code')?'overview':'code'));
 document.querySelectorAll('[data-tab]').forEach(button=>button.addEventListener('click',()=>{
   document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('selected',b===button));
-  ['code','robot','launcher'].forEach(name=>$('tab-'+name).hidden=name!==button.dataset.tab);
+  ['code','robot','launcher','rules'].forEach(name=>$('tab-'+name).hidden=name!==button.dataset.tab);
 }));
 function refreshHighlight(){
   // Textarea nativo fica sempre visível: evita uma metade preta causada por
@@ -539,7 +551,7 @@ function insertCompletion(term){
 }
 $('source').addEventListener('click',()=>showSuggestions());
 $('source').addEventListener('keyup',()=>showSuggestions());
-[...configIds,...visualIds,...launchIds].forEach(id=>$(id).addEventListener('change',()=>{if(launchIds.includes(id))refreshShot();persist();}));
+[...configIds,...visualIds,...launchIds].forEach(id=>$(id).addEventListener('change',()=>{if(launchIds.includes(id)){refreshShot();syncLauncher();}persist();}));
 launchIds.forEach(id=>$(id).addEventListener('input',()=>{refreshLauncherReadouts();refreshShot();persist();}));
 $('example').addEventListener('change',async()=>{
   try{const choice=$('example').value;
@@ -609,6 +621,22 @@ function canvasContext(canvas) {
   const ctx=canvas.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);return {ctx,w,h};
 }
 function geometry() {const r=top.getBoundingClientRect(),scale=Math.min((r.width-70)/3.66,(r.height-40)/3.66);return {scale,ox:(r.width-3.66*scale)/2,oy:(r.height+3.66*scale)/2};}
+function pieceGlyph(c,x,y,r,kind,fill,stroke){
+  c.fillStyle=fill;c.strokeStyle=stroke;c.lineWidth=1.3;c.beginPath();
+  if(kind==='NECTAR'){
+    for(let i=0;i<6;i++){
+      const a=Math.PI/6+i*Math.PI/3,qx=x+r*Math.cos(a),qy=y+r*Math.sin(a);
+      if(i)c.lineTo(qx,qy);else c.moveTo(qx,qy);
+    }
+    c.closePath();
+  }else c.arc(x,y,r,0,Math.PI*2);
+  c.fill();c.stroke();c.beginPath();
+  if(kind==='NECTAR'){
+    c.moveTo(x-r*.23,y-r*.55);c.lineTo(x-r*.23,y+r*.55);
+    c.moveTo(x+r*.23,y-r*.55);c.lineTo(x+r*.23,y+r*.55);
+  }else{c.moveTo(x-r*.55,y);c.lineTo(x+r*.55,y);}
+  c.strokeStyle=kind==='NECTAR'?'#ffffffaa':'#fff2ad';c.lineWidth=1;c.stroke();
+}
 function drawTop(now) {
   const {ctx:c,w,h}=canvasContext(top),g=geometry();
   const project=(x,y)=>[g.ox+x*g.scale,g.oy-y*g.scale];
@@ -620,10 +648,7 @@ function drawTop(now) {
     const q=project(item.x,item.y),radius=Math.max(3,item.radius*g.scale);
     const nectar=item.kind==='NECTAR',fill=nectar?(item.team==='red'?'#e34f5a':'#4c91e8'):'#f1ce54';
     if(item.status==='entering'||item.status==='falling'){c.beginPath();c.arc(q[0],q[1],radius+4,0,Math.PI*2);c.strokeStyle='#ffffffcc';c.lineWidth=1.5;c.stroke();}
-    c.fillStyle=fill;c.strokeStyle=nectar?'#f7f8ff':'#80621f';c.lineWidth=1.3;
-    c.beginPath();c.arc(q[0],q[1],item.status==='launched'?Math.max(4,radius):radius,0,Math.PI*2);c.fill();c.stroke();
-    c.strokeStyle=nectar?'#ffffffaa':'#fff2ad';c.lineWidth=1;
-    c.beginPath();c.moveTo(q[0]-radius*.55,q[1]);c.lineTo(q[0]+radius*.55,q[1]);c.stroke();
+    pieceGlyph(c,q[0],q[1],item.status==='launched'?Math.max(4,radius):radius,item.kind,fill,nectar?'#f7f8ff':'#80621f');
   });
   if($('show-trail').checked&&state.trail.length>1){c.strokeStyle='#ff852e80';c.lineWidth=2;c.beginPath();state.trail.forEach((p,i)=>{const q=project(...p);i?c.lineTo(...q):c.moveTo(...q);});c.stroke();}
   if(replayIndex>=0){const row=replayRows[replayIndex];if(row){c.strokeStyle='#56e4bd';c.beginPath();replayRows.slice(0,replayIndex+1).forEach((r,i)=>{const q=project(r[1],r[2]);i?c.lineTo(...q):c.moveTo(...q);});c.stroke();}}
@@ -644,8 +669,8 @@ function drawTop(now) {
   const preloads=(state.inventory_ids||[]).map(id=>elementsById.get(id)).filter(item=>item?.status==='robot');
   preloads.forEach((item,index)=>{
     const cols=Math.min(4,preloads.length),rows=Math.ceil(preloads.length/cols),local=[(index%cols-(cols-1)/2)*state.width/(cols+1),-state.length*.15+(Math.floor(index/cols)-(rows-1)/2)*state.length/(rows+2)];
-    const p=corner(local[0],local[1]);c.fillStyle=item.kind==='NECTAR'?(item.team==='blue'?'#4c91e8':'#e34f5a'):'#f1ce54';c.strokeStyle=item.kind==='NECTAR'?'#fff':'#fff2ad';c.lineWidth=1.2;
-    c.beginPath();c.arc(...p,Math.max(4,item.radius*g.scale),0,Math.PI*2);c.fill();c.stroke();
+    const p=corner(local[0],local[1]);pieceGlyph(c,p[0],p[1],Math.max(4,item.radius*g.scale),item.kind,
+      item.kind==='NECTAR'?(item.team==='blue'?'#4c91e8':'#e34f5a'):'#f1ce54',item.kind==='NECTAR'?'#fff':'#fff2ad');
   });
   const intakeReach=Number.isFinite(state.intake?.reach)?state.intake.reach:num('intake_reach');
   const intakeCorners=[[-shown.width/2,shown.length/2],[shown.width/2,shown.length/2],[shown.width/2,shown.length/2+intakeReach],[-shown.width/2,shown.length/2+intakeReach]].map(([x,y])=>{const r=rotate(x,y,shown.yaw);return project(shown.x+r[0],shown.y+r[1]);});
@@ -767,6 +792,13 @@ function drawSide(now) {
   const point=(x,y)=>[40+(x-minX)*sx,h-25-y*sy];c.font='10px system-ui';c.lineWidth=1;
   const sideCell=hiveCellById(sideShot?.cellId||selectedHiveId);
   drawArenaSide(c,point,$('arena').value,along,v.th,sideCell,scoredShots,hiveStatus(sideCell?.team||'red',now));
+  for(const item of (state.elements||[])){
+    if(item.status!=='falling'||item.flight?.cell_id!==sideCell?.id)continue;
+    const distance=(item.x-origin[0])*dir[0]+(item.y-origin[1])*dir[1];
+    const q=point(distance,item.flight.z||0);
+    pieceGlyph(c,q[0],q[1],item.kind==='NECTAR'?6:5,item.kind,
+      item.kind==='NECTAR'?(item.team==='blue'?'#4c91e8':'#e34f5a'):'#f1ce54','#fff');
+  }
   for(let i=0;i<=4;i++){const value=i*maxH/4,p=point(0,value);c.strokeStyle='#242c37';c.beginPath();c.moveTo(...p);c.lineTo(w-10,p[1]);c.stroke();c.fillStyle='#627085';c.fillText(value.toFixed(1)+'m',5,p[1]+3);}
   c.strokeStyle='#536277';c.beginPath();c.moveTo(...point(0,0));c.lineTo(...point(maxX,0));c.stroke();
   (state.elements||[]).filter(item=>['entering','falling','launched','field'].includes(item.status)).forEach(item=>{
@@ -965,6 +997,16 @@ async function init() {
     const saved=JSON.parse(localStorage.getItem('meca-sim-v02')||'null');if(saved){$('source').value=saved.source||'';javaFiles=saved.files&&typeof saved.files==='object'&&!Array.isArray(saved.files)?saved.files:{};restoreOpModeChoices();updateJavaFilesLabel();Object.entries(saved.values||{}).forEach(([id,value])=>{if($(id))$(id).type==='checkbox'?$(id).checked=Boolean(value):$(id).value=value;});
     if(!Object.prototype.hasOwnProperty.call(saved.values||{},'shot-mode'))$('shot-mode').value='speed';
     if(hiveCellById(saved.hive))selectedHiveId=saved.hive;
+    // Uma configuração antiga e intacta mirava fora do HIVE no START padrão.
+    const old=saved?.values||{};
+    if(old.force==='8'&&old.azimuth==='0'&&old.x==='1.83'&&old.y==='0.65'&&
+       (old['initial-yaw']==='0'||old['initial-yaw']===undefined)&&
+       old.elevation==='78'&&(!saved.hive||saved.hive==='red-lower')&&
+       old['offset-x']==='0.1125'&&old['offset-y']==='0.225'){
+      $('force').value='7.921';$('azimuth').value='29.82';
+      if(old.intake_capacity==='4')$('intake_capacity').value='8';
+      notice('Mira inicial antiga corrigida; confira o veredito antes do disparo.');
+    }
     }else{$('source').value=examples['TeleOp · gamepad / teclado'];$('example').value='TeleOp · gamepad / teclado';$('match-mode').value='teleop';}
     restoreRuleFields(saved?.values||{});
     $('walls').checked=true;refreshMatchLimit();selectHive(selectedHive(),false);
