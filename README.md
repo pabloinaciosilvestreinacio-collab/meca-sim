@@ -8,30 +8,35 @@
 
 <p><strong>Escreva um OpMode. Rode localmente. Entenda cada movimento.</strong></p>
 
-<p><a href="#comece-em-poucos-minutos">Começar</a> · <a href="#prévia-da-interface">Ver prévias</a> · <a href="#o-que-o-simulador-faz">Funcionalidades</a> · <a href="#limites-do-modelo-e-seguranca">Limites e segurança</a></p>
+<p><a href="#comece-em-poucos-minutos">Começar</a> · <a href="#previa-da-interface">Ver prévias</a> · <a href="#o-que-o-simulador-faz">Funcionalidades</a> · <a href="#limites-do-modelo-e-seguranca">Limites e segurança</a></p>
 
-<p><a href="https://github.com/pabloinaciosilvestreinacio-collab/meca-sim/actions/workflows/validacao.yml"><img alt="Validação automatizada" src="https://github.com/pabloinaciosilvestreinacio-collab/meca-sim/actions/workflows/validacao.yml/badge.svg?branch=main"></a> <img alt="Versão experimental 0.3-rc2" src="https://img.shields.io/badge/vers%C3%A3o-0.3--rc2-ff7a1a"></p>
+<p><a href="https://github.com/pabloinaciosilvestreinacio-collab/meca-sim/actions/workflows/validacao.yml"><img alt="Validação automatizada" src="https://github.com/pabloinaciosilvestreinacio-collab/meca-sim/actions/workflows/validacao.yml/badge.svg?branch=main"></a> <code>VERSÃO EXPERIMENTAL · 0.3-rc2</code></p>
 
 </div>
 
 O Meca Sim é um laboratório local para estudar lógica FTC da equipe Meca Tiger. Ele compila Java com `javac` e mostra o resultado numa arena 2D, telemetria e uma vista lateral do lançador. **Não precisa de conta ou serviço na nuvem.**
 
-[Começar no Windows](#comece-em-poucos-minutos) · [Ver funcionalidades](#o-que-o-simulador-faz) · [Entender limites e segurança](#limites-do-modelo-e-seguranca)
-
 > **Estado do projeto:** candidato experimental `0.3-rc2`. A interface é executada no seu computador. Ainda não é um simulador oficial nem substitui testes no robô físico.
 
+<a id="previa-da-interface"></a>
 ## Prévia da interface
 
-Capturas reais feitas pelo teste Chromium da CI em 13/10/2026. Elas mostram o aplicativo local; o simulador não está sendo executado dentro desta página.
+Capturas reais do teste Chromium da CI, feitas em 13/10/2026. O logotipo da equipe aparece no cabeçalho do aplicativo tanto no computador quanto no celular. São imagens do programa local, não uma versão executável dentro do GitHub.
 
 <p align="center">
-  <img src="docs/previews/interface-desktop.jpg" alt="Meca Sim no desktop: arena vista de cima, trajetória lateral, editor Java e Driver Station virtual" width="850">
+  <img src="docs/previews/interface-desktop-overview.jpg" alt="Prévia desktop com marca Meca Tiger, campo BIOBUZZ, editor Java e controles do Meca Sim" width="100%">
 </p>
 
 <details>
+  <summary>Ver tela completa do computador</summary>
+  <p>A captura completa inclui as duas vistas, Driver Station, telemetria, diagnóstico e editor.</p>
+  <img src="docs/previews/interface-desktop.jpg" alt="Tela completa do Meca Sim no desktop com símbolo da Meca Tiger" width="850">
+</details>
+
+<details>
   <summary>Ver prévia em celular</summary>
-  <p>A tela reorganiza os painéis em uma coluna, com controles e editor acessíveis por rolagem.</p>
-  <img src="docs/previews/interface-mobile.jpg" alt="Prévia vertical do Meca Sim em uma tela de celular" width="320">
+  <p>A interface empilha os painéis numa coluna; deslize para acessar o campo, shooter, Driver Station e editor.</p>
+  <img src="docs/previews/interface-mobile.jpg" alt="Meca Sim em celular, com símbolo da Meca Tiger no cabeçalho" width="320">
 </details>
 
 [Ver execução de validação e evidências no GitHub Actions](https://github.com/pabloinaciosilvestreinacio-collab/meca-sim/actions/runs/38466750307).
