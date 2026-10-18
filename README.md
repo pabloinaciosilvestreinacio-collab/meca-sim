@@ -62,15 +62,9 @@ Use o pacote Windows da última execução **aprovada** no GitHub Actions. Ele c
 
 O pipeline de CI prepara um executável portátil **MecaSim.exe**, disponível em **Actions → Validar Meca Sim → execução aprovada → Artifacts → MecaSim-Windows-portatil**. Extraia o artefato antes de executar. O executável inclui Python, servidor e interface e é verificado por um teste de inicialização no Windows. **Ele ainda exige JDK 17+ com java e javac**: pode reutilizar um JDK instalado ou o `jbr` do Android Studio. O arquivo não é assinado e o Windows pode emitir um aviso SmartScreen. Ainda não é uma distribuição pública com instalador.
 
-## Abrir em três passos
+## Inicialização pelo código-fonte
 
-1. Instale **Python 3.10+ e JDK 17+**. O iniciador procura também o JDK `jbr` do Android Studio no local padrão do Windows.
-2. No GitHub, use **Code → Download ZIP**, extraia e abra `iniciar.bat`. Linux/macOS: `sh iniciar.sh`.
-3. O navegador abre **http://127.0.0.1:8765**. Clique **Compilar / INIT**, aguarde `inicializando`, clique **START**. **STOP** encerra a JVM e zera motores.
-
-Deixe o terminal aberto. Não exige bibliotecas Python para utilizar. Para diagnóstico, execute `python iniciar.py --diagnostico`. Outra porta: variável `SIM_PORT`. O servidor escuta exclusivamente o computador local.
-
-**Cole somente Java confiável.** A JVM tem as permissões da sua conta e não está isolada para código malicioso. Esta implementação não deve ser usada como serviço público de execução de código.
+Os iniciadores `iniciar.bat` e `iniciar.sh` usam `iniciar.py`, que verifica Python e JDK antes de abrir o servidor. O passo a passo para a versão Windows portátil e para o código-fonte está em [Comece por aqui](#comece-por-aqui).
 
 ## O que testar
 
