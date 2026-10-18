@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="web/meca-tiger-mark.svg" alt="Símbolo da Meca Tiger" width="104">
+<img src="https://raw.githubusercontent.com/pabloinaciosilvestreinacio-collab/mecatiger-hub/main/public/Screenshot_20261004_131612_Instagram.jpg" alt="Logo oficial da Meca Tiger usada no site da equipe" width="104">
 
 <h1>Meca Sim</h1>
 
@@ -21,22 +21,22 @@ O Meca Sim é um laboratório local para estudar lógica FTC da equipe Meca Tige
 <a id="previa-da-interface"></a>
 ## Prévia da interface
 
-Capturas reais do teste Chromium da CI, feitas em 13/10/2026. O logotipo da equipe aparece no cabeçalho do aplicativo tanto no computador quanto no celular. São imagens do programa local, não uma versão executável dentro do GitHub.
+Capturas reais do teste Chromium da CI, feitas em 13/10/2026. Elas mostram a interface atual do simulador em computador e celular; a imagem acima do título é a mesma logo oficial usada no site da Meca Tiger. As capturas são do programa local, não uma versão executável dentro do GitHub.
 
 <p align="center">
-  <img src="docs/previews/interface-desktop-overview.jpg" alt="Prévia desktop com marca Meca Tiger, campo BIOBUZZ, editor Java e controles do Meca Sim" width="100%">
+  <img src="docs/previews/interface-desktop-overview.jpg" alt="Prévia desktop do Meca Sim com campo BIOBUZZ, editor Java e controles" width="100%">
 </p>
 
 <details>
   <summary>Ver tela completa do computador</summary>
   <p>A captura completa inclui as duas vistas, Driver Station, telemetria, diagnóstico e editor.</p>
-  <img src="docs/previews/interface-desktop.jpg" alt="Tela completa do Meca Sim no desktop com símbolo da Meca Tiger" width="850">
+  <img src="docs/previews/interface-desktop.jpg" alt="Tela completa do Meca Sim no desktop" width="850">
 </details>
 
 <details>
   <summary>Ver prévia em celular</summary>
   <p>A interface empilha os painéis numa coluna; deslize para acessar o campo, shooter, Driver Station e editor.</p>
-  <img src="docs/previews/interface-mobile.jpg" alt="Meca Sim em celular, com símbolo da Meca Tiger no cabeçalho" width="320">
+  <img src="docs/previews/interface-mobile.jpg" alt="Prévia da interface do Meca Sim em celular" width="320">
 </details>
 
 [Ver execução de validação e evidências no GitHub Actions](https://github.com/pabloinaciosilvestreinacio-collab/meca-sim/actions/runs/38466750307).
