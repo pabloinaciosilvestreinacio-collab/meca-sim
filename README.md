@@ -1,6 +1,18 @@
-# Meca Sim 0.3-rc2
+<div align="center">
 
-### Escreva um OpMode. Rode localmente. Entenda cada movimento.
+<img src="web/meca-tiger-mark.svg" alt="Símbolo da Meca Tiger" width="104">
+
+<h1>Meca Sim</h1>
+
+<p><strong>MECA TIGER · FTC #32578</strong><br>Laboratório 2D de programação e estratégia</p>
+
+<p><strong>Escreva um OpMode. Rode localmente. Entenda cada movimento.</strong></p>
+
+<p><a href="#comece-em-poucos-minutos">Começar</a> · <a href="#prévia-da-interface">Ver prévias</a> · <a href="#o-que-o-simulador-faz">Funcionalidades</a> · <a href="#limites-do-modelo-e-seguranca">Limites e segurança</a></p>
+
+<p><a href="https://github.com/pabloinaciosilvestreinacio-collab/meca-sim/actions/workflows/validacao.yml"><img alt="Validação automatizada" src="https://github.com/pabloinaciosilvestreinacio-collab/meca-sim/actions/workflows/validacao.yml/badge.svg?branch=main"></a> <img alt="Versão experimental 0.3-rc2" src="https://img.shields.io/badge/vers%C3%A3o-0.3--rc2-ff7a1a"></p>
+
+</div>
 
 O Meca Sim é um laboratório local para estudar lógica FTC da equipe Meca Tiger. Ele compila Java com `javac` e mostra o resultado numa arena 2D, telemetria e uma vista lateral do lançador. **Não precisa de conta ou serviço na nuvem.**
 
