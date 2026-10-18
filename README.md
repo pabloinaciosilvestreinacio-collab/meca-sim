@@ -2,6 +2,25 @@
 
 Simulador **local e independente** da Meca Tiger: cole uma classe Java `LinearOpMode`, configure o chassi diferencial, execute INIT/START e observe encoders, IMU, telemetria e trajetória. Inclui controles USB e teclado, vista de cima e estudo balístico lateral.
 
+## Comece por aqui
+
+O Meca Sim completo roda no computador; o Hub oferece apenas uma prévia limitada.
+
+### Windows: abrir sem instalar Python
+
+1. Baixe o artefato **MecaSim-Windows-portatil** desta [execução aprovada no GitHub Actions](https://github.com/pabloinaciosilvestreinacio-collab/meca-sim/actions/runs/38466750307). Se o artefato tiver expirado, abra [as execuções de validação](https://github.com/pabloinaciosilvestreinacio-collab/meca-sim/actions/workflows/validacao.yml?query=branch%3Amain) e escolha a execução mais recente com sucesso na branch `main`.
+2. Extraia o ZIP inteiro na mesma pasta. O pacote contém `MecaSim.exe` e `INICIAR_TESTE.bat`.
+3. Tenha JDK 17+ disponível (`java` e `javac`). O JDK do Android Studio pode ser usado. Execute `INICIAR_TESTE.bat`; ele verifica o Java e grava `mecasim-diagnostico.txt`.
+4. O navegador abre em `http://127.0.0.1:8765`. Mantenha a janela do terminal aberta. Clique em **Compilar / INIT**, escolha um exemplo ou carregue seu OpMode Java, depois clique em **START**. Use **STOP** para encerrar.
+
+### Windows, Linux e macOS: executar o código-fonte
+
+1. [Baixe o ZIP do repositório](https://github.com/pabloinaciosilvestreinacio-collab/meca-sim/archive/refs/heads/main.zip) e extraia todos os arquivos.
+2. Instale Python 3.10+ e JDK 17+. No Windows, abra `iniciar.bat`; no Linux/macOS, execute `sh iniciar.sh` dentro da pasta extraída.
+3. O navegador abre em `http://127.0.0.1:8765`. Deixe o terminal aberto enquanto usa o simulador.
+
+Se a inicialização falhar, rode `python iniciar.py --diagnostico` no terminal da pasta (no Windows, também funciona `py -3 iniciar.py --diagnostico`). O servidor escuta somente o próprio computador. Java não é isolado: execute apenas código de origem confiável e não exponha o servidor à rede.
+
 ### Referência Desmos: arena e viabilidade do lançamento
 
 - Arena BIOBUZZ com disposição ilustrativa baseada na imagem Desmos da equipe: CELLS vermelhas à esquerda, azuis à direita, zonas vermelhas e azuis nas bordas correspondentes e marcadores laranja. As coordenadas são estimadas visualmente, não levantadas do CAD.
