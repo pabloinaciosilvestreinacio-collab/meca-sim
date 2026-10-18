@@ -91,9 +91,9 @@ Para investigar uma falha de inicialização: `python iniciar.py --diagnostico` 
 ### Shooter, HIVE e campo BIOBUZZ
 
 - A aba **Shooter** configura posição do lançador presa ao chassi, altura, elevação, azimute e mira; a vista lateral exibe rampa, parábola, alvo e resultado estimado.
-- Permite modo de força média equivalente ou velocidade de saída. A parábola usa gravidade padrão e um projétil pontual sem arrasto. O resultado SIM/NÃO considera alcance, altura e tolerâncias configuráveis; não representa pontuação oficial nem potência/RPM do mecanismo real.
-- A arena apresenta HIVE, CELLS, FLOWERS, GARDENS e LOADING ZONES. Dimensões principais seguem o manual BIOBUZZ; posições individuais e orientação de algumas peças continuam esquemáticas, não vêm de uma reprodução CAD completa.
-- Mira as quatro CELLS centrais no modo BIOBUZZ. Acertos visuais de POLLEN podem permanecer na CELL; oito POLLEN no mesmo HIVE provocam uma animação didática de tombamento. O número oito não é uma regra oficial FIRST nem uma simulação de massa/impacto.
+- Permite modo de força média equivalente ou velocidade de saída. A parábola usa gravidade padrão e um projétil pontual sem arrasto. O resultado SIM/NÃO considera alcance horizontal, desvio lateral e diferença de altura no alvo, com tolerâncias configuráveis; não representa pontuação oficial nem potência/RPM do mecanismo real.
+- A arena apresenta HIVE, CELLS, FLOWERS, GARDENS e LOADING ZONES. As dimensões principais modeladas são: quadro HIVE 1,2565 × 0,9895 m, pivô a 1,1165 m, espaçamento das CELLS 0,478 m, abertura dos FLOWERS 0,546 m, GARDENS 0,584 × 0,051 m e LOADING ZONES 0,584 × 0,2795 m. Posições e orientações de elementos individuais continuam esquemáticas, não são uma reprodução CAD completa.
+- Mira as quatro CELLS centrais do modo BIOBUZZ. O POLLEN viaja até a abertura, desacelera ao entrar e segue até o repouso visual dentro da CELL; o acerto é decidido durante o voo. Oito POLLEN no mesmo HIVE provocam uma animação didática de tombamento e troca da CELL ativa. O número oito não é uma regra oficial FIRST nem uma simulação de massa/impacto.
 - As paredes externas são físicas no modelo. HIVE, FLOWERS e marcações não bloqueiam o robô; o lançador não simula mecanismos físicos, spin, arrasto ou impacto rígido.
 - A opção **Inserir logo da equipe** permite carregar PNG/JPG/WebP no navegador. A imagem é reduzida e armazenada localmente; não é enviada ao GitHub ou a um servidor.
 
