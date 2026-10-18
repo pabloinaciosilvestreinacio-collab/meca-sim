@@ -10,7 +10,7 @@
 
 <p><a href="#comece-em-poucos-minutos">Começar</a> · <a href="#previa-da-interface">Ver prévias</a> · <a href="#o-que-o-simulador-faz">Funcionalidades</a> · <a href="#limites-do-modelo-e-seguranca">Limites e segurança</a></p>
 
-<p><a href="https://github.com/pabloinaciosilvestreinacio-collab/meca-sim/actions/workflows/validacao.yml"><img alt="Validação automatizada" src="https://github.com/pabloinaciosilvestreinacio-collab/meca-sim/actions/workflows/validacao.yml/badge.svg?branch=main"></a> <code>VERSÃO EXPERIMENTAL · 0.3-rc2</code></p>
+<p><a href="https://github.com/pabloinaciosilvestreinacio-collab/meca-sim/actions/workflows/validacao.yml"><img alt="Validação automatizada" src="https://github.com/pabloinaciosilvestreinacio-collab/meca-sim/actions/workflows/validacao.yml/badge.svg?branch=main&event=push&cb=39094206387"></a> <code>VERSÃO EXPERIMENTAL · 0.3-rc2</code></p>
 
 </div>
 
@@ -39,7 +39,7 @@ Capturas reais do teste Chromium da CI, feitas em 13/10/2026. Elas mostram a int
   <img src="docs/previews/interface-mobile.jpg" alt="Prévia da interface do Meca Sim em celular" width="320">
 </details>
 
-[Ver execução de validação e evidências no GitHub Actions](https://github.com/pabloinaciosilvestreinacio-collab/meca-sim/actions/runs/38466750307).
+[Ver execuções e evidências da branch main no GitHub Actions](https://github.com/pabloinaciosilvestreinacio-collab/meca-sim/actions/workflows/validacao.yml?query=branch%3Amain).
 
 ## Comece em poucos minutos
 
