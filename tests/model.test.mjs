@@ -1,7 +1,7 @@
 import test from 'node:test';
 import {validStart,FIELD_METERS,FLOWERS,hiveCellAt,hiveCellById,HIVE} from '../web/arena.mjs';
 import assert from 'node:assert/strict';
-import {rotate, launcher, heightAt, flight, gamepadValues, shotElapsed} from '../web/model.mjs';
+import {rotate, launcher, heightAt, flight, gamepadValues, keyboardGamepadValues, DEFAULT_KEYMAP, shotElapsed} from '../web/model.mjs';
 test('Ponto do Desmos permanece preso ao centro ao girar',()=>{
   for(const yaw of [0,45,90,180,-135]){
     const p={x:2,y:1,yaw},l=launcher(p,.1125,.225);
@@ -19,6 +19,21 @@ test('Alvo vertical usa projeção vetorial, sem dividir por delta X',()=>{const
 test('Mapeamento padrão: eixos, gatilhos, back/start e D-pad',()=>{
   const buttons=Array.from({length:16},()=>({pressed:false,value:0}));buttons[0]={pressed:true,value:1};buttons[6]={pressed:true,value:.7};buttons[8]={pressed:true,value:1};buttons[12]={pressed:true,value:1};
   const v=gamepadValues({mapping:'standard',axes:[.1,-.2,.3,-.4],buttons});assert.equal(v.length,20);assert.equal(v[1],-.2);assert.equal(v[4],.7);assert.equal(v[6],1);assert.equal(v[12],1);assert.equal(v[16],1);
+});
+test('Teclado emula todos os 20 slots FTC e gatilhos digitais',()=>{
+  const pressed=new Set(['q','s','a','f','1','2',' ','b','x','y','z','c','Backspace','Enter','[',']','ArrowUp','ArrowDown','ArrowLeft','ArrowRight']);
+  assert.deepEqual(keyboardGamepadValues(pressed,DEFAULT_KEYMAP),[
+    -1,1,-1,1,1,1,
+    1,1,1,1,1,1,1,1,1,1,1,1,1,1
+  ]);
+  assert.deepEqual(keyboardGamepadValues(new Set()),Array(20).fill(0));
+  assert.notEqual(keyboardGamepadValues(new Set()),keyboardGamepadValues(new Set()));
+});
+test('Mapa do gamepad aceita teclas personalizadas',()=>{
+  const custom={...DEFAULT_KEYMAP,a:'g',lt:'t',dpadUp:'i'};
+  const values=keyboardGamepadValues(new Set(['g','t','i']),custom);
+  assert.equal(values[6],1);assert.equal(values[4],1);assert.equal(values[16],1);
+  assert.equal(values[7],0);
 });
 test('Desconectar ou mapeamento desconhecido zera comando',()=>{assert.deepEqual(gamepadValues(null),Array(20).fill(0));assert.deepEqual(gamepadValues({mapping:''}),Array(20).fill(0));});
 
@@ -230,4 +245,28 @@ test('Bordas, profundidade e subida exibem impacto mas não capturam POLLEN',()=
   assert.equal(risingImpact.hit,false,JSON.stringify(risingImpact));
   assert.ok(risingImpact.impactPoint,'erro na subida ainda precisa localizar o impacto');
   assert.ok(risingImpact.reason,'entrada na subida ou pelo lado inferior precisa ser rejeitada com motivo');
+});
+import {buildMatchReport,reportCsv} from '../web/report.mjs';
+test('Relatório conserva tentativas vazias e resultados cumulativos após liberar HIVE',()=>{
+  const state={status:'concluído',time:15,launcher_status:{launch_count:6,empty_feed_attempts:5,hits:4,misses:1,pending:1},
+    elements:[],intake:{collected:4},rules:{hive_tips_didactic:{red:1},penalties:[{code:'G410',points_to_opponent:20}]},
+    scoring:{by_alliance:{red:{hive_tips:20,hive_elements:0,flowers:8,bottom_nectar_bonus:5,gardens:2,penalties_received:20,total:55}}},
+    logs:'erro "teste"\nlinha 2',diagnostics:[{message:'=teste'}]};
+  const r=buildMatchReport(state,'red');
+  assert.deepEqual([r.activity.launched,r.activity.emptyFeedAttempts,r.activity.hits,r.activity.misses,r.activity.pending],[6,5,4,1,1]);
+  assert.equal(r.missionSuccess,'não avaliada');
+  assert.ok(r.javaResult.includes('não comprova sucesso'));
+  const csv=reportCsv(r);
+  for(const key of ['hive_tips','hive_elements','flowers','bottom_nectar_bonus','gardens','penalties_received','total'])
+    assert.ok(csv.includes('estimatedPoints.'+key));
+  assert.ok(csv.includes('ruleStatus.penalties.0.code'));
+  assert.ok(csv.includes('erro ""teste""\nlinha 2'));
+  assert.ok(!csv.includes('undefined'));
+  assert.ok(csv.includes("'=teste"));
+});
+test('Relatório vazio é exportável e versões antigas não produzem undefined',()=>{
+  const r=buildMatchReport({},'red');
+  assert.equal(r.activity.emptyFeedAttempts,0);
+  assert.equal(r.activity.pending,0);
+  assert.ok(!reportCsv({version:1,activity:{emptyFeedAttempts:undefined}}).includes('undefined'));
 });

@@ -15,6 +15,33 @@ process=subprocess.Popen([sys.executable,str(ROOT/'server.py')],env={**os.enviro
 checks=[]
 def passed(text):
     checks.append(text);print('PASS:',text,flush=True)
+
+def wait_java_finished(page, timeout=30000):
+    """Wait for a terminal Java state and include simulator evidence on failure."""
+    try:
+        page.wait_for_function(
+            "['concluído','erro','parado'].includes(document.querySelector('#status').textContent)",
+            timeout=timeout)
+    except Exception as error:
+        state=page.request.get(f'http://127.0.0.1:{port}/api/state').json()
+        raise AssertionError(
+            f"Java não chegou a um estado terminal: status={state['status']!r}; "
+            f"telemetria={state['telemetry']!r}; logs={state['logs']!r}; "
+            f"aviso={page.locator('#message').text_content()!r}") from error
+    state=page.request.get(f'http://127.0.0.1:{port}/api/state').json()
+    assert state['status']=='concluído', {
+        'status':state['status'],'telemetry':state['telemetry'],
+        'logs':state['logs'],'message':page.locator('#message').text_content()}
+
+def dismiss_report(page, expected='Java terminou normalmente'):
+    """A interface exige que o relatório da partida anterior seja descartado."""
+    page.wait_for_function("!document.querySelector('#final-report').hidden")
+    assert expected in page.locator('#report-summary').text_content()
+    page.locator('#dismiss-report').click()
+    page.wait_for_function("document.querySelector('#final-report').hidden")
+    page.wait_for_timeout(250)  # mais de dois ciclos de polling da interface
+    assert page.locator('#final-report').is_hidden(), 'Relatório descartado reapareceu'
+
 try:
     deadline=time.monotonic()+15
     while time.monotonic()<deadline:
@@ -25,10 +52,23 @@ try:
     with sync_playwright() as p:
         browser=p.chromium.launch()
         page=browser.new_page(viewport={'width':1440,'height':1100})
-        errors=[];page.on('pageerror',lambda error:errors.append(str(error)))
+        errors=[];console_errors=[];failed_requests=[]
+        page.on('pageerror',lambda error:errors.append(str(error)))
+        page.on('console',lambda message:console_errors.append(message.text) if message.type=='error' else None)
+        page.on('requestfailed',lambda request:failed_requests.append({
+            'url':request.url,'error':request.failure}))
         page.goto(f'http://127.0.0.1:{port}')
         page.locator('#source').wait_for()
-        page.wait_for_function("document.querySelector('#source').value.includes('LinearOpMode')")
+        try:
+            page.wait_for_function("document.querySelector('#source').value.includes('LinearOpMode')")
+        except Exception as error:
+            raise AssertionError(
+                'O exemplo Java não foi carregado: '
+                f'page_errors={errors!r}; console_errors={console_errors!r}; '
+                f'failed_requests={failed_requests!r}; '
+                f'example_status={page.request.get(f"http://127.0.0.1:{port}/examples").status}; '
+                f'body={page.locator("body").inner_text()[:1200]!r}'
+            ) from error
         assert page.locator('#top').evaluate('(e)=>e.width>0 && e.height>0')
         assert page.locator('#diagnostic-panel').count()==1
         page.locator('[data-tab="robot"]').click()
@@ -38,6 +78,7 @@ try:
         page.locator('#timer-enabled').uncheck()
         assert page.locator('#clear-shots').count()==1
         page.locator('[data-tab="code"]').click()
+        page.locator('#example').select_option(label='Autônomo · encoder + IMU')
         passed('Interface inicial, exemplos e canvas carregados')
         assert page.locator('#arena').input_value() in ('biobuzz','livre')
         page.locator('#arena').select_option('livre')
@@ -77,28 +118,15 @@ try:
         assert page.locator('#speed').get_attribute('readonly') is not None
         page.locator('#solve-shot').click()
         page.wait_for_function("document.querySelector('#shot-verdict').dataset.possible==='yes'")
-        # Um erro lateral ainda exibe o ponto no plano, mas não pode contar POLLEN.
-        page.locator('#azimuth').fill('45')
-        page.wait_for_function("document.querySelector('#shot-verdict').dataset.possible==='no'")
+        # A prévia é apenas matemática; não cria peças nem pontua.
+        before=page.request.get(f'http://127.0.0.1:{port}/api/state').json()
         page.locator('#shoot').click()
-        page.wait_for_function("document.querySelector('#shot-result').textContent.includes('sem captura')")
-        page.wait_for_timeout(1500)
-        assert '0/8 POLLEN' in page.locator('#hive-progress').text_content()
-        page.locator('#solve-shot').click()
-        page.wait_for_function("document.querySelector('#shot-verdict').dataset.possible==='yes'")
-        page.locator('#shoot').click()
-        page.wait_for_function("document.querySelector('#hive-progress').textContent.includes('1/8 POLLEN')",timeout=10000)
-        assert '0 tombamento' in page.locator('#hive-progress').text_content()
-        page.wait_for_timeout(520)
-        for expected in range(2,9):
-            page.locator('#shoot').click()
-            if expected<8:
-                page.wait_for_function("(n)=>document.querySelector('#hive-progress').textContent.includes(n+'/8 POLLEN')",arg=str(expected),timeout=10000)
-            else:
-                page.wait_for_function("document.querySelector('#hive-progress').textContent.includes('0/8 POLLEN') && document.querySelector('#hive-progress').textContent.includes('1 tombamento')",timeout=10000)
-                assert 'TOMBOU' in page.locator('#shot-result').text_content()
-            page.wait_for_timeout(520)
-        passed('POLLEN capturado sem duplicação e HIVE tomba apenas no oitavo acerto')
+        page.wait_for_function("document.querySelector('#shot-result').textContent.includes('PRÉVIA')",timeout=10000)
+        after=page.request.get(f'http://127.0.0.1:{port}/api/state').json()
+        assert before['inventory_ids']==after['inventory_ids']
+        assert before['hives']==after['hives']
+        assert before['elements']==after['elements']
+        passed('Prévia balística não duplica peças, não consome inventário e não tomba HIVE')
         passed('Força, velocidade, ângulo, mira e parabola com veredito atualizam')
         page.locator('[data-tab="robot"]').click()
         page.locator('summary').filter(has_text='Calcular ticks').click()
@@ -110,13 +138,14 @@ try:
         page.wait_for_function("document.querySelector('#status').textContent==='inicializando'",timeout=30000)
         assert page.locator('#ds-start').is_enabled()
         page.locator('#ds-start').click()
-        page.wait_for_function("document.querySelector('#status').textContent==='concluído'",timeout=30000)
+        wait_java_finished(page)
         result=page.request.get(f'http://127.0.0.1:{port}/api/state').json()
         # E2E cruza ticks da JVM, servidor e navegador. O erro angular final
         # pode diferir ligeiramente após zerar potência; não é ensaio de PID físico.
         assert abs(result['yaw']-50)<2.5,{'yaw':result['yaw'],'time':result['time'],'telemetry':result['telemetry']}
         assert all(m['power']==0 for m in result['motors'].values())
         assert 'CONCLUÍDO' in page.locator('#ds-state').text_content().upper()
+        dismiss_report(page)
         passed('Autônomo real via INIT/START/Driver Station concluiu e zerou motores')
         page.locator('[data-workspace="paths"]').click()
         assert page.locator('#timeline-panel').get_attribute('open') is not None
@@ -162,8 +191,9 @@ public class AuxiliarBrowser {
             page.locator('#compile').click()
             page.wait_for_function("document.querySelector('#status').textContent==='inicializando'",timeout=30000)
             page.locator('#start').click()
-            page.wait_for_function("document.querySelector('#status').textContent==='concluído'",timeout=30000)
+            wait_java_finished(page)
             assert 'Importacao multipla OK' in page.locator('#telemetry').text_content()
+            dismiss_report(page)
             with page.expect_download() as out:page.locator('#save-project').click()
             saved=json.loads(Path(out.value.path()).read_text(encoding='utf-8'))
             assert len(saved['files'])==1
@@ -192,15 +222,27 @@ public class ZipOutro extends LinearOpMode {
             page.locator('#compile').click()
             page.wait_for_function("document.querySelector('#status').textContent==='inicializando'",timeout=30000)
             page.locator('#start').click()
-            page.wait_for_function("document.querySelector('#status').textContent==='concluído'",timeout=30000)
+            wait_java_finished(page)
             assert 'OUTRO OK' in page.locator('#telemetry').text_content()
+            dismiss_report(page)
             with page.expect_download() as out:page.locator('#save-project').click()
             saved_zip=Path(out.value.path())
             assert len(json.loads(saved_zip.read_text(encoding='utf-8'))['files'])==1
             page.locator('#load-project').set_input_files(str(saved_zip))
+            page.wait_for_function("document.querySelector('#message').textContent.includes('Projeto restaurado.')")
+            page.wait_for_function("document.querySelector('#opmode-choice').value.endsWith('ZipOutro.java') && document.querySelector('#source').value.includes('ZipOutro')")
             page.wait_for_function("document.querySelector('#opmode-choice').options.length===2")
             page.locator('#opmode-choice').select_option(label='ZipDemo — org/firstinspires/ftc/teamcode/ZipDemo.java')
-            assert 'ZipDemo' in page.locator('#source').input_value()
+            try:
+                page.wait_for_function("document.querySelector('#source').value.includes('ZipDemo')",timeout=5000)
+            except Exception as error:
+                raise AssertionError(
+                    'A troca de OpMode após reabrir o ZIP não atualizou o editor: '
+                    f"selected={page.locator('#opmode-choice').input_value()!r}; "
+                    f"options={page.locator('#opmode-choice').locator('option').all_text_contents()!r}; "
+                    f"source={page.locator('#source').input_value()[:240]!r}; "
+                    f"message={page.locator('#message').text_content()!r}"
+                ) from error
             passed('ZIP TeamCode seleciona OpMode, compila, executa e restaura opções ao reabrir JSON')
         if page.locator('#files-menu').get_attribute('open') is not None:
             page.locator('#files-menu summary').click()
@@ -218,6 +260,7 @@ public class ZipOutro extends LinearOpMode {
         page.wait_for_function("document.querySelector('#status').textContent==='parado'")
         result=page.request.get(f'http://127.0.0.1:{port}/api/state').json()
         assert all(m['power']==0 for m in result['motors'].values())
+        dismiss_report(page,'Simulação encerrada antes do fim normal do Java')
         passed('TeleOp: teclado movimenta e STOP encerra JVM')
         page.locator('[data-workspace="paths"]').click()
         assert page.locator('#route-panel').get_attribute('open') is not None
@@ -289,7 +332,7 @@ public class ZipOutro extends LinearOpMode {
         page.wait_for_function("document.querySelector('#status').textContent==='executando'",timeout=15000)
         # O teste antigo era falso positivo: terminar não prova que o robô andou.
         page.wait_for_function("Math.abs(parseFloat(document.querySelector('#yaw').textContent))>12",timeout=12000)
-        page.wait_for_function("document.querySelector('#status').textContent==='concluído'",timeout=45000)
+        wait_java_finished(page,timeout=45000)
         assert 'Autonomo 3.5 concluido' in page.locator('#telemetry').text_content()
         assert 'COMPLETO' in page.locator('#telemetry').text_content(),'Modo GIRO em vez de COMPLETO'
         result=page.request.get(f'http://127.0.0.1:{port}/api/state').json()
@@ -314,6 +357,53 @@ public class ZipOutro extends LinearOpMode {
         page.screenshot(path=str(ROOT/'reports/interface-mobile.png'),full_page=True)
         assert not errors,errors
         passed('Desktop/celular sem overflow horizontal ou erros JavaScript')
+        editor=browser.new_page(viewport={'width':1280,'height':900})
+        editor_errors=[]
+        editor.on('pageerror',lambda error:editor_errors.append(str(error)))
+        editor.goto(f'http://127.0.0.1:{port}')
+        editor.locator('#source').wait_for()
+        editor.wait_for_function("document.querySelector('#source').value.includes('LinearOpMode')")
+        editor.locator('[data-tab="code"]').click()
+        source=editor.locator('#source')
+        original=source.input_value()
+        with editor.expect_download() as out:
+            source.focus()
+            editor.keyboard.press('Control+s')
+        project_path=Path(out.value.path())
+        project_data=json.loads(project_path.read_text(encoding='utf-8'))
+        assert project_data['format']=='meca-sim-project' and project_data['source']==original
+        assert editor.locator('#status').text_content()=='pronto'
+        source.press('Control+End')
+        marker='Z'
+        editor.keyboard.type(marker)
+        source.press('Control+z')
+        assert source.input_value()==original, 'Ctrl+Z não desfez'
+        source.press('Control+y')
+        assert source.input_value()==original+marker, 'Ctrl+Y não refez'
+        source.press('Control+z')
+        source.press('Control+Shift+z')
+        assert source.input_value()==original+marker, 'Ctrl+Shift+Z não refez'
+        source.fill(original)
+        source.press('Control+a')
+        selection=source.evaluate('(el)=>[el.selectionStart,el.selectionEnd,el.value.length]')
+        assert selection==[0,len(original),len(original)], 'Ctrl+A não selecionou tudo'
+        source.press('Control+c')
+        source.press('Control+End')
+        source.press('Control+v')
+        assert source.input_value()==original+original, 'Ctrl+C/V não copiaram e colaram'
+        editor.locator('[data-tab="robot"]').click()
+        editor.locator('.keymap-settings summary').click()
+        editor.get_by_role('button',name='Tecla para A').click()
+        editor.keyboard.press('g')
+        assert editor.get_by_role('button',name='Tecla para A').text_content()=='g'
+        editor.get_by_role('button',name='Tecla para B',exact=True).click()
+        editor.keyboard.press('g')
+        assert 'já está atribuída' in editor.locator('#message').text_content()
+        editor.locator('#reset-keymap').click()
+        assert editor.get_by_role('button',name='Tecla para A').text_content()=='Space'
+        assert not editor_errors, editor_errors
+        passed('Editor: atalhos nativos e remapeamento sem conflitos; restauração do padrão')
+        editor.close()
         browser.close()
 finally:
     process.terminate()

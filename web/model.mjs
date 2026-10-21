@@ -75,6 +75,32 @@ export function connectedPlayers(pads) {
   // Preserve browser index: unplugging player 1 must not promote player 2.
   return [pads[0]?.connected===false?null:pads[0], pads[1]?.connected===false?null:pads[1]];
 }
+/** Mapeamento inicial para teclado; eixos e gatilhos são digitais. */
+export const DEFAULT_KEYMAP = Object.freeze({
+  lsxNeg:'q',lsxPos:'e',lsyNeg:'w',lsyPos:'s',
+  rsxNeg:'a',rsxPos:'d',rsyNeg:'r',rsyPos:'f',
+  lt:'1',rt:'2',a:' ',b:'b',x:'x',y:'y',lb:'z',rb:'c',
+  back:'Backspace',start:'Enter',leftStick:'[',rightStick:']',
+  dpadUp:'ArrowUp',dpadDown:'ArrowDown',dpadLeft:'ArrowLeft',dpadRight:'ArrowRight'
+});
+
+/** Converte teclas virtuais no vetor FTC de 20 slots usado pelo servidor.
+ * Os eixos são −1/0/1; LT/RT são 0/1. */
+export function keyboardGamepadValues(keys, map=DEFAULT_KEYMAP) {
+  const pressed = action => Number(keys.has(map[action]));
+  return [
+    pressed('lsxPos')-pressed('lsxNeg'),
+    pressed('lsyPos')-pressed('lsyNeg'),
+    pressed('rsxPos')-pressed('rsxNeg'),
+    pressed('rsyPos')-pressed('rsyNeg'),
+    pressed('lt'), pressed('rt'),
+    pressed('a'), pressed('b'), pressed('x'), pressed('y'),
+    pressed('lb'), pressed('rb'), pressed('back'), pressed('start'),
+    pressed('leftStick'), pressed('rightStick'),
+    pressed('dpadUp'), pressed('dpadDown'), pressed('dpadLeft'), pressed('dpadRight')
+  ];
+}
+
 export function gamepadValues(pad) {
   const zero = Array(20).fill(0);
   if (!pad || pad.connected===false || pad.mapping !== 'standard') return zero;

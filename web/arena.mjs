@@ -45,7 +45,7 @@ export function drawArenaTop(ctx,project,mode,selectedCellId='',scoredBalls=[],t
   rect(ZONES.redVertical,'#bb3c4659','#ec6869');rect(ZONES.redBottom,'#bb3c466b','#ec6869');rect(ZONES.redLine,'#b73f46','#eb646a');rect(ZONES.blueVertical,'#2466b15e','#6cadf8');rect(ZONES.blueTop,'#356fb6','#7cb1fe');rect(HIVE,'#202328','#d5d9df');
   HIVE.cells.forEach(cell=>{rect(cell,cellColor(cell),cellStroke(cell));const a=p(cell.x,cell.y+cell.h),b=p(cell.x+cell.w,cell.y);
     if(cell.id===selectedCellId){ctx.strokeStyle='#fff3a8';ctx.lineWidth=3;ctx.strokeRect(a[0]-3,a[1]-3,b[0]-a[0]+6,b[1]-a[1]+6);ctx.fillStyle='#fff3a8';ctx.font='bold 9px system-ui';ctx.textAlign='center';ctx.fillText('MIRA',(a[0]+b[0])/2,a[1]-7);}
-    balls.filter(ball=>ball?.cellId===cell.id).forEach((ball,index)=>{const q=p(cell.x+cell.w*(.26+(index%3)*.24),cell.y+cell.h*(.25+Math.floor(index/3)*.28));ctx.fillStyle='#fff4a9';ctx.strokeStyle='#7a5523';ctx.lineWidth=1;ctx.beginPath();ctx.arc(q[0],q[1],3.7,0,Math.PI*2);ctx.fill();ctx.stroke();});
+    balls.filter(ball=>ball?.cellId===cell.id).forEach((ball,index)=>{const q=p(cell.x+cell.w*(.26+(index%3)*.24),cell.y+cell.h*(.25+Math.floor(index/3)*.28));ctx.fillStyle=ball.kind==='NECTAR'?(ball.team==='blue'?'#4c91e8':'#e34f5a'):'#fff4a9';ctx.strokeStyle=ball.kind==='NECTAR'?'#fff':'#7a5523';ctx.lineWidth=1;ctx.beginPath();ctx.arc(q[0],q[1],ball.kind==='NECTAR'?5:3.7,0,Math.PI*2);ctx.fill();ctx.stroke();});
     if(tipped.has(cell.id)){ctx.fillStyle='#ffb654';ctx.font='bold 15px system-ui';ctx.textAlign='right';ctx.fillText('↷',b[0]-4,b[1]-5);}
   });
   for(const [x,y] of FLOWERS){const center=p(x,y),edge=p(x+DIMS.flowerDiameter/2,y);ctx.fillStyle='#ff952f';ctx.strokeStyle='#ffb670';ctx.lineWidth=1.2;ctx.beginPath();ctx.arc(center[0],center[1],Math.max(3.2,Math.abs(edge[0]-center[0])),0,Math.PI*2);ctx.fill();ctx.stroke();}
@@ -56,8 +56,9 @@ export function drawArenaTop(ctx,project,mode,selectedCellId='',scoredBalls=[],t
 // unidas por uma gangorra com rotação biestável perceptível.
 export function drawArenaSide(ctx,point,mode,targetDistance,targetHeight,cell=null,scoredBalls=[],hiveStatus={}){
   if(mode!=='biobuzz'||!Number.isFinite(targetDistance)||targetDistance<=.25||!cell)return;
-  // O corte é do HIVE VERMELHO exclusivamente; vista superior permanece intacta.
-  const angleDeg=Number.isFinite(hiveStatus.angle)?hiveStatus.angle:-HIVE_SIDE.angleDeg;
+  // O corte mostra o HIVE da CELL selecionada; vista superior permanece intacta.
+  const angleDeg=Number.isFinite(hiveStatus.angle)?hiveStatus.angle:(cell.team==='blue'?1:-1)*HIVE_SIDE.angleDeg;
+  const teamColor=cell.team==='blue'?'#6daaff':'#ef6770',teamDark=cell.team==='blue'?'#254e7a':'#762d3b',teamLight=cell.team==='blue'?'#a7d0ff':'#ffa1a0';
   const angle=angleDeg*Math.PI/180,arm=HIVE_SIDE.arm;
   const sin=Math.sin(angle),cos=Math.cos(angle),pivotY=DIMS.pivotHeight;
   const selectedSign=cell.id.endsWith('lower')?-1:1;
@@ -78,33 +79,33 @@ export function drawArenaSide(ctx,point,mode,targetDistance,targetHeight,cell=nu
   ctx.moveTo(...p(pivotX-arm*cos,pivotY-arm*sin));
   ctx.lineTo(...p(pivotX+arm*cos,pivotY+arm*sin));ctx.stroke();
   for(const sign of [-1,1]){
-    const id='red-'+(sign===-1?'lower':'upper');
+    const id=cell.team+'-'+(sign===-1?'lower':'upper');
     const cx=pivotX+sign*arm*cos,cy=pivotY+sign*arm*sin;
     const local=(u,v)=>p(cx+u*cos-v*sin,cy+u*sin+v*cos);
     const outline=[[-.175,-.20],[.175,-.20],[.175,.09],[.12,.312],[-.12,.312],[-.175,.09]];
     // Casinha vermelha: face frontal em formato de frontão, volume interno
     // rebaixado e abertura SUPERIOR sem uma linha de teto atravessando a boca.
-    poly(outline.map(([u,v])=>local(u,v)),'#43202b',null);
-    ctx.strokeStyle='#ef6770';ctx.lineWidth=2.6;
+    poly(outline.map(([u,v])=>local(u,v)),teamDark,null);
+    ctx.strokeStyle=teamColor;ctx.lineWidth=2.6;
     const strokePoints=points=>{ctx.beginPath();points.forEach(([u,v],i)=>i?ctx.lineTo(...local(u,v)):ctx.moveTo(...local(u,v)));ctx.stroke();};
     strokePoints([[-.12,.312],[-.175,.09],[-.175,-.20],[.175,-.20],[.175,.09],[.12,.312]]);
     // Revestimento e cantos visíveis atrás da abertura.
     poly([[-.14,-.17],[.14,-.17],[.14,.055],[-.14,.055]].map(([u,v])=>local(u,v)),
-      '#762d3b77','#ffa1a0',1);
+      teamDark+'77',teamLight,1);
     ctx.strokeStyle='#ffd293';ctx.lineWidth=3;
     strokePoints([[-.12,.312],[-.12,.222]]);strokePoints([[.12,.312],[.12,.222]]);
-    ctx.strokeStyle='#ae5660';ctx.lineWidth=1.2;
+    ctx.strokeStyle=teamColor;ctx.lineWidth=1.2;
     strokePoints([[-.12,.312],[-.12,-.05]]);strokePoints([[.12,.312],[.12,-.05]]);
     if(id===hiveStatus.activeCellId){ctx.fillStyle='#ffdaa8';ctx.font='bold 10px system-ui';ctx.textAlign='center';
       const q=local(0,.420);ctx.fillText('ABERTA',q[0],q[1]);}
     (Array.isArray(scoredBalls)?scoredBalls:[]).filter(b=>b?.cellId===id).forEach((ball,i)=>{
       const q=local(-.085+(i%4)*.055,-.12+Math.floor(i/4)*.070);
-      ctx.fillStyle='#ffea95';ctx.strokeStyle='#a27930';ctx.lineWidth=1;ctx.beginPath();ctx.arc(...q,4.4,0,2*Math.PI);ctx.fill();ctx.stroke();
+      ctx.fillStyle=ball.kind==='NECTAR'?(ball.team==='blue'?'#4c91e8':'#e34f5a'):'#ffea95';ctx.strokeStyle=ball.kind==='NECTAR'?'#fff':'#a27930';ctx.lineWidth=1;ctx.beginPath();ctx.arc(...q,ball.kind==='NECTAR'?5.6:4.4,0,2*Math.PI);ctx.fill();ctx.stroke();
     });
   }
   const hinge=p(pivotX,pivotY);ctx.fillStyle='#ffae58';ctx.beginPath();ctx.arc(...hinge,5,0,2*Math.PI);ctx.fill();
-  const label=p(pivotX,pivotY+.63);ctx.fillStyle='#ff777d';ctx.font='bold 11px system-ui';ctx.textAlign='center';
-  ctx.fillText('HIVE VERMELHO · '+(hiveStatus.count||0)+'/8 POLLEN',label[0],label[1]);
+  const label=p(pivotX,pivotY+.63);ctx.fillStyle=teamColor;ctx.font='bold 11px system-ui';ctx.textAlign='center';
+  ctx.fillText('HIVE '+(cell.team==='blue'?'AZUL':'VERMELHO')+' · '+Number(hiveStatus.load||0).toFixed(2)+'/'+(hiveStatus.threshold||8)+' carga (treino)',label[0],label[1]);
   if(hiveStatus.tips>0){const q=p(pivotX,pivotY+.51);ctx.fillStyle='#ffd092';ctx.fillText('TOMBAMENTOS: '+hiveStatus.tips,q[0],q[1]);}
   ctx.restore();
 }

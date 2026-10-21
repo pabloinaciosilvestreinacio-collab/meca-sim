@@ -114,6 +114,50 @@ Para investigar uma falha de inicialização: `python iniciar.py --diagnostico` 
 - As paredes externas são físicas no modelo. HIVE, FLOWERS e marcações não bloqueiam o robô; o lançador não simula mecanismos físicos, spin, arrasto ou impacto rígido.
 - A opção **Inserir logo da equipe** permite carregar PNG/JPG/WebP no navegador. A imagem é reduzida e armazenada localmente; não é enviada ao GitHub ou a um servidor.
 
+## Intake, lançamento Java e regras BIOBUZZ
+
+## Regras e fases de treino
+
+Na aba **Regras**, escolha **Oficial — regras implementadas** (padrão) ou **Personalizado** antes de INIT. O perfil oficial liga todos os grupos disponíveis; restaurar esse perfil não altera chassi, inventário, relógio ou calibração do HIVE. O personalizado permite desligar penalidades implementadas (atualmente G410), G410 individualmente, restrição de entrada G426 e pontuação de HIVE, FLOWER ou GARDEN. O perfil fica fixo durante INIT/execução; STOP permite configurar a próxima partida.
+
+Para treino sem limite, desmarque **Aplicar limite de tempo** em Chassi. Na aba Regras, escolha a fase inicial (Autônomo, TeleOp antes dos últimos 60 s ou Últimos 60 segundos). Após INIT, **Aplicar fase à sessão** troca somente a fase usada pelas regras. Não reinicia Java, relógio, replay ou peças; voltar a uma fase anterior não recolhe os NECTAR já introduzidos. Com cronômetro ativo, a fase vem do relógio, e o botão manual fica desabilitado.
+
+- Sem G426, ficam disponíveis somente os cinco NECTAR reservados da aliança. A entrada ainda ocorre pela Loading Zone, com os mesmos IDs.
+- Desligar penalidades não desliga G426; desligar pontos não impede depósitos, colisões nem tombamento/queda do HIVE.
+- G410 habilitada acrescenta 20 pontos estimados ao oponente por NECTAR antecipado na FLOWER. Penalidades desabilitadas ficam como eventos de treino sem pontos. O acumulado não se perde quando o histórico detalhado ultrapassa 100 registros.
+- Projetos JSON e preferências locais preservam as escolhas. Projetos antigos usam o perfil oficial implementado; não herdam flags do projeto anterior. Relatórios JSON/CSV incluem perfil, fase final e eventos de mudança de fase.
+
+Referência consultada em 16/10/2026: [manual oficial BIOBUZZ, TU05](https://ftc-resources.firstinspires.org/ftc/game/manual), G410, G426–G427 e seções 10.3.1, 10.5 e 10.6. **Cobertura parcial:** não há arbitragem completa, LEAVE/PARK, cartões ou ranking points. Pontos de peças são uma projeção do estado atual; não há acumulação de placares separados AUTO/TELEOP. Geometria das zonas, volume das FLOWERS e carga do HIVE continuam aproximações didáticas. O perfil Oficial não promete homologação nem precisão física oficial.
+
+O relatório de partida agora distingue acertos no HIVE, tiros que chegaram ao piso sem acerto, tentativas com estoque vazio e tiros ainda em voo no encerramento. Acertos são cumulativos e não desaparecem quando o HIVE descarrega. O CSV exporta também pontuação por categoria, penalidades, diagnósticos e logs, com campos hierárquicos. Peças sobrepostas ao chassi no reinício recebem correção integral de posição.
+
+
+
+## Correção de partida — build `partida-integrada-20261016`
+
+Esta implementação faz parte do código-fonte atual após a integração validada. No Windows, use um pacote da CI aprovado. A identificação do build aparece na Driver Station.
+
+1. Feche a versão antiga antes de abrir o novo executável. Código salvo no navegador é preservado: clique em **Carregar TeleOp com intake/shooter** para experimentar o novo exemplo.
+2. No Lançador, **Calcular tiro ideal** prepara a mira para o próximo INIT. Clique **INIT → START** e dê foco à arena.
+3. **W/S** avança/recua, **A/D** gira, **Z (LB)** liga MI para coletar na frente, **C (RB)** liga MI+MS para alimentar e lançar. Soltar desliga. O painel **Controles** reflete o remapeamento real. Controle físico conectado tem prioridade.
+4. Os quatro preloads são objetos reais; cada tiro retira um ID do armazenamento. Prévia de trajetória serve para cálculo visual e não altera peças, HIVE ou pontuação.
+5. A carga do HIVE inclui POLLEN e NECTAR. Calibração de treino padrão: P=1, N=4/3, tombamento em 8 unidades (3 N + 4 P). Ajustável no Chassi. **Não é massa medida nem limite oficial FIRST**: o manual descreve carga suficiente e mecanismo biestável sem estabelecer um número universal de POLLEN. A física usa uma aproximação leve.
+6. Ao tombar, os IDs acumulados caem, chegam ao piso e podem ser coletados. Os cinco NECTAR reservados por aliança continuam separados da carga inicial e obedecem ao fluxo do Human Player implementado.
+
+Referência conferida: [página oficial do manual BIOBUZZ](https://ftc-resources.firstinspires.org/ftc/game), TU05 de 15/10/2026; [Seção 9](https://ftc-resources.firstinspires.org/ftc/game/manual-09), TU04. Posições e mecânica continuam esquemáticas.
+
+
+Simulador **local e independente** da Meca Tiger: cole uma classe Java `LinearOpMode`, configure o chassi diferencial, execute INIT/START e observe encoders, IMU, telemetria e trajetória. Inclui controles USB e teclado, vista de cima e estudo balístico lateral.
+
+
+### Mecânicas e limitações da integração
+
+- Os motores `MI` e `MS` controlam a coleta frontal, a alimentação e o lançamento no modelo didático. No TeleOp de exemplo: `Z` (LB) coleta e `C` (RB) alimenta/dispara; configuração de teclado e controles pode ser alterada no painel.
+- Cada POLLEN/NECTAR mantém um ID ao passar por campo, inventário, voo, HIVE ou piso. Quatro POLLEN começam carregados; o inventário não cria peças ao lançar.
+- Entrada de NECTAR por Human Player, modos de regras, pontuação e penalidades são **parciais**, não representam arbitragem oficial.
+- A física permanece aproximada: sem calibração de RPM, sensores mecânicos, contatos 3D ou homologação pela FIRST.
+- Ver testes de conservação, percurso das peças e integração Java/teclado em `tests/partida_e2e.py`, `tests/test_elements.py`, `tests/test_hive_cycle.py` e `VALIDACAO.md`.
+
 ## Limites do modelo e segurança
 
 - O SDK FTC é **parcial**. Não há compatibilidade integral com Gradle, Android, hardware real, bibliotecas externas, câmera/AprilTag ou Road Runner. Motores MS/MI guardam comandos e ticks idealizados; servos guardam posição lógica. `RUN_USING_ENCODER` não modela o controlador interno REV, e `RUN_TO_POSITION` é idealizado.

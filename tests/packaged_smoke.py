@@ -25,12 +25,24 @@ try:
                 html = response.read().decode("utf-8")
             with urlopen("http://127.0.0.1:8893/examples", timeout=.7) as response:
                 examples = json.load(response)
-            for resource in ('/arena.mjs','/editor.mjs','/route.mjs'):
+            for resource in ('/arena.mjs','/editor.mjs','/route.mjs','/report.mjs'):
                 with urlopen("http://127.0.0.1:8893"+resource,timeout=.7) as response:
                     assert response.status==200
             assert state['status'] == 'pronto'
             assert 'Meca Sim' in html and len(examples) >= 2
-            print('PASS: MecaSim.exe iniciou servidor, interface e exemplos')
+            assert state['build'] == 'partida-integrada-20261016'
+            assert state['inventory'] == {'POLLEN': 4, 'NECTAR': 0}
+            assert len(state['inventory_ids']) == 4 and len(state['elements']) == 56
+            assert state['hives']['red']['NECTAR'] == 3
+            assert state['hives']['red']['load'] == 4
+            assert 'id="controls-panel"' in html and 'id="load-teleop"' in html
+            assert 'id="tab-rules"' in html and 'id="manual-phase"' in html
+            assert state['rules']['profile']['mode']=='official'
+            assert state['rules']['phase_source']=='clock'
+            teleop = examples['TeleOp · gamepad / teclado']
+            assert 'MI.setPower' in teleop and 'MS.setPower' in teleop
+            assert 'gamepad1.left_bumper' in teleop and 'gamepad1.right_bumper' in teleop
+            print('PASS: EXE contém build integrado, inventário, HIVE ponderado, painel Controles e TeleOp MI/MS')
             break
         except OSError:
             time.sleep(.25)

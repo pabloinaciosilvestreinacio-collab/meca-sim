@@ -15,6 +15,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 
 from physics import World, Motor
+from elements import starting_elements, starting_inventory, deposit_to_flower, resolve_launch
+from rules import BioBuzzRules, MANUAL_PHASES
 from sdk import write_sdk
 from project_import import import_ftc_zip
 from diagnostics import Inspector
@@ -48,17 +50,84 @@ def executable(name):
     return str(candidate) if candidate and candidate.is_file() else shutil.which(name)
 
 
+def normalize_launcher(launcher):
+    if not isinstance(launcher, dict):
+        raise ValueError("Configuração do lançador inválida")
+    launcher_defaults = {"shot-mode": "force", "force": 7.921, "speed": 5.0,
+                         "projectile-mass": .05, "acceleration-stroke": .15,
+                         "shot-efficiency": .65, "offset-x": .1125,
+                         "offset-y": .225, "height": .30, "elevation": 78.0,
+                         "azimuth": 29.82, "feed-interval": .8}
+    launcher_ranges = {"force": (.01, 150), "speed": (.1, 30),
+                       "projectile-mass": (.001, 2), "acceleration-stroke": (.01, 2),
+                       "shot-efficiency": (.01, 1), "offset-x": (-.6, .6),
+                       "offset-y": (-.6, .6), "height": (.05, 1.5),
+                       "elevation": (0, 89), "azimuth": (-180, 180),
+                       "feed-interval": (.1, 5)}
+    if launcher.get("shot-mode", "force") not in ("force", "speed"):
+        raise ValueError("Modo do lançador inválido")
+    values = {"shot-mode": launcher.get("shot-mode", "force")}
+    for key, (low, high) in launcher_ranges.items():
+        value = float(launcher.get(key, launcher_defaults[key]))
+        if not math.isfinite(value) or not low <= value <= high:
+            raise ValueError(f"Parâmetro do lançador {key} fora do limite")
+        values[key] = value
+    if values["shot-mode"] == "force":
+        f, m, stroke, eta = (values[k] for k in
+                             ("force", "projectile-mass", "acceleration-stroke", "shot-efficiency"))
+        values["speed"] = math.sqrt(2*eta*f*stroke/m)
+        if values["speed"] > 30:
+            raise ValueError("Velocidade calculada acima de 30 m/s")
+    values["interval"] = values.pop("feed-interval")
+    values["lateral"] = values.pop("offset-x")
+    values["forward"] = values.pop("offset-y")
+    values["hive"] = str(launcher.get("hive", "red-lower"))
+    if values["hive"] not in ("red-lower", "red-upper", "blue-lower", "blue-upper"):
+        raise ValueError("CELL do lançador inválida")
+    return values
+
+
 def build_world(config):
     if not isinstance(config, dict): raise ValueError("Configuração deve ser um objeto")
     world = World()
+    alliance = str(config.get('alliance', 'red'))
+    arena = str(config.get('arena', 'biobuzz'))
+    if arena not in ('biobuzz', 'livre'): raise ValueError("Arena inválida")
+    world.elements = starting_elements(alliance) if arena == 'biobuzz' else []
+    world.inventory = starting_inventory(world.elements)
     bounds = {"track": (.05, 2), "width": (.05, 2), "length": (.05, 2),
               "max_speed": (.05, 10), "ticks_per_m": (1, 100000), "x": (-10, 10), "y": (-10, 10),
-              "acceleration": (0, 20), "imu_delay": (0, 2), "imu_drift": (-10, 10)}
+              "acceleration": (0, 20), "imu_delay": (0, 2), "imu_drift": (-10, 10),
+              "intake_reach": (.05, .40)}
     for key, (low, high) in bounds.items():
         value = float(config.get(key, getattr(world, key)))
         if not math.isfinite(value) or not low <= value <= high:
             raise ValueError(f"{key}: valor deve estar entre {low} e {high}")
         setattr(world, key, value)
+    capacity = config.get("intake_capacity", 8)
+    if isinstance(capacity, bool) or not isinstance(capacity, int) or not 1 <= capacity <= 20:
+        raise ValueError("Capacidade do intake deve ser um inteiro entre 1 e 20")
+    world.intake_capacity = capacity
+    world.arena = str(config.get("arena", "biobuzz"))
+    for key, attr, default, low, high in (("hive-nectar-load", "hive_nectar_load", 4/3, .1, 10),
+                                         ("hive-tip-load", "hive_tip_load", 8, 1, 100)):
+        value = float(config.get(key, default))
+        if not math.isfinite(value) or not low <= value <= high:
+            raise ValueError("Carga do HIVE fora do limite")
+        setattr(world, attr, value)
+    flower_servo_name = config.get("flower-servo-name", "flower")
+    if not isinstance(flower_servo_name, str) or not re.fullmatch(r"[A-Za-z_$][A-Za-z0-9_$-]{0,39}", flower_servo_name):
+        raise ValueError("Nome do servo de FLOWER inválido")
+    world.flower_servo_name = flower_servo_name
+    flower_deploy = float(config.get("flower-deploy-position", .8))
+    if not math.isfinite(flower_deploy) or not .1 <= flower_deploy <= 1:
+        raise ValueError("Posição de acionamento do FLOWER deve estar entre 0,1 e 1")
+    world.flower_deploy_position = flower_deploy
+    flower_range = float(config.get("flower-range", .65))
+    if not math.isfinite(flower_range) or not .15 <= flower_range <= 1.5:
+        raise ValueError("Alcance do FLOWER deve estar entre 0,15 e 1,5 m")
+    world.flower_range = flower_range
+    world.launcher = normalize_launcher(config.get("launcher", {}))
     drivetrain = str(config.get("drivetrain", "differential"))
     if drivetrain not in ("differential", "mecanum"):
         raise ValueError("Drivetrain deve ser diferencial ou mecanum")
@@ -112,12 +181,19 @@ class Session:
         self.logs = ""
         self.telemetry = ""
         self.gamepads = [[0] * 20, [0] * 20]
-        self.servos = {"servo": .5}
+        self.servos = {"servo": .5, self.world.flower_servo_name: .5}
         settings = config or {}
         self.match_mode = str(settings.get("match-mode", "auto"))
         if self.match_mode not in ("auto", "teleop"):
             raise ValueError("Modo de partida deve ser auto ou teleop")
-        self.timer_enabled = bool(settings.get("timer-enabled", True))
+        self.timer_enabled = settings.get("timer-enabled", True)
+        if type(self.timer_enabled) is not bool:
+            raise ValueError("timer-enabled deve ser booleano")
+        self.alliance = str(settings.get("alliance", "red"))
+        self.rules = BioBuzzRules(self.alliance, settings)
+        self.manual_phase = settings.get("manual-phase", self.match_mode)
+        if self.manual_phase not in MANUAL_PHASES:
+            raise ValueError("Fase manual deve ser auto, teleop ou endgame")
         # A interface envia match-mode e aplica as regras FTC. A duração livre é
         # preservada somente para a API legada e para cenários automatizados.
         if "match-mode" in settings:
@@ -156,11 +232,74 @@ class Session:
         with self.lock:
             result = self.world.snapshot()
             result.update(status=self.status, logs=self.logs, telemetry=self.telemetry, servos=self.servos.copy(),
+                          gamepads=[pad[:] for pad in self.gamepads],
                           diagnostics=[entry.copy() for entry in self.inspector.warnings],
                           imu_yaw=math.degrees((self.world.sensor_yaw() - self.world.yaw_zero + math.pi)
                                                % (2 * math.pi) - math.pi),
-                          imu_frozen=self.world.imu_frozen)
+                          imu_frozen=self.world.imu_frozen,
+                          rules=self.rules.snapshot(self.match_remaining_seconds(), self.match_mode,
+                                                    self.timer_enabled, phase=self.match_phase(),
+                                                    endgame=self.match_phase() == "endgame"),
+                          scoring=self.rules.score_snapshot(self.world),
+                          hives=self.rules.hive_snapshot(self.world),
+                          build="partida-integrada-20261016")
             return result
+
+    def match_phase(self):
+        if not self.timer_enabled:
+            return self.manual_phase
+        if self.match_mode == "auto":
+            return "auto"
+        return "endgame" if self.match_remaining_seconds() <= 60 else "teleop"
+
+    def set_manual_phase(self, phase):
+        with self.lock:
+            if self.timer_enabled:
+                raise ValueError("A fase é controlada pelo cronômetro nesta partida")
+            if phase not in MANUAL_PHASES:
+                raise ValueError("Fase manual deve ser auto, teleop ou endgame")
+            if self.status not in ("inicializando", "executando") or self.stop_event.is_set():
+                raise ValueError("Inicialize o Java antes de aplicar uma fase manual")
+            event = {"type": "phase_changed", "previous": self.manual_phase, "phase": phase,
+                     "time": round(self.world.elapsed, 3), "source": "manual"}
+            if phase != self.manual_phase:
+                self.rules._append(self.rules.events, event)
+                self.log(f"\nFase de treino: {self.manual_phase} → {phase}. Tempo e inventário preservados.\n")
+            self.manual_phase = phase
+            return event
+
+    def match_remaining_seconds(self):
+        if not self.timer_enabled:
+            return None
+        # Auto ocupa os primeiros 30 s de um match de 158 s; a simulação
+        # TeleOp começa após Auto + transição e usa seu próprio relógio de 120 s.
+        duration = 158.0 if self.match_mode == "auto" else 120.0
+        return max(0.0, duration - self.world.elapsed)
+
+    def update_launcher(self, launcher):
+        # Valide antes da atribuição para manter configuração anterior após erro.
+        values = normalize_launcher(launcher)
+        with self.lock:
+            if not self.started or self.status not in ("inicializando", "executando") or self.stop_event.is_set():
+                raise ValueError("Inicialize o Java antes de alterar o shooter da partida")
+            self.world.launcher = values
+            return {"speed": values["speed"], "azimuth": values["azimuth"],
+                    "elevation": values["elevation"], "hive": values["hive"]}
+
+    def register_hive_tip(self, team, cell_id=None):
+        with self.lock:
+            if not self.started or self.status != "executando" or self.stop_event.is_set():
+                raise ValueError("O TIP só pode ser registrado durante uma simulação em execução")
+            return self.rules.register_hive_tip(team, self.world.elapsed, self.world, cell_id)
+
+    def introduce_nectar(self):
+        with self.lock:
+            if not self.started or self.status != "executando" or self.stop_event.is_set():
+                raise ValueError("O Human Player só pode introduzir NECTAR durante a partida")
+            event = self.rules.enter_nectar(self.alliance, self.match_remaining_seconds(),
+                                            self.world.elapsed, self.world, endgame=self.match_phase() == "endgame")
+            self.log(f"\nHuman Player: {event['element_id']} entrou pela Loading Zone {self.alliance}.\n")
+            return event
 
     def tick(self):
         next_tick = time.monotonic()
@@ -176,6 +315,7 @@ class Session:
                     self.stop()
                 if self.started and self.status == "executando":
                     self.world.step(.01)
+                    self.rules.update_hives(self.world)
                     self.inspector.inspect(self.world,True)
                     if not self.history or self.world.elapsed-self.history[-1][0] >= .049:
                         self.history.append([self.world.elapsed, self.world.x, self.world.y, math.degrees(self.world.yaw)] +
@@ -217,7 +357,11 @@ class Session:
                     self.servos.setdefault(name, .5)
                     return ""
                 valid = (kind in ("DcMotor", "DcMotorEx") and name in w.motors) or kind == "IMU"
-                if not valid: raise ValueError(f"Hardware não configurado: {kind} '{name}'")
+                if not valid:
+                    available = ", ".join(w.motors) if kind in ("DcMotor", "DcMotorEx") else "IMU, Servo"
+                    raise ValueError(f"Hardware não configurado: {kind} '{name}'. "
+                                     f"Disponíveis nesta partida: {available}. "
+                                     "Confira o tipo de chassi e os nomes dos motores na aba Chassi.")
                 return ""
             if op == "gamepad":
                 return ",".join(str(x) for x in self.gamepads[int(args[0])-1])
@@ -234,7 +378,21 @@ class Session:
                 if action == "get": return str(self.servos[name])
                 position = float(values[0])
                 if not math.isfinite(position): raise ValueError("Posição de servo inválida")
+                previous = self.servos.get(name, .5)
                 self.servos[name] = max(0, min(1, position))
+                threshold = self.world.flower_deploy_position
+                if (name == self.world.flower_servo_name and self.started
+                        and self.status == "executando" and not self.stop_event.is_set()
+                        and previous < threshold <= self.servos[name]):
+                    event = deposit_to_flower(self.world)
+                    if event:
+                        event["robot_alliance"] = self.alliance
+                        penalty = self.rules.record_flower_deposit(
+                            event, self.match_remaining_seconds(), self.alliance,
+                            endgame=self.match_phase() == "endgame")
+                        self.log(f"\nFLOWER {event['flower']}: {event['kind']} depositado (#{event['sequence']}).\n")
+                        if penalty:
+                            self.log("G410 simulado: NECTAR antecipado na FLOWER; 20 pontos estimados para o oponente.\n")
                 return ""
             if op == "motor":
                 name, action, *values = args
@@ -391,6 +549,7 @@ def handler_for(app):
                      "/app.js": ("web/app.js", "text/javascript; charset=utf-8"),
                      "/model.mjs": ("web/model.mjs", "text/javascript; charset=utf-8"),
                      "/arena.mjs": ("web/arena.mjs", "text/javascript; charset=utf-8"),
+                     "/report.mjs": ("web/report.mjs", "text/javascript; charset=utf-8"),
                      "/editor.mjs": ("web/editor.mjs", "text/javascript; charset=utf-8"),
                      "/route.mjs": ("web/route.mjs", "text/javascript; charset=utf-8"),
                      "/meca-tiger-mark.svg": ("web/meca-tiger-mark.svg", "image/svg+xml"),
@@ -419,6 +578,11 @@ def handler_for(app):
                     if self.path == "/api/import-zip":
                         return self.send(import_ftc_zip(data.get("zip_base64")))
                     if self.path == "/api/run":
+                        # STOP marca a sessão como encerrada antes de a thread da JVM
+                        # completar a limpeza; um novo INIT imediato pode esperar.
+                        if (session.worker and session.worker.is_alive() and
+                                session.status in ("parado", "concluído", "erro")):
+                            session.worker.join(timeout=2)
                         if session.worker and session.worker.is_alive():
                             return self.send({"error": "Pare a execução atual antes de compilar outra"}, 409)
                         source = data.get("source", "")
@@ -431,6 +595,33 @@ def handler_for(app):
                             if session.status != "inicializando": raise ValueError("Aguarde a inicialização Java")
                             session.started = True
                             session.status = "executando"
+                    elif self.path == "/api/launcher":
+                        result = session.update_launcher(data.get("launcher"))
+                        self.send({"ok": True, "launcher": result})
+                        return
+                    elif self.path == "/api/rules":
+                        action = data.get("action")
+                        if action == "hive_tip":
+                            event = session.register_hive_tip(data.get("team"), data.get("cell_id"))
+                            session.log(f"\nTIP de HIVE simulado para {event['team']} (contagem didática).\n")
+                        elif action == "set_phase":
+                            event = session.set_manual_phase(data.get("phase"))
+                        elif action == "nectar_entry":
+                            event = session.introduce_nectar()
+                        else:
+                            raise ValueError("Ação de regra desconhecida")
+                        self.send({"ok": True, "event": event})
+                        return
+                    elif self.path == "/api/element-result":
+                        element_id = data.get("element_id")
+                        result = data.get("result")
+                        if not isinstance(element_id, str) or len(element_id) > 120:
+                            raise ValueError("ID de elemento inválido")
+                        with session.lock:
+                            event = resolve_launch(session.world, element_id, data.get("launch_id"), result,
+                                                  data.get("x"), data.get("y"))
+                        self.send(event)
+                        return
                     elif self.path == "/api/stop": session.stop()
                     elif self.path == "/api/reset":
                         if session.worker and session.worker.is_alive():

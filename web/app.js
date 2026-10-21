@@ -1,33 +1,75 @@
-import {rotate, launcher, heightAt, flight, gamepadValues, targetSolution, encoderScale, connectedPlayers, speedFromForce, forceFromSpeed, shotFeasibility, shotElapsed, hiveShotImpact, registerPollen, SIM_TIP_POLLS} from './model.mjs';
+import {buildMatchReport, reportCsv} from './report.mjs';
+import {rotate, launcher, heightAt, flight, gamepadValues, keyboardGamepadValues, DEFAULT_KEYMAP, targetSolution, encoderScale, connectedPlayers, speedFromForce, forceFromSpeed, shotFeasibility, shotElapsed, hiveShotImpact} from './model.mjs';
 import {FIELD_METERS, ARENAS, validStart, drawArenaTop, drawArenaSide, hiveCellAt, hiveCellById, hiveSideGeometry, HIVE_SIDE} from './arena.mjs';
 import {candidates, diagnostics, highlightJava} from './editor.mjs';
 import {routeSteps, routeWarnings, makeRouteJava, MAX_WAYPOINTS} from './route.mjs';
 const $ = id => document.getElementById(id);
 const num = id => Number($(id).value);
 let state = {x:1.83,y:.65,yaw:0,width:.45,length:.45,trail:[],motors:{},time:0,status:'pronto'};
+let matchStarted=false,finalReport=null,activeSource='',controlSignature='';
+let launcherUpdate=Promise.resolve();
+let launcherSyncTimer=null;
+const REPORT_KEY='meca-sim-final-report-v1';
 let focused = document.hasFocus();
-let shot = null, examples = {}, javaFiles = {}, zipOpModes = [], selectedJavaPath = '', lastPad = 0, polling = false, padBusy = false, pickingStart = false;
+let shot = null, javaShots = [], lastJavaLaunchId = 0, examples = {}, javaFiles = {}, zipOpModes = [], selectedJavaPath = '', lastPad = 0, polling = false, padBusy = false, pickingStart = false;
 let lastDraw=0,lastLog='',lastMotorSignature='',lastDiagnosticSignature='',lastShotPoseKey='',highlightJob=0,routePicking=false;
 let routePoints=[],replayRows=[],replayIndex=-1,replayPlaying=false,replayLast=0,scoredShots=[],selectedHiveId='red-lower',tippedHives=new Set(),hiveCounts={red:0,blue:0},hiveFlips={red:0,blue:0},hiveMotion={},auto35StartPose=null,auto35Moved=false;
-const LIBRARY_KEY='meca-sim-library-v1',LOGO_KEY='meca-sim-logo-v1';
+const LIBRARY_KEY='meca-sim-library-v1',LOGO_KEY='meca-sim-logo-v1',KEYMAP_KEY='meca-sim-keymap-v1';
 const keys = new Set(), virtualKeys=new Map(), top = $('top'), side = $('side');
-const configIds = ['arena','drivetrain','robot-color','left','right','front_left','front_right','back_left','back_right','width','length','track','max_speed','ticks_per_m','duration','match-mode','timer-enabled','x','y','initial-yaw','invert_left','invert_right','acceleration','left_gain','right_gain','left_slip','right_slip','imu_delay','imu_drift','walls','imu_frozen','left_encoder_frozen','right_encoder_frozen'];
-const launchIds = ['offset-x','offset-y','height','shot-mode','force','speed','projectile-mass','acceleration-stroke','shot-efficiency','target-radius','target-tolerance','elevation','azimuth','target-x','target-y','target-h'];
+const keymapActions=[
+  ['lsxNeg','LS X −'],['lsxPos','LS X +'],['lsyNeg','LS Y −'],['lsyPos','LS Y +'],
+  ['rsxNeg','RS X −'],['rsxPos','RS X +'],['rsyNeg','RS Y −'],['rsyPos','RS Y +'],
+  ['a','A'],['b','B'],['x','X'],['y','Y'],['lb','LB'],['rb','RB'],['lt','LT'],['rt','RT'],
+  ['dpadUp','D-pad ↑'],['dpadDown','D-pad ↓'],['dpadLeft','D-pad ←'],['dpadRight','D-pad →'],
+  ['start','Start'],['back','Back'],['leftStick','LS click'],['rightStick','RS click']
+];
+function loadKeymap(){
+  try{
+    const saved=JSON.parse(localStorage.getItem(KEYMAP_KEY)||'null');
+    if(!saved||typeof saved!=='object')return {...DEFAULT_KEYMAP};
+    const map={...DEFAULT_KEYMAP};
+    for(const [action,key] of Object.entries(saved))if(action in map&&typeof key==='string'&&key.length>0&&key.length<=24)map[action]=key;
+    if(new Set(Object.values(map)).size!==Object.keys(map).length)return {...DEFAULT_KEYMAP};
+    return map;
+  }catch{return {...DEFAULT_KEYMAP};}
+}
+let keyMap=loadKeymap(),capturingKey=null;
+const displayKey=key=>key===' '?'Space':key==='ArrowUp'?'↑':key==='ArrowDown'?'↓':key==='ArrowLeft'?'←':key==='ArrowRight'?'→':key;
+function renderKeymap(){
+  const root=$('keymap');if(!root)return;root.replaceChildren();
+  for(const [action,label] of keymapActions){
+    const row=document.createElement('label');row.className='keymap-row';row.append(document.createTextNode(label));
+    const button=document.createElement('button');button.type='button';button.textContent=action===capturingKey?'Pressione uma tecla…':displayKey(keyMap[action]);
+    button.setAttribute('aria-label','Tecla para '+label);button.addEventListener('click',()=>{capturingKey=action;renderKeymap();notice('Pressione uma tecla para '+label+'; Esc cancela.');});
+    row.append(button);root.append(row);
+  }
+}
+$('reset-keymap').addEventListener('click',()=>{keyMap={...DEFAULT_KEYMAP};capturingKey=null;keys.clear();localStorage.removeItem(KEYMAP_KEY);renderKeymap();notice('Mapa padrão restaurado.');});
+
+const ruleIds=['rule-penalties','rule-g410','rule-nectar-release','rule-score-hive','rule-score-flower','rule-score-garden'];
+const phaseNames={auto:'Autônomo',teleop:'TeleOp',endgame:'Últimos 60 segundos'};
+const configIds = ['arena','drivetrain','robot-color','left','right','front_left','front_right','back_left','back_right','width','length','track','max_speed','ticks_per_m','duration','match-mode','timer-enabled','x','y','initial-yaw','invert_left','invert_right','acceleration','left_gain','right_gain','left_slip','right_slip','imu_delay','imu_drift','walls','alliance','intake_reach','intake_capacity','imu_frozen','left_encoder_frozen','right_encoder_frozen','flower-servo-name','flower-deploy-position','flower-range','hive-nectar-load','hive-tip-load','rules-mode','manual-phase',...ruleIds];
+const visualIds=['robot-detail-color','robot-style','show-trail'];
+const launchIds = ['offset-x','offset-y','height','shot-mode','force','speed','projectile-mass','acceleration-stroke','shot-efficiency','target-radius','target-tolerance','elevation','azimuth','target-x','target-y','target-h','feed-interval'];
 function config() {
   const data = {};
   configIds.forEach(id => { const input=$(id); data[id==='initial-yaw'?'yaw':id]=input.type==='checkbox'?input.checked:input.type==='number'?Number(input.value):input.value; });
+  data.launcher=Object.fromEntries(launchIds.map(id=>[id,id==='shot-mode'?$(id).value:num(id)]));
+  data.launcher.hive=selectedHiveId;
   return data;
 }
+function visualConfig(){return Object.fromEntries(visualIds.map(id=>[id,$(id).type==='checkbox'?$(id).checked:$(id).value]));}
 function persist() {
-  try { const values={}; [...configIds,...launchIds].forEach(id=>values[id]=$(id).type==='checkbox'?$(id).checked:$(id).value);
+  try { const values={}; [...configIds,...visualIds,...launchIds].forEach(id=>values[id]=$(id).type==='checkbox'?$(id).checked:$(id).value);
     localStorage.setItem('meca-sim-v02',JSON.stringify({source:$('source').value,files:javaFiles,values,route:routePoints,hive:selectedHiveId})); } catch {}
 }
 function notice(text) {$('message').textContent=text;}
 function setShotResult(text,kind='info'){const item=$('shot-result');if(item){item.textContent=text;item.dataset.kind=kind;}notice(text);}
 function selectedHive(){return hiveCellById(selectedHiveId);}
-function activeCellId(team){return team+'-'+(hiveFlips[team]%2?'upper':'lower');}
+function hiveOrientation(team){const initial=team==='blue'?1:-1;return initial*(hiveFlips[team]%2?-1:1);}
+function activeCellId(team){return team+'-'+(hiveOrientation(team)>0?'upper':'lower');}
 function hiveStatus(team,now){
-  const motion=hiveMotion[team],end=hiveFlips[team]%2?HIVE_SIDE.angleDeg:-HIVE_SIDE.angleDeg;
+  const motion=hiveMotion[team],end=hiveOrientation(team)*HIVE_SIDE.angleDeg;
   let angle=end;
   if(motion){
     const t=Math.min(1,Math.max(0,(now-motion.start)/650));
@@ -35,42 +77,74 @@ function hiveStatus(team,now){
     angle=motion.from+(motion.to-motion.from)*ease+Math.sin(t*Math.PI*3)*(1-t)*2;
     if(t>=1)delete hiveMotion[team];
   }
-  return {angle,count:hiveCounts[team],tips:hiveFlips[team],activeCellId:activeCellId(team)};
+  return {angle,load:state.hives?.[team]?.load||0,threshold:state.hives?.[team]?.threshold||8,count:hiveCounts[team],tips:hiveFlips[team],activeCellId:activeCellId(team)};
 }
-function recordImpact(shot,now){
-  const cell=hiveCellById(shot.cellId);
-  if(!cell||!shot.impact?.hit)return;
-  const result=registerPollen(hiveCounts[cell.team],SIM_TIP_POLLS);
-  hiveCounts[cell.team]=result.count;
-  shot.registered=true;shot.tipped=result.tipped;
-  if(result.tipped){
-    const previous=hiveFlips[cell.team]%2?HIVE_SIDE.angleDeg:-HIVE_SIDE.angleDeg;
-    hiveFlips[cell.team]++;
-    hiveMotion[cell.team]={start:now,from:previous,to:-previous};
-    tippedHives.add(cell.id);
-    // Ao virar, a CELL anterior descarrega as bolas acumuladas.
-    scoredShots=scoredShots.filter(b=>b.cellId!==cell.id);
-    setShotResult('HIVE TOMBOU · '+SIM_TIP_POLLS+' POLLEN na '+cell.name+'; gangorra invertida.','hit');
-  }else setShotResult('POLLEN CAPTURADO · '+hiveCounts[cell.team]+'/'+SIM_TIP_POLLS+' na '+cell.name+'.','hit');
+function recordImpact(candidate){
+  if(candidate.registered)return;
+  candidate.registered=true;
+  setShotResult('PRÉVIA · trajetória entra na CELL. Inventário e HIVE só mudam com os mecanismos do Java.','hit');
 }
-function currentShotBall(now){
-  if(!shot)return null;
-  const t=shotElapsed(now,shot.start);
-  const impact=shot.impact?.hit?shot.impact:null;
-  const time=impact?Math.min(t,impact.time):Math.min(t,flight(shot.height,shot.speed,shot.elevation).time);
-  const along=shot.speed*Math.cos(shot.elevation*Math.PI/180)*time;
-  const dir=rotate(0,1,shot.yaw+shot.azimuth);
-  let z=heightAt(along,shot.height,shot.speed,shot.elevation);
+function syncWorldVisuals(){
+  scoredShots=(state.elements||[]).filter(p=>['hive','scored'].includes(p.status))
+    .map(p=>({...p,cellId:p.score_zone||p.location}));
+  for(const team of ['red','blue']){
+    const h=state.hives?.[team];if(!h)continue;
+    if(h.tips>hiveFlips[team]){
+      const previous=hiveOrientation(team)*HIVE_SIDE.angleDeg;
+      hiveMotion[team]={start:performance.now(),from:previous,to:-previous};
+      tippedHives.add(activeCellId(team));
+      setShotResult('HIVE TOMBOU · peças reais liberadas; acompanhe a queda na arena.','hit');
+    }else if(h.tips<hiveFlips[team]){delete hiveMotion[team];tippedHives.clear();}
+    hiveCounts[team]=h.POLLEN+h.NECTAR;hiveFlips[team]=h.tips;
+  }
+}
+function renderControlGuide(){
+  const source=(['compilando','inicializando','executando'].includes(state.status)?activeSource:'')||$('source').value;
+  const demo=Boolean(examples['TeleOp · gamepad / teclado'])&&source.trim()===examples['TeleOp · gamepad / teclado'].trim();
+  const signature=JSON.stringify([demo,keyMap]);if(signature===controlSignature)return;controlSignature=signature;
+  $('control-actions').textContent=demo
+    ? `TeleOp de demonstração: ${displayKey(keyMap.lsyNeg)}/${displayKey(keyMap.lsyPos)} avançar/recuar; ${displayKey(keyMap.rsxNeg)}/${displayKey(keyMap.rsxPos)} girar; ${displayKey(keyMap.lb)} (LB) coleta com MI; ${displayKey(keyMap.rb)} (RB) alimenta com MI e lança com MS. Soltar para parar. Os demais botões estão disponíveis ao Java, sem ação neste exemplo.`
+    : 'OpMode personalizado: as ações dependem do código Java. Abaixo estão as entradas realmente enviadas ao gamepad virtual.';
+  $('control-map').textContent=keymapActions.map(([id,label])=>`${label}: ${displayKey(keyMap[id])}`).join(' · ');
+}
+function currentShotBall(now,candidate=shot){
+  if(!candidate)return null;
+  const t=shotElapsed(now,candidate.start);
+  const impact=candidate.impact?.hit?candidate.impact:null;
+  const time=impact?Math.min(t,impact.time):Math.min(t,flight(candidate.height,candidate.speed,candidate.elevation).time);
+  const along=candidate.speed*Math.cos(candidate.elevation*Math.PI/180)*time;
+  const dir=rotate(0,1,candidate.yaw+candidate.azimuth);
+  let z=heightAt(along,candidate.height,candidate.speed,candidate.elevation);
   const fall=impact&&t>=impact.time?Math.min(1,(t-impact.time)/.42):0;
-  const eased=fall*fall*(3-2*fall),cell=hiveCellById(shot.cellId);
-  const index=shot.restIndex||0;
-  const landingX=cell?cell.x+cell.w*(.26+(index%3)*.24):shot.origin[0]+dir[0]*along;
-  const landingY=cell?cell.y+cell.h*(.25+Math.floor(index/3)*.28):shot.origin[1]+dir[1]*along;
-  const restZ=cell?hiveSideGeometry(cell,shot.hiveAngle).floorHeight+.060:impact?.height||0;
+  const eased=fall*fall*(3-2*fall),cell=hiveCellById(candidate.cellId);
+  const index=candidate.restIndex||0;
+  const landingX=cell?cell.x+cell.w*(.26+(index%3)*.24):candidate.origin[0]+dir[0]*along;
+  const landingY=cell?cell.y+cell.h*(.25+Math.floor(index/3)*.28):candidate.origin[1]+dir[1]*along;
+  const restZ=cell?hiveSideGeometry(cell,candidate.hiveAngle).floorHeight+.060:impact?.height||0;
   if(fall>0)z=impact.height+(restZ-impact.height)*eased;
-  const ix=shot.origin[0]+dir[0]*along,iy=shot.origin[1]+dir[1]*along;
+  const ix=candidate.origin[0]+dir[0]*along,iy=candidate.origin[1]+dir[1]*along;
   return {x:ix+(landingX-ix)*eased,y:iy+(landingY-iy)*eased,
     z,along:along+(-.075+(index%4)*.05)*eased,fall};
+}
+function syncLauncher(){
+  if(!['inicializando','executando'].includes(state.status))return launcherUpdate;
+  const launcherConfig=config().launcher;
+  launcherUpdate=launcherUpdate.catch(()=>{}).then(async()=>{
+    const result=await api('launcher',{launcher:launcherConfig});
+    $('launcher-applied').textContent=`Java: ${result.launcher.speed.toFixed(2)} m/s · rampa ${result.launcher.elevation.toFixed(1)}° · azimute ${result.launcher.azimuth.toFixed(1)}°. Próximos tiros usam este ajuste.`;
+  });
+  launcherUpdate.catch(error=>{$('launcher-applied').textContent='Ajuste não aplicado: '+error.message;notice(error.message);});
+  return launcherUpdate;
+}
+function scheduleLauncherSync(){
+  clearTimeout(launcherSyncTimer);
+  launcherSyncTimer=setTimeout(()=>{
+    // Um campo pode ficar temporariamente vazio durante a edição. Não use
+    // checkValidity global: o passo HTML de outros campos pode rejeitar um
+    // valor físico válido e impedir a sincronização de toda a mira.
+    if(launchIds.some(id=>id!=='shot-mode'&&(!$(id).value.trim()||!Number.isFinite(num(id)))))return;
+    syncLauncher();
+  },150);
 }
 function selectHive(cell,announce=true){
   if(!cell)return;
@@ -78,18 +152,41 @@ function selectHive(cell,announce=true){
   $('target-x').value=(cell.x+cell.w/2).toFixed(3);
   $('target-y').value=(cell.y+cell.h/2).toFixed(3);
   // A boca muda de altura quando a gangorra troca de lado.
-  const angle=(hiveFlips[cell.team]%2?1:-1)*HIVE_SIDE.angleDeg;
+  const angle=hiveOrientation(cell.team)*HIVE_SIDE.angleDeg;
   $('target-h').value=hiveSideGeometry(cell,angle).openingHeight.toFixed(4);
-  refreshShot();if(announce)setShotResult('MIRA SELECIONADA · '+cell.name+'. A linha pontilhada termina nesta CELL.','selected');
+  refreshShot();if(announce)syncLauncher();if(announce)setShotResult('MIRA SELECIONADA · '+cell.name+'. A linha pontilhada termina nesta CELL.','selected');
 }
 function refreshMatchLimit(){
   const mode=$('match-mode').value==='teleop'?'teleop':'auto';
   $('match-mode').value=mode;$('duration').value=mode==='auto'?'30':'120';
   $('duration').title=$('timer-enabled').checked?'Limite aplicado pelo simulador':'Cronômetro de partida desativado';
 }
+function restoreRuleFields(values={}){
+  $('rules-mode').value=values['rules-mode']||'official';
+  if(!['official','custom'].includes($('rules-mode').value))$('rules-mode').value='official';
+  for(const id of ruleIds)$(id).checked=$('rules-mode').value==='official'||values[id]!==false;
+  $('manual-phase').value=values['manual-phase']||$('match-mode').value;
+  if(!phaseNames[$('manual-phase').value])$('manual-phase').value=$('match-mode').value;
+  refreshRulesControls();
+}
+function refreshRulesControls(){
+  const busy=['compilando','inicializando','executando'].includes(state.status);
+  const timer=busy?state.rules?.timer_enabled:$('timer-enabled').checked;
+  $('rules-mode').disabled=busy;$('restore-rules').disabled=busy;
+  $('match-mode').disabled=busy;$('timer-enabled').disabled=busy;
+  for(const id of ruleIds)$(id).disabled=busy||$('rules-mode').value==='official';
+  $('manual-phase').disabled=!!timer||state.status==='compilando';
+  $('apply-phase').disabled=!!timer||!['inicializando','executando'].includes(state.status);
+  const r=state.rules;
+  $('rules-live-status').textContent=r
+    ? 'Sessão: '+(r.profile?.mode==='custom'?'Personalizado':'Oficial — regras implementadas')+
+      ' · fase '+(phaseNames[r.phase]||'não registrada')+' · '+(r.phase_source==='manual'?'seleção manual':'cronômetro')+
+      '. '+(busy?'Perfil fixado até STOP.':'Configurações acima serão usadas no próximo INIT.')
+    : 'Configure as regras e faça INIT para iniciar.';
+}
 function setTeamLogo(url){$('team-logo').src=url;$('team-logo').hidden=false;}
 function library(){try{const items=JSON.parse(localStorage.getItem(LIBRARY_KEY)||'[]');return Array.isArray(items)?items.filter(x=>x&&typeof x.name==='string'&&x.project?.version===2).slice(0,12):[];}catch{return [];}}
-function projectData(){return {format:'meca-sim-project',version:2,source:$('source').value,files:{...javaFiles},config:config(),launcher:Object.fromEntries(launchIds.map(id=>[id,id==='shot-mode'?$(id).value:num(id)])),route:routePoints.slice(),hive:selectedHiveId};}
+function projectData(){return {format:'meca-sim-project',version:2,source:$('source').value,files:{...javaFiles},config:{...config(),...visualConfig()},launcher:Object.fromEntries(launchIds.map(id=>[id,id==='shot-mode'?$(id).value:num(id)])),route:routePoints.slice(),hive:selectedHiveId};}
 function refreshExamples(selected=''){
   const menu=$('example');menu.replaceChildren();
   const blank=document.createElement('option');blank.value='';blank.textContent='Selecione…';menu.append(blank);
@@ -112,9 +209,16 @@ function saveInLibrary(name){
 async function loadProjectData(data){
   if(!data||data.format!=='meca-sim-project'||data.version!==2||typeof data.source!=='string')throw Error('Projeto salvo inválido.');
   if(['compilando','inicializando','executando'].includes(state.status))throw Error('Clique em STOP antes de trocar de projeto.');
-  await api('reset',{config:data.config||{}});
+  const resetConfig={};
+  for(const id of configIds){const key=id==='initial-yaw'?'yaw':id;if(!(key in (data.config||{})))continue;
+    resetConfig[key]=$(id).type==='checkbox'?Boolean(data.config[key]):data.config[key];}
+  // Projetos anteriores ao painel usam o perfil oficial e a fase do OpMode.
+  resetConfig['rules-mode'] ??= 'official';
+  resetConfig['manual-phase'] ??= resetConfig['match-mode']||'auto';
+  await api('reset',{config:resetConfig});
   $('source').value=data.source;javaFiles={...(data.files||{})};restoreOpModeChoices();updateJavaFilesLabel();
-  for(const id of configIds){const key=id==='initial-yaw'?'yaw':id;if(key in (data.config||{}))$(id).type==='checkbox'?$(id).checked=Boolean(data.config[key]):$(id).value=data.config[key];}
+  for(const id of [...configIds,...visualIds]){const key=id==='initial-yaw'?'yaw':id;if(key in (data.config||{}))$(id).type==='checkbox'?$(id).checked=Boolean(data.config[key]):$(id).value=data.config[key];}
+  restoreRuleFields({...data.config,'manual-phase':resetConfig['manual-phase']});
   for(const id of launchIds)if(id in (data.launcher||{}))$(id).value=data.launcher[id];
   if(!Object.prototype.hasOwnProperty.call(data.launcher||{},'shot-mode'))$('shot-mode').value='speed'; // projeto v2 antigo
   routePoints=Array.isArray(data.route)?data.route.slice(0,MAX_WAYPOINTS).filter(p=>p&&Number.isFinite(p.x)&&Number.isFinite(p.y)):[];if(hiveCellById(data.hive))selectedHiveId=data.hive;$('walls').checked=true;refreshMatchLimit();selectHive(selectedHive(),false);updateRoute();
@@ -219,7 +323,30 @@ async function api(path, data={}) {
   return result;
 }
 const action = (id, callback) => $(id).addEventListener('click',async()=>{try{notice('');await callback();}catch(e){notice(e.message);}});
-action('compile',async()=>{resetReplay();persist();shot=null;await api('run',{source:$('source').value,files:javaFiles,config:config()});});
+action('apply-phase',async()=>{
+  const result=await api('rules',{action:'set_phase',phase:$('manual-phase').value});
+  persist();await poll();notice('Fase aplicada: '+phaseNames[result.event.phase]+'. Java e inventário preservados.');
+});
+$('rules-mode').addEventListener('change',()=>{
+  if($('rules-mode').value==='official')for(const id of ruleIds)$(id).checked=true;
+  refreshRulesControls();persist();
+});
+$('restore-rules').addEventListener('click',()=>{
+  $('rules-mode').value='official';for(const id of ruleIds)$(id).checked=true;
+  refreshRulesControls();persist();notice('Regras implementadas restauradas para o próximo INIT.');
+});
+action('introduce-nectar',async()=>{
+  const result=await api('rules',{action:'nectar_entry'});
+  notice('Human Player introduziu '+result.event.element_id+' pela Loading Zone. Confira a entrada no campo.');
+});
+function alignTeleOpDemoHardware(){
+  const demo=examples['TeleOp · gamepad / teclado'];
+  if(!demo||$('source').value.trim()!==demo.trim())return false;
+  const changed=$('drivetrain').value!=='differential'||$('left').value!=='ME'||$('right').value!=='MD';
+  if(changed){$('drivetrain').value='differential';$('left').value='ME';$('right').value='MD';refreshDriveMode();}
+  return changed;
+}
+action('compile',async()=>{const aligned=alignTeleOpDemoHardware();resetReplay();persist();shot=null;javaShots=[];lastJavaLaunchId=0;matchStarted=false;activeSource=$('source').value;await api('run',{source:$('source').value,files:javaFiles,config:config()});if(aligned)notice('TeleOp de demonstração: chassi ajustado para Diferencial, ME/MD, MI/MS.');});
 // O Autônomo 3.5 espera seleção (B/X/Y/↑) e confirmação A ANTES de START.
 // Envia pulsos no mesmo canal gamepad do Java, sem alterar o código original.
 $('auto35-confirm').addEventListener('click',async()=>{
@@ -246,11 +373,59 @@ for(const [id,target] of [['ds-init','compile'],['ds-start','start'],['ds-stop',
 action('start',async()=>{
   auto35StartPose=/class\s+Autonomo35\b/.test($('source').value)?{x:state.x,y:state.y,yaw:state.yaw}:null;
   auto35Moved=false;
-  await api('heartbeat');await api('start');
+  await api('heartbeat');await api('start');matchStarted=true;top.focus();
 });
 action('stop',()=>api('stop'));
-action('reset',async()=>{resetReplay();shot=null;await api('reset',{config:config()});});
-action('clear-shots',()=>{scoredShots=[];shot=null;tippedHives.clear();hiveCounts={red:0,blue:0};hiveFlips={red:0,blue:0};hiveMotion={};setShotResult('POLLEN, contadores e gangorras reiniciados.','info');});
+$('finish-match').addEventListener('click',async()=>{
+  try{await api('stop');await poll();if(matchStarted)buildFinalReport('manual_finish');}
+  catch(error){notice(error.message);}
+});
+function reportData(){return buildMatchReport(state,$('alliance').value);}
+function renderFinalReport(){
+  const root=$('final-report');if(!root)return;
+  root.hidden=!finalReport;
+  if(!finalReport)return;
+  const r=finalReport,summary=$('report-summary');
+  summary.replaceChildren();
+  const fields=[
+    ['Resultado Java',r.javaResult],['Missão','Não avaliada pelo simulador'],
+    ['Duração',Number(r.durationSeconds).toFixed(2)+' s'],
+    ['Perfil de regras',r.ruleStatus?.profile?.mode==='custom'?'Personalizado':r.ruleStatus?.profile?'Oficial — regras implementadas':'não registrado'],
+    ['Fase final',phaseNames[r.ruleStatus?.phase]||'não registrada'],
+    ['Pontuação estimada',r.estimatedPoints.partialTotal+' pts'],
+    ['HIVE · TIPs',r.estimatedPoints.hiveTipsDidactic+' simulado(s) · '+(r.estimatedPoints.hive_tips||0)+' pts'],
+    ['Peças na CELL',(r.estimatedPoints.hive_elements||0)+' pts'],
+    ['FLOWERS',(r.estimatedPoints.flowers||0)+' pts'],
+    ['Bônus NECTAR inferior',(r.estimatedPoints.bottom_nectar_bonus||0)+' pts'],
+    ['GARDENS',(r.estimatedPoints.gardens||0)+' pts'],
+    ['Pontos recebidos por penalidades',(r.estimatedPoints.penalties_received||0)+' pts'],
+    ['POLLEN/NECTAR coletados',r.activity.collected],
+    ['Elementos lançados',r.activity.launched],
+    ['Tentativas com estoque vazio',r.activity.emptyFeedAttempts??'não registrado'],
+    ['Acertos no HIVE',r.activity.hits??'não registrado'],
+    ['Tiros que chegaram ao piso sem acerto',r.activity.misses??'não registrado'],
+    ['Tiros ainda sem resultado',r.activity.pending??'não registrado'],
+    ['Avisos de diagnóstico',r.activity.diagnostics],
+    ['Penalidades registradas',r.ruleStatus?.penalty_count??r.ruleStatus?.penalties?.length??0]
+  ];
+  for(const [label,value] of fields){const p=document.createElement('p');p.textContent=label+': '+value;summary.append(p);}
+}
+function buildFinalReport(reason){
+  finalReport=reportData();finalReport.endReason=reason;
+  matchStarted=false;
+  try{localStorage.setItem(REPORT_KEY,JSON.stringify(finalReport));}catch{}
+  renderFinalReport();notice('Relatório final disponível. Término do Java não equivale à conclusão da missão.');
+}
+$('report-json').addEventListener('click',()=>{if(finalReport)download(JSON.stringify(finalReport,null,2),'meca-sim-relatorio.json');});
+$('report-csv').addEventListener('click',()=>{
+  if(!finalReport)return;
+  download(reportCsv(finalReport),'meca-sim-relatorio.csv','text/csv;charset=utf-8');
+});
+$('dismiss-report').addEventListener('click',()=>{
+  finalReport=null;try{localStorage.removeItem(REPORT_KEY);}catch{}renderFinalReport();notice('Relatório descartado.');
+});
+action('reset',async()=>{resetReplay();shot=null;javaShots=[];lastJavaLaunchId=0;await api('reset',{config:config()});});
+action('clear-shots',()=>{shot=null;setShotResult('Prévia limpa. Para reiniciar a partida e as peças, use Reiniciar posição ou INIT.','info');});
 action('export',async()=>{
   const blob=new Blob([JSON.stringify({version:'0.2',config:config(),launcher:Object.fromEntries(launchIds.map(id=>[id,id==='shot-mode'?$(id).value:num(id)])),result:state},null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob), a=document.createElement('a');a.href=url;a.download='meca-sim-resultado.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
@@ -280,19 +455,19 @@ $('load-project').addEventListener('change',async e=>{
 });
 action('csv',async()=>{const response=await fetch('/api/recording');if(!response.ok)throw Error('Falha ao exportar');const data=await response.json();download([data.columns.join(','),...data.rows.map(row=>row.join(','))].join('\n'),'meca-sim-trajetoria.csv','text/csv');});
 action('calc-encoder',()=>{$('ticks_per_m').value=encoderScale(num('encoder-ticks'),num('gear-ratio'),num('wheel-diameter')/1000).toFixed(6);persist();notice('Conversão calculada; aplicada no próximo INIT ou Reiniciar posição.');});
-action('solve-shot',()=>{
+action('solve-shot',async()=>{
   const v=launchValues();if(!v.valid)throw Error('Confira os dados do shooter.');
   const result=targetSolution(state,v.lateral,v.forward,v.height,v.elevation,v.tx,v.ty,v.th);
   if(result.speed>30)throw Error('Velocidade necessária acima de 30 m/s; altere a elevação ou a posição.');
   if($('shot-mode').value==='force')$('force').value=forceFromSpeed(result.speed,v.mass,v.stroke,v.efficiency).toFixed(4);
   $('speed').value=result.speed.toFixed(6);$('azimuth').value=result.azimuth.toFixed(6);
-  shot=null;refreshShot();persist();notice('Mira e energia ideais calculadas. Confira o resultado e valide no robô real.');
+  shot=null;refreshShot();persist();await syncLauncher();notice('Mira e energia ideais calculadas. Confira o resultado e valide no robô real.');
 });
 action('shoot',async()=>{
   const values=launchValues(),cell=$('arena').value==='biobuzz'?selectedHive():null;
   if(!values.valid)throw new Error('Confira altura, velocidade, elevação e coordenadas do lançador.');
   if($('arena').value==='biobuzz'&&!cell)throw new Error('Clique em uma CELL vermelha ou azul do HIVE para selecionar a mira.');
-  const candidate={...values,cellId:cell?.id||'',origin:launcher(state,values.lateral,values.forward),yaw:state.yaw,start:performance.now(),hiveAngle:(hiveFlips[cell?.team||'red']%2?1:-1)*HIVE_SIDE.angleDeg};
+  const candidate={...values,cellId:cell?.id||'',origin:launcher(state,values.lateral,values.forward),yaw:state.yaw,start:performance.now(),hiveAngle:hiveOrientation(cell?.team||'red')*HIVE_SIDE.angleDeg};
   candidate.impact=cell?hiveShotImpact(candidate,cell):{hit:false,reason:'arena livre'};
   if(cell&&activeCellId(cell.team)!==cell.id)candidate.impact={hit:false,reason:'a CELL escolhida está virada para baixo'};
   candidate.restIndex=cell?scoredShots.filter(ball=>ball.cellId===cell.id).length:0;
@@ -310,10 +485,11 @@ $('elevation-preview').addEventListener('input',()=>{
   $('elevation').value=$('elevation-preview').value;
   refreshLauncherReadouts();refreshShot();persist();
 });
+$('elevation-preview').addEventListener('change',syncLauncher);
 function refreshDriveMode(){const mecanum=$('drivetrain').value==='mecanum';$('mecanum-names').hidden=!mecanum;$('route-panel').hidden=mecanum;}
 $('drivetrain').addEventListener('change',()=>{refreshDriveMode();persist();notice($('drivetrain').value==='mecanum'?'Mecanum configurado: use FL, FR, BL e BR no Java.':'Diferencial configurado: Mequinha usa ME e MD.');});
-$('match-mode').addEventListener('change',()=>{refreshMatchLimit();persist();notice($('match-mode').value==='auto'?'Autônomo limitado a 30 s.':'TeleOp limitado a 2 min.');});
-$('timer-enabled').addEventListener('change',()=>{refreshMatchLimit();persist();notice($('timer-enabled').checked?'Cronômetro de partida ativado.':'Cronômetro de partida desativado; STOP manual continua disponível.');});
+$('match-mode').addEventListener('change',()=>{$('manual-phase').value=$('match-mode').value;refreshMatchLimit();refreshRulesControls();persist();notice($('match-mode').value==='auto'?'Autônomo limitado a 30 s.':'TeleOp limitado a 2 min.');});
+$('timer-enabled').addEventListener('change',()=>{refreshMatchLimit();refreshRulesControls();persist();notice($('timer-enabled').checked?'Cronômetro de partida ativado.':'Tempo livre: escolha a fase na aba Regras. STOP manual continua disponível.');});
 function switchWorkspace(mode){
   const main=document.querySelector('main');
   const next=['overview','code','paths'].includes(mode)?mode:'overview';
@@ -340,7 +516,7 @@ document.querySelectorAll('[data-workspace]').forEach(button=>button.addEventLis
 $('editor-full').addEventListener('click',()=>switchWorkspace(document.querySelector('main').classList.contains('mode-code')?'overview':'code'));
 document.querySelectorAll('[data-tab]').forEach(button=>button.addEventListener('click',()=>{
   document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('selected',b===button));
-  ['code','robot','launcher'].forEach(name=>$('tab-'+name).hidden=name!==button.dataset.tab);
+  ['code','robot','launcher','rules'].forEach(name=>$('tab-'+name).hidden=name!==button.dataset.tab);
 }));
 function refreshHighlight(){
   // Textarea nativo fica sempre visível: evita uma metade preta causada por
@@ -392,8 +568,8 @@ function insertCompletion(term){
 }
 $('source').addEventListener('click',()=>showSuggestions());
 $('source').addEventListener('keyup',()=>showSuggestions());
-[...configIds,...launchIds].forEach(id=>$(id).addEventListener('change',()=>{if(launchIds.includes(id))refreshShot();persist();}));
-launchIds.forEach(id=>$(id).addEventListener('input',()=>{refreshLauncherReadouts();refreshShot();persist();}));
+[...configIds,...visualIds,...launchIds].forEach(id=>$(id).addEventListener('change',()=>{if(launchIds.includes(id)){refreshShot();clearTimeout(launcherSyncTimer);syncLauncher();}persist();}));
+launchIds.forEach(id=>$(id).addEventListener('input',()=>{refreshLauncherReadouts();refreshShot();scheduleLauncherSync();persist();}));
 $('example').addEventListener('change',async()=>{
   try{const choice=$('example').value;
     if(choice.startsWith('saved:')){const item=library().find(x=>x.name===choice.slice(6));if(item)await loadProjectData(item.project);}
@@ -403,6 +579,9 @@ $('example').addEventListener('change',async()=>{
 });
 $('source').addEventListener('keydown',event=>{
   const src=event.target;
+  if((event.ctrlKey||event.metaKey)&&!event.altKey&&event.key.toLowerCase()==='s'){
+    event.preventDefault();$('save-project').click();return;
+  }
   if(event.ctrlKey&&event.code==='Space'){event.preventDefault();showSuggestions(true);return;}
   if(event.key==='Escape'){$('code-suggest').hidden=true;return;}
   if(event.key==='Tab'){
@@ -440,7 +619,7 @@ function refreshShot(){
     const test=shotFeasibility(pose,v);
     const cell=$('arena').value==='biobuzz'?selectedHive():null;
     const simulated=cell?hiveShotImpact({...v,origin:launcher(pose,v.lateral,v.forward),
-      yaw:pose.yaw,hiveAngle:(hiveFlips[cell.team]%2?1:-1)*HIVE_SIDE.angleDeg},cell):null;
+      yaw:pose.yaw,hiveAngle:hiveOrientation(cell.team)*HIVE_SIDE.angleDeg},cell):null;
     const valid=simulated?simulated.hit&&activeCellId(cell.team)===cell.id:test.possible;
     verdict.dataset.possible=valid?'yes':'no';
     verdict.textContent=(simulated
@@ -459,6 +638,22 @@ function canvasContext(canvas) {
   const ctx=canvas.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);return {ctx,w,h};
 }
 function geometry() {const r=top.getBoundingClientRect(),scale=Math.min((r.width-70)/3.66,(r.height-40)/3.66);return {scale,ox:(r.width-3.66*scale)/2,oy:(r.height+3.66*scale)/2};}
+function pieceGlyph(c,x,y,r,kind,fill,stroke){
+  c.fillStyle=fill;c.strokeStyle=stroke;c.lineWidth=1.3;c.beginPath();
+  if(kind==='NECTAR'){
+    for(let i=0;i<6;i++){
+      const a=Math.PI/6+i*Math.PI/3,qx=x+r*Math.cos(a),qy=y+r*Math.sin(a);
+      if(i)c.lineTo(qx,qy);else c.moveTo(qx,qy);
+    }
+    c.closePath();
+  }else c.arc(x,y,r,0,Math.PI*2);
+  c.fill();c.stroke();c.beginPath();
+  if(kind==='NECTAR'){
+    c.moveTo(x-r*.23,y-r*.55);c.lineTo(x-r*.23,y+r*.55);
+    c.moveTo(x+r*.23,y-r*.55);c.lineTo(x+r*.23,y+r*.55);
+  }else{c.moveTo(x-r*.55,y);c.lineTo(x+r*.55,y);}
+  c.strokeStyle=kind==='NECTAR'?'#ffffffaa':'#fff2ad';c.lineWidth=1;c.stroke();
+}
 function drawTop(now) {
   const {ctx:c,w,h}=canvasContext(top),g=geometry();
   const project=(x,y)=>[g.ox+x*g.scale,g.oy-y*g.scale];
@@ -466,7 +661,13 @@ function drawTop(now) {
   c.lineWidth=1;c.font='10px system-ui';
   for(let i=0;i<=6;i++){const p=i*3.66/6,[x,y]=project(p,p);c.strokeStyle='#242c37';c.beginPath();c.moveTo(x,g.oy);c.lineTo(x,g.oy-3.66*g.scale);c.moveTo(g.ox,y);c.lineTo(g.ox+3.66*g.scale,y);c.stroke();c.fillStyle='#627085';c.fillText(p.toFixed(2),x-9,g.oy+15);c.fillText(p.toFixed(2),g.ox-28,y+3);}
   c.strokeStyle='#536277';c.strokeRect(g.ox,g.oy-3.66*g.scale,3.66*g.scale,3.66*g.scale);
-  c.strokeStyle='#ff852e80';c.lineWidth=2;c.beginPath();state.trail.forEach((p,i)=>{const q=project(...p);i?c.lineTo(...q):c.moveTo(...q);});c.stroke();
+  (state.elements||[]).filter(item=>['field','flower','deposited','launched','entering','falling'].includes(item.status)).forEach(item=>{
+    const q=project(item.x,item.y),radius=Math.max(3,item.radius*g.scale);
+    const nectar=item.kind==='NECTAR',fill=nectar?(item.team==='red'?'#e34f5a':'#4c91e8'):'#f1ce54';
+    if(item.status==='entering'||item.status==='falling'){c.beginPath();c.arc(q[0],q[1],radius+4,0,Math.PI*2);c.strokeStyle='#ffffffcc';c.lineWidth=1.5;c.stroke();}
+    pieceGlyph(c,q[0],q[1],item.status==='launched'?Math.max(4,radius):radius,item.kind,fill,nectar?'#f7f8ff':'#80621f');
+  });
+  if($('show-trail').checked&&state.trail.length>1){c.strokeStyle='#ff852e80';c.lineWidth=2;c.beginPath();state.trail.forEach((p,i)=>{const q=project(...p);i?c.lineTo(...q):c.moveTo(...q);});c.stroke();}
   if(replayIndex>=0){const row=replayRows[replayIndex];if(row){c.strokeStyle='#56e4bd';c.beginPath();replayRows.slice(0,replayIndex+1).forEach((r,i)=>{const q=project(r[1],r[2]);i?c.lineTo(...q):c.moveTo(...q);});c.stroke();}}
   if(routePoints.length){c.setLineDash([5,4]);c.strokeStyle='#ffcc67';c.lineWidth=2;c.beginPath();
     const first=project(num('x'),num('y'));c.moveTo(...first);
@@ -476,21 +677,39 @@ function drawTop(now) {
   const shown=replayIndex>=0?{...state,x:replayRows[replayIndex][1],y:replayRows[replayIndex][2],yaw:replayRows[replayIndex][3]}:state;
   const corner=(x,y)=>{const r=rotate(x,y,shown.yaw);return project(shown.x+r[0],shown.y+r[1]);};
   c.beginPath();[[-1,-1],[1,-1],[1,1],[-1,1]].forEach(([x,y],i)=>{const p=corner(x*state.width/2,y*state.length/2);i?c.lineTo(...p):c.moveTo(...p);});c.closePath();const robotColor=$('robot-color').value||'#ff7a1a';c.fillStyle=robotColor+'33';c.fill();c.strokeStyle=robotColor;c.stroke();
+  const detailColor=$('robot-detail-color').value||'#f2eee8',style=$('robot-style').value;
+  const detail=(x0,y0,x1,y1)=>{c.beginPath();[[x0,y0],[x1,y0],[x1,y1],[x0,y1]].forEach(([x,y],i)=>{const p=corner(x,y);i?c.lineTo(...p):c.moveTo(...p);});c.closePath();c.fillStyle=detailColor+'cc';c.fill();};
+  if(style==='stripe')detail(-Math.min(.035,state.width*.12),-state.length*.36,Math.min(.035,state.width*.12),state.length*.36);
+  else if(style==='double')for(const sideSign of [-1,1]){const x=sideSign*state.width*.27;detail(x-.014,-state.length*.34,x+.014,state.length*.34);}
+  else if(style==='front')detail(-state.width*.30,state.length*.08,state.width*.30,state.length*.43);
+  const elementsById=new Map((state.elements||[]).map(item=>[item.id,item]));
+  const preloads=(state.inventory_ids||[]).map(id=>elementsById.get(id)).filter(item=>item?.status==='robot');
+  preloads.forEach((item,index)=>{
+    const cols=Math.min(4,preloads.length),rows=Math.ceil(preloads.length/cols),local=[(index%cols-(cols-1)/2)*state.width/(cols+1),-state.length*.15+(Math.floor(index/cols)-(rows-1)/2)*state.length/(rows+2)];
+    const p=corner(local[0],local[1]);pieceGlyph(c,p[0],p[1],Math.max(4,item.radius*g.scale),item.kind,
+      item.kind==='NECTAR'?(item.team==='blue'?'#4c91e8':'#e34f5a'):'#f1ce54',item.kind==='NECTAR'?'#fff':'#fff2ad');
+  });
+  const intakeReach=Number.isFinite(state.intake?.reach)?state.intake.reach:num('intake_reach');
+  const intakeCorners=[[-shown.width/2,shown.length/2],[shown.width/2,shown.length/2],[shown.width/2,shown.length/2+intakeReach],[-shown.width/2,shown.length/2+intakeReach]].map(([x,y])=>{const r=rotate(x,y,shown.yaw);return project(shown.x+r[0],shown.y+r[1]);});
+  c.beginPath();intakeCorners.forEach((p,i)=>i?c.lineTo(...p):c.moveTo(...p));c.closePath();c.fillStyle=state.intake?.active?'#51d1bb55':'#51d1bb12';c.fill();c.strokeStyle=state.intake?.active?'#51d1bb':'#51d1bb66';c.setLineDash([4,3]);c.stroke();c.setLineDash([]);
   const center=project(shown.x,shown.y),front=corner(0,shown.length*.6);c.beginPath();c.moveTo(...center);c.lineTo(...front);c.stroke();c.fillStyle='#fff';c.beginPath();c.arc(...center,3,0,Math.PI*2);c.fill();
   for(const sign of [-1,1]){const a=corner(sign*state.width/2,-state.length*.24),b=corner(sign*state.width/2,state.length*.24);c.strokeStyle='#d6dfeb';c.lineWidth=5;c.beginPath();c.moveTo(...a);c.lineTo(...b);c.stroke();}
   const v=launchValues();if(!v.valid)return;
   const check=shotFeasibility(shown,v);
   const gateCell=$('arena').value==='biobuzz'?selectedHive():null;
   const gateHit=gateCell?hiveShotImpact({...v,origin:launcher(shown,v.lateral,v.forward),
-    yaw:shown.yaw,hiveAngle:(hiveFlips[gateCell.team]%2?1:-1)*HIVE_SIDE.angleDeg},gateCell):null;
+    yaw:shown.yaw,hiveAngle:hiveOrientation(gateCell.team)*HIVE_SIDE.angleDeg},gateCell):null;
   const origin=launcher(shown,v.lateral,v.forward),start=project(...origin),target=project(v.tx,v.ty),dir=rotate(0,1,shown.yaw+v.azimuth),f=flight(v.height,v.speed,v.elevation),impactPoint=gateHit?.impactPoint||gateHit,endDistance=Number.isFinite(impactPoint?.distance)?impactPoint.distance:(check.along>0?Math.min(f.range,check.along):f.range),end=project(origin[0]+dir[0]*endDistance,origin[1]+dir[1]*endDistance);
   c.lineWidth=1;c.setLineDash([5,5]);c.strokeStyle='#6b7584';c.beginPath();c.moveTo(...start);c.lineTo(...target);c.stroke();c.strokeStyle='#51d1bb';c.beginPath();c.moveTo(...start);c.lineTo(...end);c.stroke();c.setLineDash([]);
   c.fillStyle='#51d1bb';c.beginPath();c.arc(...start,4,0,Math.PI*2);c.fill();c.strokeStyle=(gateHit?gateHit.hit:check.possible)?'#55d9ab':'#ef727c';c.lineWidth=2;c.beginPath();c.arc(...target,9,0,Math.PI*2);c.moveTo(target[0]-14,target[1]);c.lineTo(target[0]+14,target[1]);c.moveTo(target[0],target[1]-14);c.lineTo(target[0],target[1]+14);c.stroke();
   if(impactPoint&&Number.isFinite(impactPoint.x)&&Number.isFinite(impactPoint.y)){const q=project(impactPoint.x,impactPoint.y);c.fillStyle='#ffe66d';c.strokeStyle=gateHit?.hit?'#fff7bd':'#ef727c';c.lineWidth=2;c.beginPath();c.arc(...q,6,0,Math.PI*2);c.fill();c.stroke();c.fillStyle='#1c2028';c.font='bold 9px system-ui';c.textAlign='center';c.fillText(gateHit?.hit?'ENTROU':'IMPACTO',q[0],q[1]-10);}
-  if(shot){const q=currentShotBall(now);if(q){const pos=project(q.x,q.y);c.fillStyle='#fff4a9';c.beginPath();c.arc(...pos,5,0,Math.PI*2);c.fill();c.strokeStyle='#bd924e';c.stroke();}}
+  for(const ballShot of shot?[shot]:[]){
+    const q=currentShotBall(now,ballShot);if(q&&q.fall<1){const pos=project(q.x,q.y);c.fillStyle=ballShot.kind==='NECTAR'?(ballShot.team==='blue'?'#4c91e8':'#e34f5a'):'#fff4a9';c.beginPath();c.arc(...pos,ballShot.kind==='NECTAR'?6:5,0,Math.PI*2);c.fill();c.strokeStyle='#bd924e';c.stroke();}
+  }
   $('bounds').textContent=state.collision?'Contato com parede · rodas podem patinar':'Paredes externas físicas · frente +Y · yaw positivo ↶';
 }
 top.addEventListener('click',async event=>{
+  top.focus();
   const rect=top.getBoundingClientRect(),g=geometry();
   const x=(event.clientX-rect.left-g.ox)/g.scale,y=(g.oy-event.clientY+rect.top)/g.scale;
   if(routePicking&&!event.shiftKey&&!pickingStart){
@@ -582,27 +801,38 @@ $('timeline-play').addEventListener('click',()=>{
 $('timeline-exit').addEventListener('click',()=>{resetReplay();readouts();});
 
 function drawSide(now) {
-  const {ctx:c,w,h}=canvasContext(side),v=shot||launchValues();if(!v.valid){$('shot-info').textContent='Confira os parâmetros do lançador.';return;}
+  const {ctx:c,w,h}=canvasContext(side),sideShot=shot||javaShots.at(-1)||null,v=sideShot||launchValues();if(!v.valid){$('shot-info').textContent='Confira os parâmetros do lançador.';return;}
   const viewed=replayIndex>=0&&replayRows[replayIndex]?{...state,x:replayRows[replayIndex][1],y:replayRows[replayIndex][2],yaw:replayRows[replayIndex][3]}:state;
-  const origin=shot?.origin||launcher(viewed,v.lateral,v.forward),yaw=shot?.yaw??viewed.yaw,dir=rotate(0,1,yaw+v.azimuth),dx=v.tx-origin[0],dy=v.ty-origin[1],along=dx*dir[0]+dy*dir[1],cross=Math.abs(dx*dir[1]-dy*dir[0]),f=flight(v.height,v.speed,v.elevation);
+  const origin=sideShot?.origin||launcher(viewed,v.lateral,v.forward),yaw=sideShot?.yaw??viewed.yaw,dir=rotate(0,1,yaw+v.azimuth),dx=v.tx-origin[0],dy=v.ty-origin[1],along=dx*dir[0]+dy*dir[1],cross=Math.abs(dx*dir[1]-dy*dir[0]),f=flight(v.height,v.speed,v.elevation);
   const a=v.azimuth*Math.PI/180,half=(Math.abs(Math.sin(a))*state.width+Math.abs(Math.cos(a))*state.length)/2,offset=v.lateral*(-Math.sin(a))+v.forward*Math.cos(a),left=-offset-half,right=-offset+half;
   const minX=Math.min(-.6,left-.1,along-.65),maxX=Math.max(2.2,along+.8,right+.1),peak=v.height+(v.speed*Math.sin(v.elevation*Math.PI/180))**2/(2*9.81),maxH=Math.max(1.5,peak+.3,v.th+.3),sx=(w-55)/(maxX-minX),sy=(h-35)/maxH;
   const point=(x,y)=>[40+(x-minX)*sx,h-25-y*sy];c.font='10px system-ui';c.lineWidth=1;
-  const sideCell=hiveCellById(shot?.cellId||selectedHiveId);
-  const redCell=sideCell?.team==='red'?sideCell:hiveCellById('red-lower');
-  drawArenaSide(c,point,$('arena').value,along,v.th,redCell,scoredShots,hiveStatus('red',now));
+  const sideCell=hiveCellById(sideShot?.cellId||selectedHiveId);
+  drawArenaSide(c,point,$('arena').value,along,v.th,sideCell,scoredShots,hiveStatus(sideCell?.team||'red',now));
+  for(const item of (state.elements||[])){
+    if(item.status!=='falling'||item.flight?.cell_id!==sideCell?.id)continue;
+    const distance=(item.x-origin[0])*dir[0]+(item.y-origin[1])*dir[1];
+    const q=point(distance,item.flight.z||0);
+    pieceGlyph(c,q[0],q[1],item.kind==='NECTAR'?6:5,item.kind,
+      item.kind==='NECTAR'?(item.team==='blue'?'#4c91e8':'#e34f5a'):'#f1ce54','#fff');
+  }
   for(let i=0;i<=4;i++){const value=i*maxH/4,p=point(0,value);c.strokeStyle='#242c37';c.beginPath();c.moveTo(...p);c.lineTo(w-10,p[1]);c.stroke();c.fillStyle='#627085';c.fillText(value.toFixed(1)+'m',5,p[1]+3);}
   c.strokeStyle='#536277';c.beginPath();c.moveTo(...point(0,0));c.lineTo(...point(maxX,0));c.stroke();
+  (state.elements||[]).filter(item=>['entering','falling','launched','field'].includes(item.status)).forEach(item=>{
+    const sxWorld=(item.x-origin[0])*dir[0]+(item.y-origin[1])*dir[1],q=point(sxWorld,item.flight?.z??item.flight?.height??item.radius);
+    c.fillStyle=item.kind==='POLLEN'?'#f1ce54':item.team==='blue'?'#72b4ff':'#ff7780';c.strokeStyle='#fff';c.lineWidth=1.5;
+    c.beginPath();c.arc(...q,5,0,Math.PI*2);c.fill();c.stroke();
+  });
   // Projeção do chassi no eixo do tiro; o lançador está em x=0.
   c.fillStyle='#ff852e20';c.strokeStyle='#ff852e';const p=point(left,.30);c.fillRect(p[0],p[1],(right-left)*sx,.30*sy);c.strokeRect(p[0],p[1],(right-left)*sx,.30*sy);
   c.strokeStyle='#f07a7b';c.lineWidth=2;c.setLineDash([7,4]);c.beginPath();
-  const arcEnd=shot?.impact?.hit?shot.impact.distance:f.range;
+  const arcEnd=sideShot?.impact?.hit?sideShot.impact.distance:f.range;
   for(let i=0;i<=120;i++){const x=arcEnd*i/120,q=point(x,Math.max(0,heightAt(x,v.height,v.speed,v.elevation)));i?c.lineTo(...q):c.moveTo(...q);}
   c.stroke();c.setLineDash([]);
   const check=shotFeasibility(viewed,v);
   const viewedCell=$('arena').value==='biobuzz'?selectedHive():null;
   const checkHive=viewedCell?hiveShotImpact({...v,origin:launcher(viewed,v.lateral,v.forward),
-    yaw:viewed.yaw,hiveAngle:(hiveFlips[viewedCell.team]%2?1:-1)*HIVE_SIDE.angleDeg},viewedCell):null;
+    yaw:viewed.yaw,hiveAngle:hiveOrientation(viewedCell.team)*HIVE_SIDE.angleDeg},viewedCell):null;
   const target=point(along,v.th);c.fillStyle=(checkHive?checkHive.hit:check.possible)?'#5bd8a8':'#ef727c';c.fillRect(target[0]-6,target[1]-6,12,12);
   const sideImpact=checkHive?.impactPoint||checkHive;if(sideImpact&&Number.isFinite(sideImpact.distance)&&Number.isFinite(sideImpact.height)){const impact=point(sideImpact.distance,sideImpact.height);c.fillStyle='#ffe66d';c.strokeStyle=checkHive?.hit?'#fff7bd':'#ef727c';c.lineWidth=2;c.beginPath();c.arc(...impact,6,0,Math.PI*2);c.fill();c.stroke();c.fillStyle='#fff4cf';c.font='bold 9px system-ui';c.textAlign='center';c.fillText(checkHive?.hit?'ENTRADA':'IMPACTO',impact[0],impact[1]-10);}
   c.strokeStyle=c.fillStyle;c.setLineDash([3,5]);c.beginPath();c.moveTo(...point(along,0));c.lineTo(...target);c.stroke();c.setLineDash([]);
@@ -611,7 +841,7 @@ function drawSide(now) {
   const ramp=point(-reach,Math.max(0,v.height-reach*Math.tan(angle))),muzzle=point(0,v.height);
   c.strokeStyle='#ffb564';c.lineWidth=5;c.beginPath();c.moveTo(...ramp);c.lineTo(...muzzle);c.stroke();
   c.fillStyle='#ffb564';c.beginPath();c.arc(...muzzle,4,0,Math.PI*2);c.fill();
-  if(shot){const ball=currentShotBall(now);if(ball){const q=point(ball.along,ball.z);c.fillStyle='#fff4a9';c.beginPath();c.arc(...q,5,0,Math.PI*2);c.fill();c.strokeStyle='#b98944';c.stroke();}}
+  if(shot){const ball=currentShotBall(now,shot);if(ball){const q=point(ball.along,ball.z);c.fillStyle='#fff4a9';c.beginPath();c.arc(...q,5,0,Math.PI*2);c.fill();c.strokeStyle='#b98944';c.stroke();}}
   const at=along>=0&&along<=f.range?heightAt(along,v.height,v.speed,v.elevation):null;
   $('shot-info').textContent=((checkHive?checkHive.hit:check.possible)?'POSSÍVEL':'NÃO ATINGE O ALVO')+
     ' · v₀ '+v.speed.toFixed(2)+' m/s · alcance '+f.range.toFixed(2)+' m · distância horizontal '+along.toFixed(2)+
@@ -620,6 +850,8 @@ function drawSide(now) {
 }
 function readouts() {
   $('status').textContent=state.status;$('clock').textContent=state.time.toFixed(2).padStart(5,'0')+' s';
+  $('finish-match').disabled=state.status!=='executando';
+  if(matchStarted&&['parado','concluído','erro'].includes(state.status))buildFinalReport(state.status==='concluído'?'java_finished':state.status==='erro'?'java_error':'stopped');
   const visible=replayIndex>=0&&replayRows[replayIndex]?{x:replayRows[replayIndex][1],y:replayRows[replayIndex][2],yaw:replayRows[replayIndex][3]}:state;
   const shotPoseKey=visible.x+','+visible.y+','+visible.yaw;
   if(lastShotPoseKey!==shotPoseKey){lastShotPoseKey=shotPoseKey;refreshShot();}
@@ -627,10 +859,37 @@ function readouts() {
   $('imu-yaw').textContent=Number.isFinite(state.imu_yaw)?state.imu_yaw.toFixed(1)+'°':'—';
   const hive=selectedHive();
   const progress=$('hive-progress');
-  if(hive&&progress)progress.textContent='HIVE '+(hive.team==='red'?'vermelho':'azul')+
-    ' · '+hiveCounts[hive.team]+'/'+SIM_TIP_POLLS+' POLLEN · '+hiveFlips[hive.team]+
-    ' tombamento(s) · abertura ativa: '+hiveCellById(activeCellId(hive.team)).name;
+  if(hive&&progress){const h=state.hives?.[hive.team];progress.textContent=h
+    ? `HIVE ${hive.team==='red'?'vermelho':'azul'} · ${h.POLLEN} POLLEN + ${h.NECTAR} NECTAR · carga ${h.load.toFixed(2)}/${h.threshold} (treino) · ${h.tips} tombamento(s) · abertura ativa: ${hiveCellById(h.cell_id).name}`
+    : 'Aguardando estado do HIVE';}
+  $('build-id').textContent=state.build||'';
+  renderControlGuide();
+  const stock=state.inventory||{POLLEN:0,NECTAR:0},intake=state.intake||{};
+  $('inventory').textContent=`POLLEN ${stock.POLLEN||0} · NECTAR ${stock.NECTAR||0} · ${(intake.collected||0)} coletada(s)`;
+  $('intake-status').textContent=intake.active
+    ? `Intake MI ativo · captura frontal até ${intake.capacity||num('intake_capacity')} peça(s)`
+    : `MI parado · ${(stock.POLLEN||0)+(stock.NECTAR||0)}/${intake.capacity||num('intake_capacity')} no estoque`;
+  $('inventory-pieces').textContent='Armazenamento: '+((state.inventory_ids||[]).join(' · ')||'vazio');
+  refreshRulesControls();
+  const rules=state.rules||{};
+  const entryButton=$('introduce-nectar');
+  entryButton.disabled=state.status!=='executando'||(rules.nectar_available||0)<1;
+  $('rules-status').textContent='Human Player · NECTAR '+(rules.nectar_available||0)+' disponível(is) / '+(rules.nectar_total||5)+
+    ' · TIPs simulados: '+((rules.hive_tips_didactic||{})[rules.alliance]||0)+
+    ' · G410: '+(rules.penalty_count??(rules.penalties||[]).length)+' registro(s)';
+  const flowerEvents=state.flower_events||[];
+  $('flower-status').textContent=flowerEvents.length
+    ? 'FLOWER · '+flowerEvents.slice(-8).map(event=>`#${event.sequence} ${event.kind} → F${event.flower}`).join(' · ')
+    : `FLOWER · aguardando servo “${$('flower-servo-name').value}” e proximidade`;
   $('sensor-status').textContent=state.imu_frozen?'Falha simulada ativa: IMU travado. Yaw real e yaw medido podem divergir.':'';
+  const buttonNames=['LT','RT','A','B','X','Y','LB','RB','Back','Start','LS click','RS click','D-pad ↑','D-pad ↓','D-pad ←','D-pad →'];
+  const gamepads=state.gamepads||[];
+  $('input-status').textContent=gamepads.map((pad,index)=>{
+    const active=buttonNames.filter((name,i)=>(pad[i+4]||0)>.5);
+    const axes=(pad.slice(0,4).some(value=>Math.abs(value)>.05)
+      ?' · eixos '+pad.slice(0,4).map(value=>Number(value).toFixed(1)).join('/'):'');
+    return 'G'+(index+1)+': '+(active.join(', ')||'neutro')+axes;
+  }).join(' · ');
   const warnings=Array.isArray(state.diagnostics)?state.diagnostics:[];
   $('diagnostic-count').textContent=warnings.length+' aviso(s)';
   const diagKey=JSON.stringify(warnings);
@@ -667,22 +926,53 @@ function readouts() {
   if(signature!==lastMotorSignature){lastMotorSignature=signature;
   $('motors').replaceChildren();Object.entries(state.motors).forEach(([name,m])=>{const node=document.createElement('div');node.className='motor';const label=document.createElement('strong');label.textContent=name;const value=document.createElement('span');value.textContent=`P ${m.power.toFixed(2)} · ${m.encoder} ticks`;const bar=document.createElement('div');bar.className='bar';const fill=document.createElement('i');fill.style.width=Math.abs(m.power)*100+'%';bar.append(fill);node.append(label,value,bar);$('motors').append(node);});}
 }
+function receiveJavaLaunches(){
+  for(const event of state.launches||[]){
+    if(event.id<=lastJavaLaunchId)continue;
+    lastJavaLaunchId=event.id;
+    const cell=hiveCellById(event.hive)||selectedHive();
+    if(!cell)continue;
+    const hiveAngle=hiveOrientation(cell.team)*HIVE_SIDE.angleDeg;
+    const target=hiveSideGeometry(cell,hiveAngle);
+    const v={...launchValues(),lateral:event.lateral,forward:event.forward,height:event.height,
+      speed:event.speed,elevation:event.elevation,azimuth:event.azimuth,
+      tx:cell.x+cell.w/2,ty:cell.y+cell.h/2,th:target.openingHeight,valid:true};
+    const origin=[event.x,event.y],yaw=event.yaw;
+    const impact=hiveShotImpact({...v,origin,yaw,hiveAngle},cell);
+    javaShots.push({...v,origin,yaw,start:performance.now()-Math.max(0,(state.time-event.time)*1000),
+      impact,cellId:cell.id,hiveAngle,restIndex:scoredShots.filter(ball=>ball.cellId===cell.id).length,
+      kind:event.kind,team:event.team||cell.team,pieceId:event.piece_id,launchId:event.id});
+    setShotResult('JAVA LANÇOU '+event.kind+' · '+(impact.hit?'trajetória prevista para a CELL.':'não atinge: '+impact.reason+'.'),'info');
+  }
+}
 async function poll() {
   if(polling)return;polling=true;
-  try{const response=await fetch('/api/state');if(!response.ok)throw Error('Falha ao consultar simulação');state=await response.json();readouts();}
+  try{const response=await fetch('/api/state');if(!response.ok)throw Error('Falha ao consultar simulação');state=await response.json();syncWorldVisuals();receiveJavaLaunches();readouts();}
   catch(e){$('status').textContent='Servidor desconectado';notice('Não foi possível acessar o servidor local. Confira o terminal do Python.');}
   finally{polling=false;}
 }
-const controls=['w','s','a','d','b','x','y',' ','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'];
-document.addEventListener('keydown',e=>{if(['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName))return;const key=e.key.length===1?e.key.toLowerCase():e.key;if(controls.includes(key)){e.preventDefault();keys.add(key);}});
-document.addEventListener('keyup',e=>keys.delete(e.key.length===1?e.key.toLowerCase():e.key));
-window.addEventListener('blur',()=>{focused=false;keys.clear();api('gamepad').catch(()=>{});});
+const normalizedKey=key=>key.length===1?key.toLowerCase():key;
+document.addEventListener('keydown',e=>{
+  const key=normalizedKey(e.key);
+  if(capturingKey){
+    if(key==='Escape'){capturingKey=null;renderKeymap();notice('Remapeamento cancelado.');e.preventDefault();return;}
+    if(['Control','Shift','Alt','Meta'].includes(key))return;
+    if(Object.entries(keyMap).some(([action,value])=>action!==capturingKey&&value===key)){notice('Essa tecla já está atribuída. Escolha outra ou restaure o padrão.');e.preventDefault();return;}
+    keyMap[capturingKey]=key;capturingKey=null;keys.clear();
+    try{localStorage.setItem(KEYMAP_KEY,JSON.stringify(keyMap));}catch{}
+    renderKeymap();notice('Tecla atualizada.');e.preventDefault();return;
+  }
+  if(e.target.closest?.('input,textarea,select,button,a,[contenteditable="true"]'))return;
+  if(Object.values(keyMap).includes(key)){e.preventDefault();keys.add(key);}
+});
+document.addEventListener('keyup',e=>keys.delete(normalizedKey(e.key)));
+window.addEventListener('blur',()=>{focused=false;capturingKey=null;keys.clear();renderKeymap();api('gamepad').catch(()=>{});});
 window.addEventListener('focus',()=>{focused=true;});
 document.addEventListener('visibilitychange',()=>{if(document.hidden){keys.clear();api('stop').catch(()=>{});}});
 async function sendPads(now) {
   if(now-lastPad<40||padBusy)return;lastPad=now;padBusy=true;
   try{const pads=connectedPlayers(navigator.getGamepads?Array.from(navigator.getGamepads()):[]),p1=gamepadValues(focused?pads[0]:null),p2=gamepadValues(focused?pads[1]:null);
-    if(focused&&!pads[0]){p1[1]=Number(keys.has('s'))-Number(keys.has('w'));p1[2]=Number(keys.has('d'))-Number(keys.has('a'));p1[6]=Number(keys.has(' '));['b','x','y'].forEach((k,i)=>p1[7+i]=Number(keys.has(k)));['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].forEach((k,i)=>p1[16+i]=Number(keys.has(k)));}
+    if(focused&&!pads[0])p1.splice(0,p1.length,...keyboardGamepadValues(keys,keyMap));
     for(const [index,expiry] of virtualKeys){
       if(now<expiry)p1[index]=1;else virtualKeys.delete(index);
     }
@@ -691,18 +981,14 @@ async function sendPads(now) {
   }catch{}finally{padBusy=false;}
 }
 function frame(now){
+  const flying=new Set((state.elements||[]).filter(p=>p.status==='launched').map(p=>p.id));
+  javaShots=javaShots.filter(candidate=>flying.has(candidate.pieceId));
   if(shot){
     const elapsed=shotElapsed(now,shot.start),impact=shot.impact?.hit?shot.impact:null;
-    if(impact&&!shot.registered&&elapsed>=impact.time)recordImpact(shot,now);
-    if(impact&&elapsed>=impact.time+.42){
-      if(!shot.tipped){const cell=hiveCellById(shot.cellId);
-        scoredShots.push({cellId:cell.id,x:impact.x,y:impact.y,height:impact.height});}
-      // A bolinha chega ao alvo, cai DENTRO e só então deixa a animação.
-      if(shot.tipped)selectHive(hiveCellById(activeCellId(impact.team)),false);
-      shot=null;
-    }else if(!impact&&elapsed>=flight(shot.height,shot.speed,shot.elevation).time){
-      setShotResult('ERRO · '+(shot.impact?.reason||'lançamento fora da abertura')+'.','error');
-      shot=null;
+    if(impact&&!shot.registered&&elapsed>=impact.time)recordImpact(shot);
+    if(impact&&elapsed>=impact.time+.42)shot=null;
+    else if(!impact&&elapsed>=flight(shot.height,shot.speed,shot.elevation).time){
+      setShotResult('PRÉVIA · não atinge a abertura: '+(shot.impact?.reason||'fora do alvo')+'.','error');shot=null;
     }
   }
   if(replayPlaying&&replayIndex>=0&&replayRows.length>1){
@@ -713,13 +999,34 @@ function frame(now){
   if(!document.hidden&&now-lastDraw>=33){lastDraw=now;drawTop(now);drawSide(now);sendPads(now);}
   requestAnimationFrame(frame);
 }
+action('load-teleop',()=>{
+  if(['compilando','inicializando','executando'].includes(state.status))throw Error('Pare o Java antes de carregar outro programa.');
+  $('source').value=examples['TeleOp · gamepad / teclado'];javaFiles={};zipOpModes=[];selectedJavaPath='';activeSource='';restoreOpModeChoices();
+  $('example').value='TeleOp · gamepad / teclado';$('match-mode').value='teleop';
+  $('manual-phase').value='teleop';refreshRulesControls();
+  alignTeleOpDemoHardware();
+  refreshMatchLimit();refreshHighlight();updateJavaFilesLabel();persist();renderControlGuide();
+  notice('TeleOp carregado: INIT → START → clique na arena. LB coleta; RB lança com MI + MS.');
+});
 async function init() {
-  try{const response=await fetch('/examples');examples=await response.json();Object.keys(examples).forEach(name=>{const option=document.createElement('option');option.value=name;option.textContent=name;$('example').append(option);});
+  try{finalReport=JSON.parse(localStorage.getItem(REPORT_KEY)||'null');}catch{finalReport=null;}
+  try{renderFinalReport();renderKeymap();const response=await fetch('/examples');examples=await response.json();Object.keys(examples).forEach(name=>{const option=document.createElement('option');option.value=name;option.textContent=name;$('example').append(option);});
     refreshExamples();
     const saved=JSON.parse(localStorage.getItem('meca-sim-v02')||'null');if(saved){$('source').value=saved.source||'';javaFiles=saved.files&&typeof saved.files==='object'&&!Array.isArray(saved.files)?saved.files:{};restoreOpModeChoices();updateJavaFilesLabel();Object.entries(saved.values||{}).forEach(([id,value])=>{if($(id))$(id).type==='checkbox'?$(id).checked=Boolean(value):$(id).value=value;});
     if(!Object.prototype.hasOwnProperty.call(saved.values||{},'shot-mode'))$('shot-mode').value='speed';
     if(hiveCellById(saved.hive))selectedHiveId=saved.hive;
-    }else{$('source').value=Object.values(examples)[0];}
+    // Uma configuração antiga e intacta mirava fora do HIVE no START padrão.
+    const old=saved?.values||{};
+    if(old.force==='8'&&old.azimuth==='0'&&old.x==='1.83'&&old.y==='0.65'&&
+       (old['initial-yaw']==='0'||old['initial-yaw']===undefined)&&
+       old.elevation==='78'&&(!saved.hive||saved.hive==='red-lower')&&
+       old['offset-x']==='0.1125'&&old['offset-y']==='0.225'){
+      $('force').value='7.921';$('azimuth').value='29.82';
+      if(old.intake_capacity==='4')$('intake_capacity').value='8';
+      notice('Mira inicial antiga corrigida; confira o veredito antes do disparo.');
+    }
+    }else{$('source').value=examples['TeleOp · gamepad / teclado'];$('example').value='TeleOp · gamepad / teclado';$('match-mode').value='teleop';}
+    restoreRuleFields(saved?.values||{});
     $('walls').checked=true;refreshMatchLimit();selectHive(selectedHive(),false);
     $('field-description').textContent=$('arena').value==='biobuzz'?'BIOBUZZ · layout Desmos; paredes externas físicas, HIVE/FLOWERS livres':'Campo livre · grade cartesiana';
     try{const logo=localStorage.getItem(LOGO_KEY);if(logo?.startsWith('data:image/'))setTeamLogo(logo);}catch{}

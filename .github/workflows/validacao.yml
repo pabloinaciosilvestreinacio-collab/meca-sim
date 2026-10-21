@@ -45,6 +45,8 @@ jobs:
           python -m playwright install --with-deps chromium
       - name: Interface e integração completas
         run: python tests/browser_e2e.py
+      - name: Partida real com intake, inventário e HIVE
+        run: python tests/partida_e2e.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:

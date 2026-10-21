@@ -1,3 +1,19 @@
+# Teste prioritário — correção de partida de 16/10/2026
+
+Confira `partida-integrada-20261016` na Driver Station. Feche qualquer servidor antigo antes de iniciar o pacote novo da branch experimental.
+
+- Clique **Carregar TeleOp com intake/shooter** (o navegador pode ter guardado o código antigo).
+- **Calcular tiro ideal** na aba Lançador → **INIT → START** → foco na arena.
+- Segure **C/RB**: o armazenamento passa de 4 para 3, 2, 1 e 0. Os tiros saem do shooter real; vazio não produz novas peças.
+- No padrão de treino, 3 NECTAR iniciais + 4 POLLEN tombam o HIVE. As sete peças caem e continuam na arena. Essa proporção é calibração didática configurável, não limite oficial.
+- **WASD** move e gira. **Z/LB** aciona somente o intake frontal; peças capturadas saem do piso/FLOWER e aparecem no armazenamento. Soltar desliga.
+- Painel **Controles** mostra as teclas atuais. Gamepad físico conectado tem prioridade.
+- O botão **Prévia de trajetória** não dispara uma peça real nem altera estoque/pontuação. Use o Java (C/RB no exemplo) para testar a partida.
+
+Registre qualquer divergência com screenshot, console e identificação do build. O roteiro geral abaixo permanece útil.
+
+---
+
 # MecaSim 0.3-rc1 — roteiro de testes de 14/10/2026
 
 Este roteiro testa **o simulador no computador**, não o desempenho do robô físico. Não requer Control Hub. Use somente código Java da equipe ou de fontes confiáveis: o código executado **não tem sandbox de segurança**.
