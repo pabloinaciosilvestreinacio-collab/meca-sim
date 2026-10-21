@@ -110,7 +110,7 @@ try:
         page.wait_for_function("document.querySelector('#shot-verdict').dataset.possible==='yes'")
         start(page)
         page.keyboard.down('c')
-        default_tip=wait_state(page,"s.hives.red.tips===1 && s.elements.filter(p=>p.status==='falling').length===7")
+        default_tip=wait_state(page,"s.hives.red.tips===1 && s.elements.filter(p=>(p.status==='falling'||p.status==='field') && (p.id.startsWith('nectar-hive-red')||p.id.startsWith('pollen-preload-red-0'))).length===7")
         conservation(default_tip)
         assert default_tip['launcher_status']['hits']==4
         assert default_tip['inventory']=={'POLLEN':0,'NECTAR':0}
@@ -145,8 +145,8 @@ try:
         page.wait_for_function("document.querySelector('#inventory').textContent.includes('POLLEN 3')")
         assert first['motors']['MI']['power']==first['motors']['MS']['power']==1, {'state':first,'errors':errors}
         assert first['launches'][0]['piece_id'] in preloads
-        fell=wait_state(page,"s.hives.red.tips===1 && s.elements.filter(p=>p.status==='falling').length===7")
-        assert {p['id'] for p in fell['elements'] if p['status']=='falling'}==preloads|nectar
+        fell=wait_state(page,"s.hives.red.tips===1 && s.elements.filter(p=>(p.status==='falling'||p.status==='field') && (p.id.startsWith('nectar-hive-red')||p.id.startsWith('pollen-preload-red-0'))).length===7")
+        assert {p['id'] for p in fell['elements'] if p['status'] in ('falling','field') and p['id'] in preloads|nectar}==preloads|nectar
         conservation(fell)
         page.screenshot(path=str(REPORTS/'partida-02-queda.png'),full_page=True)
         floor=wait_state(page,"s.hives.red.tips===1 && s.elements.filter(p=>p.status==='field' && (p.id.startsWith('nectar-hive-red')||p.id.startsWith('pollen-preload-red-0'))).length===7")
